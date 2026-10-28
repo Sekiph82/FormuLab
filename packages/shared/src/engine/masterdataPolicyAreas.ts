@@ -4,7 +4,7 @@
  * `masterdata.rs`'s `area_for_collection()` — a real, working gate, but
  * with no TypeScript equivalent to stay in parity with, and no mechanism
  * forcing the two to agree if either side changed. This file closes that:
- * it is now the ONE place the 90 allow-listed collection names are grouped
+ * it is now the ONE place the 101 allow-listed collection names are grouped
  * by domain, generated to a JSON fixture
  * (`scripts/generate-role-policy-matrix.ts` ->
  * `masterdataCollectionAreas.generated.json`) that Rust's `role_policy.rs`
@@ -23,7 +23,7 @@
  */
 import { POLICY_AREAS, type PolicyArea } from "./rolePolicy";
 
-/** The 90 allow-listed masterdata collection names — the TypeScript mirror
+/** The 106 allow-listed masterdata collection names — the TypeScript mirror
  *  of `masterdata.rs`'s `COLLECTIONS` array (names only; append-only-ness
  *  is a Rust-side storage detail, not a policy concern). Order matches
  *  `apps/desktop/src/lib/masterdata.ts`'s `Collection` union, which now
@@ -104,6 +104,16 @@ export const MASTERDATA_COLLECTIONS = [
   "finished_products",
   "finished_product_specifications",
   "material_documents",
+  "supplier_document_acquisitions",
+  "supplier_sds_product_evidence",
+  "identity_field_reviews",
+  "reference_formulations",
+  "reference_formulation_reviews",
+  "reference_formulation_normalizations",
+  "reference_formulation_import_jobs",
+  "reference_formulation_import_files",
+  "supplier_acquisition_jobs",
+  "supplier_acquisition_job_items",
   "process_parameters",
   "formula_cost_overrides",
   "data_exchange_import_jobs",
@@ -128,7 +138,7 @@ export const MASTERDATA_COLLECTIONS = [
 ] as const;
 export type MasterdataCollection = (typeof MASTERDATA_COLLECTIONS)[number];
 
-/** Every one of the 90 collections mapped to exactly one `PolicyArea`.
+/** Every one of the 103 collections mapped to exactly one `PolicyArea`.
  *  `Record<MasterdataCollection, PolicyArea>` makes an unmapped collection
  *  a compile error, not just a test failure — TypeScript won't build if a
  *  new entry is added to `MASTERDATA_COLLECTIONS` without a matching entry
@@ -144,6 +154,16 @@ export const MASTERDATA_COLLECTION_POLICY_AREAS: Record<MasterdataCollection, Po
   material_suppliers: "rawMaterials",
   material_hazard_records: "rawMaterials",
   material_documents: "rawMaterials",
+  supplier_document_acquisitions: "rawMaterials",
+  supplier_sds_product_evidence: "rawMaterials",
+  identity_field_reviews: "rawMaterials",
+  reference_formulations: "formulation",
+  reference_formulation_reviews: "formulation",
+  reference_formulation_normalizations: "formulation",
+  reference_formulation_import_jobs: "formulation",
+  reference_formulation_import_files: "formulation",
+  supplier_acquisition_jobs: "dataExchange",
+  supplier_acquisition_job_items: "dataExchange",
   product_families: "rawMaterials",
   finished_products: "rawMaterials",
   finished_product_specifications: "rawMaterials",

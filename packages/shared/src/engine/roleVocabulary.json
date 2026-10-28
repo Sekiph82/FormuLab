@@ -11,6 +11,7 @@
     "production",
     "production_manager",
     "document_control",
-    "administrator"
+    "administrator",
+    "owner"
   ]
 }

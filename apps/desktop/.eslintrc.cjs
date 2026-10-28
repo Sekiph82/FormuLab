@@ -9,7 +9,7 @@ module.exports = {
   parser: "@typescript-eslint/parser",
   parserOptions: { ecmaVersion: "latest", sourceType: "module" },
   plugins: ["react-hooks", "react-refresh", "i18next"],
-  ignorePatterns: ["dist", "src-tauri", ".eslintrc.cjs", "vite.config.ts"],
+  ignorePatterns: ["dist", "src-tauri", "public/formulab-ocr/**", ".eslintrc.cjs", "vite.config.ts"],
   rules: {
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "warn",

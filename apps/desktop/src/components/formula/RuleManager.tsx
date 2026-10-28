@@ -4,6 +4,8 @@ import { Download, Plus, Upload } from "lucide-react";
 import { buildXlsxBlob } from "@/lib/xlsx";
 import { upsertRecords, type Collection } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
+import { useTrustedActor } from "@/lib/currentActor";
+import { can } from "@formulab/shared";
 
 /** The fields common to both CompatibilityRule and SafetyRule — enough for
  *  the list view and the metadata form. Everything else (conditions, and the
@@ -30,7 +32,6 @@ const COLLECTION_FOR: Record<"compatibility" | "safety", Collection> = {
 const SEVERITIES: readonly CommonRuleFields["severity"][] = ["info", "warning", "error", "blocking"];
 const STATUSES: readonly CommonRuleFields["status"][] = ["draft", "verified", "deprecated"];
 const VERIFICATION_STATUSES = ["verified", "not_verified", "human_review_required", "imported_unverified"] as const;
-
 /**
  * Rule management for both engines: the compatibility and safety rule sets
  * are structurally close enough (id/name/status/severity/conditions/
@@ -53,6 +54,9 @@ export function RuleManager({
   onReload: () => Promise<void>;
 }) {
   const { t } = useTranslation(["session", "common"]);
+  const actor = useTrustedActor();
+  const canEdit = Boolean(actor && can(actor.role, "rawMaterials", "edit"));
+  const canVerify = Boolean(actor && can(actor.role, "rawMaterials", "verify"));
   const collection = COLLECTION_FOR[kind];
   const [editing, setEditing] = useState<AnyRule | null>(null);
   const [importing, setImporting] = useState(false);
@@ -61,22 +65,38 @@ export function RuleManager({
   const [status, setStatus] = useState<string | null>(null);
 
   const save = async (rule: AnyRule) => {
+    if (!actor) {
+      setStatus(t("ruleManager.signInRequired"));
+      return;
+    }
+    if (rule.status === "verified" || rule.verificationStatus === "verified") {
+      if (!canVerify) {
+        setStatus(t("ruleManager.verifierRequired"));
+        return;
+      }
+    } else if (!canEdit) {
+      setStatus(actor ? t("ruleManager.editorRequired") : t("ruleManager.signInRequired"));
+      return;
+    }
     await upsertRecords(collection, [{ ...rule, updatedAt: new Date().toISOString() }] as never);
     setEditing(null);
     await onReload();
   };
 
   const toggleActive = async (rule: AnyRule) => {
+    if (!actor || !can(actor.role, "rawMaterials", "edit")) { setStatus(actor ? t("ruleManager.editorRequired") : t("ruleManager.signInRequired")); return; }
     await upsertRecords(collection, [{ ...rule, active: !rule.active, updatedAt: new Date().toISOString() }] as never);
     await onReload();
   };
 
   const deprecate = async (rule: AnyRule) => {
+    if (!actor || !can(actor.role, "rawMaterials", "edit")) { setStatus(actor ? t("ruleManager.editorRequired") : t("ruleManager.signInRequired")); return; }
     await upsertRecords(collection, [{ ...rule, status: "deprecated", updatedAt: new Date().toISOString() }] as never);
     await onReload();
   };
 
   const createRule = () => {
+    if (!actor || !can(actor.role, "rawMaterials", "edit")) { setStatus(actor ? t("ruleManager.editorRequired") : t("ruleManager.signInRequired")); return; }
     const base: AnyRule = {
       id: `${kind}-custom-${Date.now().toString(36)}`,
       schemaVersion: "1.0",
@@ -127,7 +147,16 @@ export function RuleManager({
       setImportError(t("ruleManager.invalidShape"));
       return;
     }
-    await upsertRecords(collection, arr as never);
+    if (!actor || !can(actor.role, "rawMaterials", "edit")) {
+      setImportError(actor ? t("ruleManager.editorRequired") : t("ruleManager.signInRequired"));
+      return;
+    }
+    const importedRules = arr.map((value) => ({
+      ...(value as Record<string, unknown>),
+      status: "draft",
+      verificationStatus: "not_verified",
+    }));
+    await upsertRecords(collection, importedRules as never);
     setImporting(false);
     setImportText("");
     setStatus(t("ruleManager.importResult", { count: arr.length }));
@@ -237,7 +266,7 @@ export function RuleManager({
         </table>
       </div>
 
-      {editing && <RuleEditor rule={editing} onCancel={() => setEditing(null)} onSave={save} />}
+      {editing && <RuleEditor rule={editing} readOnly={!canEdit} canVerify={canVerify} onCancel={() => setEditing(null)} onSave={save} />}
 
       {importing && (
         <div
@@ -285,10 +314,14 @@ export function RuleManager({
 
 function RuleEditor({
   rule,
+  readOnly,
+  canVerify,
   onCancel,
   onSave,
 }: {
   rule: AnyRule;
+  readOnly: boolean;
+  canVerify: boolean;
   onCancel: () => void;
   onSave: (rule: AnyRule) => Promise<void>;
 }) {
@@ -331,6 +364,7 @@ function RuleEditor({
             <span className="mb-1 block text-[11px] font-medium text-muted">{t("ruleManager.name")}</span>
             <input
               value={draft.name}
+              disabled={readOnly}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               className="w-full rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text outline-none focus:border-accent"
             />
@@ -339,6 +373,7 @@ function RuleEditor({
             <span className="mb-1 block text-[11px] font-medium text-muted">{t("ruleManager.severity")}</span>
             <select
               value={draft.severity}
+              disabled={readOnly}
               onChange={(e) => setDraft({ ...draft, severity: e.target.value as AnyRule["severity"] })}
               className="w-full rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text outline-none focus:border-accent"
             >
@@ -353,7 +388,11 @@ function RuleEditor({
             <span className="mb-1 block text-[11px] font-medium text-muted">{t("ruleManager.status")}</span>
             <select
               value={draft.status}
-              onChange={(e) => setDraft({ ...draft, status: e.target.value as AnyRule["status"] })}
+              disabled={readOnly && !canVerify}
+              onChange={(e) => {
+                const nextStatus = e.target.value as AnyRule["status"];
+                setDraft({ ...draft, status: nextStatus, ...(nextStatus === "verified" ? { verificationStatus: "verified" } : {}) });
+              }}
               className="w-full rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text outline-none focus:border-accent"
             >
               {STATUSES.map((s) => (
@@ -367,7 +406,11 @@ function RuleEditor({
             <span className="mb-1 block text-[11px] font-medium text-muted">{t("ruleManager.verification")}</span>
             <select
               value={draft.verificationStatus}
-              onChange={(e) => setDraft({ ...draft, verificationStatus: e.target.value })}
+              disabled={readOnly && !canVerify}
+              onChange={(e) => {
+                const nextVerificationStatus = e.target.value;
+                setDraft({ ...draft, verificationStatus: nextVerificationStatus, ...(nextVerificationStatus === "verified" ? { status: "verified" } : {}) });
+              }}
               className="w-full rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text outline-none focus:border-accent"
             >
               {VERIFICATION_STATUSES.map((s) => (
@@ -381,6 +424,7 @@ function RuleEditor({
             <span className="mb-1 block text-[11px] font-medium text-muted">{t("ruleManager.message")}</span>
             <textarea
               value={draft.message}
+              disabled={readOnly}
               onChange={(e) => setDraft({ ...draft, message: e.target.value })}
               rows={2}
               className="w-full rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text outline-none focus:border-accent"
@@ -392,6 +436,7 @@ function RuleEditor({
             <p className="mb-1 text-[11px] text-muted">{t("ruleManager.jsonHint")}</p>
             <textarea
               value={json}
+              disabled={readOnly}
               onChange={(e) => setJson(e.target.value)}
               onBlur={applyJson}
               rows={10}

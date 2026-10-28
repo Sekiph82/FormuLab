@@ -18,7 +18,11 @@ import type { LaboratoryTrial, TrialDeviation, TrialMaterialUsage, TrialProcessS
 import type { TestResult } from "../schemas/testDefinitions";
 
 const HUMAN: Actor = { kind: "human", role: "researcher", userId: "alice" };
-const AGENT: Actor = { kind: "agent", runId: "run-1" };
+const AUTOMATED_ACTORS: Actor[] = [
+  { kind: "agent", runId: "run-1" },
+  { kind: "system", reason: "scheduled lab review" },
+  { kind: "import", source: "instrument.csv" },
+];
 
 function line(over: Partial<FormulationLine> & { id: string; displayName: string; percent: string }): FormulationLine {
   return { lineNumber: 0, phase: "A", functions: [], isQsToHundred: false, provenance: { origin: "model_estimate", evidenceClaimIds: [] }, ...over };
@@ -44,10 +48,12 @@ describe("canTransitionTrial", () => {
     expect(r.code).toBe("NOT_A_VALID_TRANSITION");
   });
 
-  it("refuses to let an agent complete a trial", () => {
-    const r = canTransitionTrial("awaiting_results", "completed", AGENT);
-    expect(r.allowed).toBe(false);
-    expect(r.code).toBe("REQUIRES_HUMAN");
+  it("refuses to let an agent, system process or import complete a trial", () => {
+    for (const actor of AUTOMATED_ACTORS) {
+      const r = canTransitionTrial("awaiting_results", "completed", actor);
+      expect(r.allowed).toBe(false);
+      expect(r.code).toBe("REQUIRES_HUMAN");
+    }
   });
 
   it("blocks completion while a critical deviation is open", () => {
@@ -222,13 +228,18 @@ describe("deviation lifecycle", () => {
   }
 
   it("resolves only for a human actor", () => {
-    expect(() => resolveTrialDeviation(deviation(), AGENT, "Fixed.")).toThrow();
+    for (const actor of AUTOMATED_ACTORS) {
+      expect(() => resolveTrialDeviation(deviation(), actor, "Fixed.")).toThrow();
+    }
     const resolved = resolveTrialDeviation(deviation(), HUMAN, "Reweighed and reheated.");
     expect(resolved.status).toBe("resolved");
     expect(resolved.resolvedBy).toBe("alice");
   });
 
   it("accept-with-justification requires a human and a justification", () => {
+    for (const actor of AUTOMATED_ACTORS) {
+      expect(() => acceptDeviationWithJustification(deviation(), actor, "Automated acceptance.")).toThrow();
+    }
     const accepted = acceptDeviationWithJustification(deviation(), HUMAN, "Within acceptable process variation for this scale-up.");
     expect(accepted.status).toBe("accepted_with_justification");
     expect(accepted.justification).toBeTruthy();

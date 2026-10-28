@@ -79,10 +79,16 @@ import type {
   RegulatoryReviewRevocation,
   RegulatoryRule,
   RegulatoryRuleRevision,
+  ReferenceFormulationRecord,
+  ReferenceFormulationNormalizationVersion,
+  ReferenceFormulationImportJob,
+  ReferenceFormulationImportFile,
+  ReferenceFormulationReview,
   ReverseFormulationStudy,
   BenchmarkProduct,
   BenchmarkEvidenceItem,
   IngredientDeclarationLine,
+  IdentityFieldReview,
   AnalyticalCompositionResult,
   TargetProductProfile,
   ReverseConstraintSet,
@@ -99,6 +105,10 @@ import type {
   StabilityStudy,
   SubstitutionRun,
   Supplier,
+  SupplierAcquisitionJob,
+  SupplierAcquisitionJobItem,
+  SupplierDocumentAcquisition,
+  SupplierSdsProductEvidenceRecord,
   TestDefinition,
   TestResult,
   TrialComparison,
@@ -107,9 +117,10 @@ import type {
 import { isTauri } from "./tauri";
 import { currentSessionToken } from "./sessionToken";
 import type { MasterdataCollection } from "@formulab/shared";
+import { supplierSdsProductEvidenceRecordSchema } from "@formulab/shared";
 
 /** Phase 13 Session 4A: now derived from `@formulab/shared`'s
- *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 90-name
+ *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 103-name
  *  list `masterdata.rs`'s `COLLECTIONS` and the generated policy-area
  *  fixture both answer to, not a second hand-typed union that could drift
  *  from either. */
@@ -191,6 +202,16 @@ interface CollectionTypes {
   finished_products: FinishedProduct;
   finished_product_specifications: FinishedProductSpecification;
   material_documents: MaterialDocument;
+  supplier_document_acquisitions: SupplierDocumentAcquisition;
+  supplier_sds_product_evidence: SupplierSdsProductEvidenceRecord;
+  identity_field_reviews: IdentityFieldReview;
+  reference_formulations: ReferenceFormulationRecord;
+  reference_formulation_reviews: ReferenceFormulationReview;
+  reference_formulation_normalizations: ReferenceFormulationNormalizationVersion;
+  reference_formulation_import_jobs: ReferenceFormulationImportJob;
+  reference_formulation_import_files: ReferenceFormulationImportFile;
+  supplier_acquisition_jobs: SupplierAcquisitionJob;
+  supplier_acquisition_job_items: SupplierAcquisitionJobItem;
   process_parameters: ProcessParameter;
   formula_cost_overrides: FormulaCostOverride;
   data_exchange_import_jobs: DataExchangeImportJob;
@@ -232,6 +253,21 @@ export async function listRecords<C extends Collection>(
   return call<CollectionTypes[C][]>("list_master_records", { collection });
 }
 
+/** Persist one immutable SDS extraction snapshot after the document acquisition exists. */
+export async function appendSupplierSdsProductEvidenceRecord(
+  evidence: SupplierSdsProductEvidenceRecord,
+): Promise<SupplierSdsProductEvidenceRecord> {
+  const parsed = supplierSdsProductEvidenceRecordSchema.parse(evidence);
+  return call<SupplierSdsProductEvidenceRecord>("append_supplier_sds_product_evidence", { evidence: parsed });
+}
+
+/** Persist a named human's immutable, field-level supplier identity decision. */
+export async function appendIdentityFieldReviewRecord(
+  review: Omit<IdentityFieldReview, "reviewedBy" | "reviewerRole" | "reviewedAt">,
+): Promise<IdentityFieldReview> {
+  return call<IdentityFieldReview>("append_identity_field_review", { review });
+}
+
 export interface UpsertResult {
   inserted: number;
   updated: number;
@@ -249,7 +285,49 @@ export async function upsertRecords<C extends Collection>(
   collection: C,
   records: CollectionTypes[C][],
 ): Promise<UpsertResult> {
+  if (collection === "supplier_document_acquisitions") {
+    return call<UpsertResult>("append_supplier_document_acquisitions", { records });
+  }
+  if (collection === "reference_formulations") {
+    return call<UpsertResult>("append_reference_formulations", { records });
+  }
   return call<UpsertResult>("upsert_master_records", { collection, records });
+}
+
+/** Persist a field-level formulation review through the native authorization boundary. */
+export async function appendReferenceFormulationReviewRecord(
+  review: ReferenceFormulationReview,
+): Promise<ReferenceFormulationReview> {
+  return call<ReferenceFormulationReview>("append_reference_formulation_review", { review });
+}
+
+/** Persist a candidate-only normalization version through native source/version validation. */
+export async function appendReferenceFormulationNormalizationRecord(
+  normalization: ReferenceFormulationNormalizationVersion,
+): Promise<ReferenceFormulationNormalizationVersion> {
+  return call<ReferenceFormulationNormalizationVersion>("append_reference_formulation_normalization", { normalization });
+}
+
+/** Store owner-selected PDF bytes by verified content hash in the project document store. */
+export async function storeSupplierDocumentPdf(
+  bytes: Uint8Array,
+  expectedSha256: string,
+): Promise<{ sha256: string; byte_size: number; relative_path: string; deduplicated: boolean }> {
+  if (!/^[a-f0-9]{64}$/i.test(expectedSha256)) throw new Error("Supplier document hash is invalid.");
+  return call("store_supplier_document_pdf", { bytes: Array.from(bytes), expectedSha256 });
+}
+
+/** Open an acquired source PDF through the native hash-verified project boundary. */
+export async function openSupplierDocumentPdf(sha256: string): Promise<void> {
+  if (!/^[a-f0-9]{64}$/i.test(sha256)) throw new Error("Supplier document hash is invalid.");
+  await call("open_supplier_document_pdf", { sha256 });
+}
+
+/** Read a source PDF only by its stored, native-verified content hash. */
+export async function readSupplierDocumentPdf(sha256: string): Promise<Uint8Array> {
+  if (!/^[a-f0-9]{64}$/i.test(sha256)) throw new Error("Supplier document hash is invalid.");
+  const bytes = await call<number[]>("read_supplier_document_pdf", { sha256 });
+  return Uint8Array.from(bytes);
 }
 
 export async function deleteRecord(collection: Collection, code: string): Promise<void> {

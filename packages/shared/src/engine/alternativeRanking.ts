@@ -15,7 +15,7 @@ import { canonicalizeForFingerprint, sha256Hex } from "./datasetManifestBuilder"
 export const ALTERNATIVE_RANKING_POLICY = {
   version: ALTERNATIVE_RANKING_POLICY_VERSION,
   dimensionOrder: RANKING_DIMENSION_ORDER,
-  hardGateDimensions: ["safety", "regulatory", "compatibility"] as const,
+  hardGateDimensions: ["availability", "compatibility", "safety", "regulatory", "manufacturing"] as const,
   gateOrder: ["ELIGIBLE", "REVIEW_REQUIRED", "BLOCKED", "UNAVAILABLE"] as const,
   tieBreak: "candidateId_ordinal_ascending" as const,
 };
@@ -29,14 +29,22 @@ function gate(candidate: AlternativeRankingCandidate): Pick<RankedAlternative, "
   if (candidate.formulaStatus === "UNAVAILABLE") reasons.push("FORMULA_UNAVAILABLE");
   else if (candidate.formulaStatus === "INVALID") reasons.push("FORMULA_INVALID");
   else if (candidate.formulaStatus === "INCOMPLETE") reasons.push("FORMULA_INCOMPLETE_REVIEW");
-  for (const dimension of ALTERNATIVE_RANKING_POLICY.hardGateDimensions) {
+  for (const dimension of ["compatibility", "safety", "regulatory"] as const) {
     const status = candidate.dimensions[dimension].status;
     if (status === "FAIL") reasons.push(`${dimension.toUpperCase()}_FAIL`);
     else if (status === "UNKNOWN") reasons.push(`${dimension.toUpperCase()}_NOT_CONFIRMED_PASS`);
     else if (status === "WARNING") reasons.push(`${dimension.toUpperCase()}_WARNING_REVIEW`);
   }
+  const availability = candidate.dimensions.availability.status;
+  if (availability === "INFEASIBLE") reasons.push("AVAILABILITY_INFEASIBLE");
+  else if (availability === "UNKNOWN") reasons.push("AVAILABILITY_NOT_CONFIRMED_FEASIBLE");
+  const manufacturing = candidate.dimensions.manufacturing.status;
+  if (manufacturing === "NOT_READY") reasons.push("MANUFACTURING_NOT_READY");
+  else if (manufacturing === "UNKNOWN") reasons.push("MANUFACTURING_NOT_CONFIRMED_READY");
   if (candidate.formulaStatus === "UNAVAILABLE") return { disposition: "UNAVAILABLE", gateReasons: reasons };
-  if (candidate.formulaStatus === "INVALID" || ALTERNATIVE_RANKING_POLICY.hardGateDimensions.some((dimension) => candidate.dimensions[dimension].status === "FAIL")) {
+  if (candidate.formulaStatus === "INVALID"
+    || (["compatibility", "safety", "regulatory"] as const).some((dimension) => candidate.dimensions[dimension].status === "FAIL")
+    || availability === "INFEASIBLE" || manufacturing === "NOT_READY") {
     return { disposition: "BLOCKED", gateReasons: reasons };
   }
   if (reasons.length > 0) return { disposition: "REVIEW_REQUIRED", gateReasons: reasons };
@@ -123,7 +131,15 @@ function compareCandidate(a: AlternativeRankingCandidate, b: AlternativeRankingC
   result = compareOptionalHigher(aCoverage, bCoverage);
   if (result) return result;
   result = compareOptionalHigher(ae.uniqueSourceCount, be.uniqueSourceCount);
-  return result || ordinal(a.candidateId, b.candidateId);
+  if (result) return result;
+
+  // Reference support is a late, independent tie-break only. Do not compare
+  // popularity/sample counts, and never let it compensate for any earlier
+  // performance, cost, uncertainty, evidence, or hard-gate dimension.
+  const ar = a.dimensions.referenceSupport?.status === "SUPPORTED";
+  const br = b.dimensions.referenceSupport?.status === "SUPPORTED";
+  if (ar !== br) return ar ? -1 : 1;
+  return ordinal(a.candidateId, b.candidateId);
 }
 
 export function rankAlternatives(candidates: AlternativeRankingCandidate[]): RankedAlternative[] {

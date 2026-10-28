@@ -8,6 +8,7 @@
 //   data/formulations/**          (project_root)
 //   data/master/*.json            (project_root — top-level files only,
 //                                   data/master/backups/ is never walked)
+//   data/supplier-documents/sha256/<prefix>/<sha256>.pdf (project_root)
 //   data/sessions/**              (project_root)
 //   formulas/**                   (project_root)
 //   .FormuLab/runs.jsonl                  (workspace_dir — active workspace)
@@ -23,6 +24,9 @@
 //   EBWebView / localStorage — browser-storage cache, holds the plaintext
 //                             per-provider LLM API key; outside this crate's
 //                             filesystem reach entirely.
+//   OS credential manager/keychain — secret values and portal sessions are
+//                             outside the project tree; restored opaque refs
+//                             may require reauthentication on another device.
 //   runtime/pipeline, runtime/formulation, runtime/skills — materialized
 //                             code cache, rewritten from `include_str!`
 //                             constants on every use.
@@ -48,12 +52,17 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager, State};
 
-pub const BACKUP_FORMAT_VERSION: &str = "1.0";
+pub const BACKUP_FORMAT_VERSION: &str = "1.1";
+const SUPPORTED_BACKUP_FORMAT_VERSIONS: &[&str] = &["1.0", BACKUP_FORMAT_VERSION];
 /// Reserved for the global application-data schema version this session's
 /// architecture doc plans (docs/PHASE11_MIGRATION_ARCHITECTURE.md) — no
 /// collection has ever shipped at anything but "1.0", so this is a fixed
 /// placeholder, not yet a computed value.
 pub(crate) const GLOBAL_SCHEMA_VERSION: &str = "1.0";
+
+fn backup_format_is_supported(version: &str) -> bool {
+    SUPPORTED_BACKUP_FORMAT_VERSIONS.contains(&version)
+}
 
 #[derive(Default)]
 pub struct BackupState(pub Mutex<Option<Arc<AtomicBool>>>);
@@ -296,12 +305,12 @@ pub fn verify_backup_report(source: &Path) -> VerificationReport {
         }
     };
 
-    if manifest.backup_format_version != BACKUP_FORMAT_VERSION {
+    if !backup_format_is_supported(&manifest.backup_format_version) {
         errors.push(issue(
             "unsupported_backup_format_version",
             format!(
                 "backup format version {} is not supported by this build (supports {})",
-                manifest.backup_format_version, BACKUP_FORMAT_VERSION
+                manifest.backup_format_version, SUPPORTED_BACKUP_FORMAT_VERSIONS.join(", ")
             ),
             None,
         ));
@@ -434,6 +443,23 @@ pub fn verify_backup_report(source: &Path) -> VerificationReport {
         if !present_paths.contains(&entry.path) {
             continue; // already reported as missing above
         }
+        let supplier_digest = match supplier_document_hash_from_archive_path(&entry.path) {
+            Ok(digest) => digest,
+            Err(error) => {
+                errors.push(issue("unsafe_path", error, Some(&entry.path)));
+                continue;
+            }
+        };
+        if supplier_digest.is_some()
+            && (entry.bytes == 0 || entry.bytes > MAX_SUPPLIER_DOCUMENT_BYTES)
+        {
+            errors.push(issue(
+                "supplier_document_size",
+                "supplier PDF is empty or exceeds the 100 MiB limit",
+                Some(&entry.path),
+            ));
+            continue;
+        }
         let mut zip_entry = match archive.by_name(&entry.path) {
             Ok(e) => e,
             Err(e) => {
@@ -441,6 +467,14 @@ pub fn verify_backup_report(source: &Path) -> VerificationReport {
                 continue;
             }
         };
+        if supplier_digest.is_some() && zip_entry.size() > MAX_SUPPLIER_DOCUMENT_BYTES {
+            errors.push(issue(
+                "supplier_document_size",
+                "supplier PDF exceeds the 100 MiB limit",
+                Some(&entry.path),
+            ));
+            continue;
+        }
         let mut bytes = Vec::with_capacity(entry.bytes as usize);
         if let Err(e) = zip_entry.read_to_end(&mut bytes) {
             errors.push(issue("archive_unreadable", format!("could not read {}: {e}", entry.path), Some(&entry.path)));
@@ -463,6 +497,16 @@ pub fn verify_backup_report(source: &Path) -> VerificationReport {
             ));
             continue;
         }
+        if let Some(path_digest) = supplier_digest {
+            if actual_hash != path_digest || !bytes.starts_with(b"%PDF-") {
+                errors.push(issue(
+                    "supplier_document_integrity",
+                    "supplier PDF signature or content-addressed path does not match its bytes",
+                    Some(&entry.path),
+                ));
+                continue;
+            }
+        }
         if entry.path.ends_with(".json") {
             if let Err(e) = serde_json::from_slice::<serde_json::Value>(&bytes) {
                 errors.push(issue(
@@ -484,7 +528,7 @@ pub fn verify_backup_report(source: &Path) -> VerificationReport {
     let corrupted_found = errors.iter().any(|e| {
         matches!(
             e.code.as_str(),
-            "archive_unreadable" | "manifest_unreadable" | "missing_file" | "size_mismatch" | "hash_mismatch" | "malformed_json"
+            "archive_unreadable" | "manifest_unreadable" | "missing_file" | "size_mismatch" | "hash_mismatch" | "malformed_json" | "supplier_document_size" | "supplier_document_integrity"
         )
     });
     let incompatible_found = errors.iter().any(|e| {
@@ -565,6 +609,102 @@ fn sha256_bytes(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     format!("{:x}", hasher.finalize())
+}
+
+const MAX_SUPPLIER_DOCUMENT_BYTES: u64 = 100 * 1024 * 1024;
+const SUPPLIER_DOCUMENT_ARCHIVE_PREFIX: &str = "data/supplier-documents/sha256/";
+
+fn is_lower_hex(value: &str) -> bool {
+    value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+/// Recognize only the content-addressed supplier PDF layout. Any path under
+/// this namespace that does not match it is rejected rather than restored as
+/// an arbitrary project file.
+fn supplier_document_hash_from_archive_path(path: &str) -> Result<Option<&str>, String> {
+    let Some(relative) = path.strip_prefix(SUPPLIER_DOCUMENT_ARCHIVE_PREFIX) else {
+        if path.starts_with("data/supplier-documents/") {
+            return Err("supplier document archive path is outside the content-addressed store".into());
+        }
+        return Ok(None);
+    };
+    let mut parts = relative.split('/');
+    let prefix = parts.next().unwrap_or_default();
+    let filename = parts.next().unwrap_or_default();
+    if parts.next().is_some() || prefix.len() != 2 || !is_lower_hex(prefix) {
+        return Err("supplier document archive path is invalid".into());
+    }
+    let digest = filename
+        .strip_suffix(".pdf")
+        .ok_or_else(|| "supplier document archive path must end in .pdf".to_string())?;
+    if digest.len() != 64 || !is_lower_hex(digest) || !digest.starts_with(prefix) {
+        return Err("supplier document archive path does not match its SHA-256 identity".into());
+    }
+    Ok(Some(digest))
+}
+
+/// Collect only validated content-addressed PDFs. Symlinks, temp files,
+/// unexpected layouts, oversized files, and hash/signature mismatches stop
+/// backup creation so acquired evidence is never silently omitted.
+fn collect_supplier_document_blobs(data_root: &Path, out: &mut Vec<IncludedFile>) -> Result<(), String> {
+    let supplier_root = data_root.join("supplier-documents");
+    let root_metadata = match std::fs::symlink_metadata(&supplier_root) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("cannot inspect supplier document store: {error}")),
+    };
+    if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
+        return Err("supplier document store is not a regular directory".into());
+    }
+    for entry in std::fs::read_dir(&supplier_root).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if entry.file_name() != "sha256" {
+            return Err("supplier document store contains an unexpected entry".into());
+        }
+    }
+
+    let store_root = supplier_root.join("sha256");
+    let store_metadata = match std::fs::symlink_metadata(&store_root) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("cannot inspect supplier document store: {error}")),
+    };
+    if store_metadata.file_type().is_symlink() || !store_metadata.is_dir() {
+        return Err("supplier document hash store is not a regular directory".into());
+    }
+
+    for prefix_entry in std::fs::read_dir(&store_root).map_err(|e| e.to_string())? {
+        let prefix_entry = prefix_entry.map_err(|e| e.to_string())?;
+        let prefix_path = prefix_entry.path();
+        let prefix_metadata = std::fs::symlink_metadata(&prefix_path).map_err(|e| e.to_string())?;
+        let prefix = prefix_entry.file_name().to_string_lossy().to_string();
+        if prefix_metadata.file_type().is_symlink() || !prefix_metadata.is_dir()
+            || prefix.len() != 2 || !is_lower_hex(&prefix)
+        {
+            return Err("supplier document store contains an unexpected entry".into());
+        }
+        for blob_entry in std::fs::read_dir(&prefix_path).map_err(|e| e.to_string())? {
+            let blob_entry = blob_entry.map_err(|e| e.to_string())?;
+            let blob_path = blob_entry.path();
+            let metadata = std::fs::symlink_metadata(&blob_path).map_err(|e| e.to_string())?;
+            let filename = blob_entry.file_name().to_string_lossy().to_string();
+            let digest = filename.strip_suffix(".pdf").unwrap_or_default();
+            if metadata.file_type().is_symlink() || !metadata.is_file()
+                || digest.len() != 64 || !is_lower_hex(digest) || !digest.starts_with(&prefix)
+                || metadata.len() == 0 || metadata.len() > MAX_SUPPLIER_DOCUMENT_BYTES
+            {
+                return Err("supplier document store contains an invalid or incomplete blob".into());
+            }
+            let bytes = std::fs::read(&blob_path).map_err(|e| e.to_string())?;
+            if !bytes.starts_with(b"%PDF-") || sha256_bytes(&bytes) != digest {
+                return Err(format!("supplier document blob failed integrity verification: {filename}"));
+            }
+            let archive_path = format!("{SUPPLIER_DOCUMENT_ARCHIVE_PREFIX}{prefix}/{filename}");
+            supplier_document_hash_from_archive_path(&archive_path)?;
+            out.push((blob_path, archive_path));
+        }
+    }
+    Ok(())
 }
 
 /// Recursively collect every file under `dir`, archive path
@@ -706,6 +846,7 @@ fn collect_included(roots: &RootPaths) -> Result<(Vec<IncludedFile>, Vec<String>
         &mut files,
     )?;
     collect_master_files(&roots.project_root.join("data").join("master"), &mut files)?;
+    collect_supplier_document_blobs(&roots.project_root.join("data"), &mut files)?;
     walk_dir_files(
         &roots.project_root.join("data").join("sessions"),
         "data/sessions",
@@ -752,6 +893,7 @@ const EXCLUDED_LABELS: &[&str] = &[
     "data/master/backups/* (ad hoc pre-delete snapshots, not primary data)",
     "data/literature (network cache — see manifest warnings)",
     "EBWebView / localStorage (webview cache; holds the plaintext per-provider API key)",
+    "OS credential manager/keychain (secret values and sessions; opaque references may require reauthentication)",
     "runtime/pipeline, runtime/formulation, runtime/skills (materialized code cache)",
 ];
 
@@ -1014,6 +1156,9 @@ fn archive_path_to_live(roots: &RootPaths, archive_rel: &str) -> Result<PathBuf,
     if archive_rel == "manifest.json" {
         return Err("manifest.json is not a data file".to_string());
     }
+    if supplier_document_hash_from_archive_path(archive_rel)?.is_some() {
+        return Ok(roots.project_root.join(archive_rel));
+    }
     if archive_rel.starts_with("data/formulations/")
         || archive_rel.starts_with("data/master/")
         || archive_rel.starts_with("data/sessions/")
@@ -1113,10 +1258,10 @@ fn try_restore_backup(
     let mut archive = open_zip(source)?;
     let manifest = read_manifest_from_archive(&mut archive)?;
 
-    if manifest.backup_format_version != BACKUP_FORMAT_VERSION {
+    if !backup_format_is_supported(&manifest.backup_format_version) {
         return Err(format!(
             "unsupported backup format version: {} (this build supports {})",
-            manifest.backup_format_version, BACKUP_FORMAT_VERSION
+            manifest.backup_format_version, SUPPORTED_BACKUP_FORMAT_VERSIONS.join(", ")
         ));
     }
 
@@ -1134,6 +1279,7 @@ fn try_restore_backup(
         if let Some(violation) = entry_safety_violation(&name, &entry) {
             return Err(violation);
         }
+        archive_path_to_live(&roots, &name)?;
     }
 
     if cancel.load(Ordering::SeqCst) {
@@ -1174,6 +1320,13 @@ fn try_restore_backup(
         emit_progress(app, "restore-progress", "extracting", i as u64, total, &entry.path);
 
         safe_archive_name(&entry.path)?;
+        let supplier_digest = supplier_document_hash_from_archive_path(&entry.path)?;
+        if supplier_digest.is_some()
+            && (entry.bytes == 0 || entry.bytes > MAX_SUPPLIER_DOCUMENT_BYTES)
+        {
+            cleanup_staging(&staging_dir);
+            return Err("supplier PDF is empty or exceeds the 100 MiB limit".into());
+        }
         let live_target = match archive_path_to_live(&roots, &entry.path) {
             Ok(p) => p,
             Err(e) => {
@@ -1189,6 +1342,10 @@ fn try_restore_backup(
                 return Err(format!("manifest lists {} but it is missing from the archive", entry.path));
             }
         };
+        if supplier_digest.is_some() && zip_entry.size() > MAX_SUPPLIER_DOCUMENT_BYTES {
+            cleanup_staging(&staging_dir);
+            return Err("supplier PDF exceeds the 100 MiB limit".into());
+        }
         let mut bytes = Vec::with_capacity(entry.bytes as usize);
         if let Err(e) = zip_entry.read_to_end(&mut bytes) {
             cleanup_staging(&staging_dir);
@@ -1209,6 +1366,12 @@ fn try_restore_backup(
         if actual_hash != entry.sha256 {
             cleanup_staging(&staging_dir);
             return Err(format!("corrupted package: {} failed a SHA256 check", entry.path));
+        }
+        if let Some(path_digest) = supplier_digest {
+            if actual_hash != path_digest || !bytes.starts_with(b"%PDF-") {
+                cleanup_staging(&staging_dir);
+                return Err(format!("corrupted package: {} is not the PDF named by its content hash", entry.path));
+            }
         }
 
         // Structural check: every staged file this project actually writes
@@ -1331,6 +1494,7 @@ mod tests {
         let joined = EXCLUDED_LABELS.join(" ");
         assert!(joined.contains("runs.db"));
         assert!(joined.contains("EBWebView"));
+        assert!(joined.contains("credential manager"));
         assert!(joined.contains("literature"));
     }
 
@@ -1357,6 +1521,35 @@ mod tests {
         assert!(archive_path_to_live(&roots, ".FormuLab/runs.db").is_err());
         assert!(archive_path_to_live(&roots, "unexpected/path.json").is_err());
         assert!(archive_path_to_live(&roots, "manifest.json").is_err());
+        let digest = "ab".to_string() + &"c".repeat(62);
+        assert!(archive_path_to_live(
+            &roots,
+            &format!("{SUPPLIER_DOCUMENT_ARCHIVE_PREFIX}ab/{digest}.pdf")
+        ).is_ok());
+        assert!(archive_path_to_live(
+            &roots,
+            &format!("{SUPPLIER_DOCUMENT_ARCHIVE_PREFIX}ff/{digest}.pdf")
+        ).is_err());
+        assert!(archive_path_to_live(&roots, "data/supplier-documents/private.pdf").is_err());
+    }
+
+    #[test]
+    fn supplier_document_backup_collection_validates_content_addressed_pdfs() {
+        let root = verify_tmp_dir("supplier-blob-collection");
+        let bytes = b"%PDF-1.7\nfixture\n%%EOF\n";
+        let digest = sha256_bytes(bytes);
+        let blob = root.join(format!("supplier-documents/sha256/{}/{}.pdf", &digest[..2], digest));
+        std::fs::create_dir_all(blob.parent().unwrap()).unwrap();
+        std::fs::write(&blob, bytes).unwrap();
+
+        let mut files = Vec::new();
+        collect_supplier_document_blobs(&root, &mut files).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].1, format!("{SUPPLIER_DOCUMENT_ARCHIVE_PREFIX}{}/{}.pdf", &digest[..2], digest));
+
+        std::fs::write(&blob, b"not a PDF").unwrap();
+        assert!(collect_supplier_document_blobs(&root, &mut Vec::new()).is_err());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -1480,6 +1673,175 @@ mod tests {
             zip.write_all(bytes).unwrap();
         }
         zip.finish().unwrap();
+    }
+
+    #[test]
+    fn supplier_document_binary_and_lineage_metadata_survive_backup_restore() {
+        let stamp = format!("{}-{}", std::process::id(), now_secs());
+        let source_root = verify_tmp_dir(&format!("supplier-roundtrip-source-{stamp}"));
+        let restore_root = verify_tmp_dir(&format!("supplier-roundtrip-restore-{stamp}"));
+        let package_dir = verify_tmp_dir(&format!("supplier-roundtrip-package-{stamp}"));
+        let pdf_bytes = b"%PDF-1.7\nsupplier formulation fixture\n%%EOF\n";
+        let digest = sha256_bytes(pdf_bytes);
+        let sds_pdf_bytes = b"%PDF-1.7\nsupplier safety data fixture\n%%EOF\n";
+        let sds_digest = sha256_bytes(sds_pdf_bytes);
+        for (blob_digest, bytes) in [(digest.clone(), pdf_bytes), (sds_digest.clone(), sds_pdf_bytes)] {
+            let blob_path = source_root.join(format!(
+                "data/supplier-documents/sha256/{}/{}.pdf",
+                &blob_digest[..2], blob_digest
+            ));
+            std::fs::create_dir_all(blob_path.parent().unwrap()).unwrap();
+            std::fs::write(&blob_path, bytes).unwrap();
+        }
+        let metadata = format!(
+            r#"[{{"schemaVersion":"1.0","code":"supplierdoc-formula","documentType":"FORMULATION","sha256":"{digest}","supplierId":"supplier-1"}},{{"schemaVersion":"1.0","code":"supplierdoc-sds","documentType":"SDS","sha256":"{sds_digest}","supplierId":"supplier-1"}}]"#
+        ).into_bytes();
+        std::fs::create_dir_all(source_root.join("data/master")).unwrap();
+        let metadata_path = source_root.join("data/master/supplier_document_acquisitions.json");
+        std::fs::write(&metadata_path, &metadata).unwrap();
+        let corpus_metadata: Vec<(&str, Vec<u8>)> = vec![
+            ("reference_formulations.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "reference-formula-1", "sourceDocumentHash": digest,
+                "source": { "id": "reference-source-1", "sourcePdfSha256": digest, "acquisitionCode": "supplierdoc-formula" }
+            }])).unwrap()),
+            ("reference_formulation_normalizations.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "normalization-1", "referenceFormulationRecordId": "reference-formula-1", "sourceDocumentHash": digest
+            }])).unwrap()),
+            ("reference_formulation_reviews.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "review-1", "referenceFormulationRecordId": "reference-formula-1", "sourceDocumentHash": digest
+            }])).unwrap()),
+            ("supplier_sds_product_evidence.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "sds-evidence-1", "acquisitionCode": "supplierdoc-sds", "sourceDocumentHash": sds_digest
+            }])).unwrap()),
+            ("external_id_crosswalks.json", serde_json::to_vec(&serde_json::json!([{
+                "code": "mapping-profile-1::supplier_products::supplier-product-1::CommercialProduct",
+                "sourceSystemId": "mapping-profile-1", "sourceRecordId": "supplier-product-1", "mappingProfileCode": "mapping-profile-1::v1"
+            }])).unwrap()),
+            ("mapping_profiles.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "mapping-profile-1", "profileVersion": 1, "code": "mapping-profile-1::v1"
+            }])).unwrap()),
+            ("reference_formulation_import_jobs.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "formula-import-1", "status": "paused", "supplierId": "supplier-1"
+            }])).unwrap()),
+            ("reference_formulation_import_files.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "formula-import-1:file:1", "jobId": "formula-import-1", "sourceDocumentHash": digest, "status": "queued"
+            }])).unwrap()),
+            ("supplier_acquisition_jobs.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "supplier-scan-1", "status": "resumed", "supplierId": "supplier-1"
+            }])).unwrap()),
+            ("supplier_acquisition_job_items.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "supplier-item-1", "jobId": "supplier-scan-1", "acquisitionCode": "supplierdoc-sds",
+                "sourceDocumentHash": sds_digest, "attemptCount": 2
+            }])).unwrap()),
+        ];
+        for (name, bytes) in &corpus_metadata {
+            std::fs::write(source_root.join("data/master").join(name), bytes).unwrap();
+        }
+
+        let source_roots = RootPaths {
+            project_root: source_root.clone(),
+            workspace_root: source_root.clone(),
+            base_root: source_root.clone(),
+        };
+        let (files, warnings) = collect_included(&source_roots).unwrap();
+        assert_eq!(files.len(), 13);
+        let mut manifest = base_manifest();
+        manifest.warnings = warnings;
+        let mut package_contents = Vec::<(String, Vec<u8>)>::new();
+        for (path, archive_path) in files {
+            let bytes = std::fs::read(&path).unwrap();
+            manifest.total_bytes += bytes.len() as u64;
+            manifest.included.push(archive_path.clone());
+            manifest.file_inventory.push(FileEntry {
+                path: archive_path.clone(),
+                bytes: bytes.len() as u64,
+                sha256: sha256_bytes(&bytes),
+            });
+            package_contents.push((archive_path, bytes));
+        }
+        let entries: Vec<(&str, &[u8])> = package_contents
+            .iter()
+            .map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
+            .collect();
+        let package_path = package_dir.join("supplier.formulab-backup");
+        write_test_package(&package_path, &manifest, &entries);
+        assert!(matches!(verify_backup_report(&package_path).status, VerificationStatus::Valid));
+
+        let restore_roots = RootPaths {
+            project_root: restore_root.clone(),
+            workspace_root: restore_root.clone(),
+            base_root: restore_root.clone(),
+        };
+        let staging = package_dir.join("staging");
+        std::fs::create_dir_all(&staging).unwrap();
+        let mut archive = open_zip(&package_path).unwrap();
+        let mut staged = Vec::new();
+        for (index, entry) in manifest.file_inventory.iter().enumerate() {
+            let live = archive_path_to_live(&restore_roots, &entry.path).unwrap();
+            let supplier_digest = supplier_document_hash_from_archive_path(&entry.path).unwrap();
+            let mut zip_entry = archive.by_name(&entry.path).unwrap();
+            let mut bytes = Vec::new();
+            zip_entry.read_to_end(&mut bytes).unwrap();
+            assert_eq!(sha256_bytes(&bytes), entry.sha256);
+            if let Some(path_digest) = supplier_digest {
+                assert_eq!(path_digest, sha256_bytes(&bytes));
+                assert!(bytes.starts_with(b"%PDF-"));
+            }
+            let staged_path = staging.join(format!("{index}.bin"));
+            std::fs::write(&staged_path, bytes).unwrap();
+            staged.push((entry.path.clone(), live));
+        }
+        let restored_paths = activate_staged_files(&staged, &staging).unwrap();
+        assert_eq!(restored_paths.len(), 13);
+        assert_eq!(std::fs::read(restore_root.join(format!(
+            "data/supplier-documents/sha256/{}/{}.pdf", &digest[..2], digest
+        ))).unwrap(), pdf_bytes);
+        assert_eq!(std::fs::read(restore_root.join(format!(
+            "data/supplier-documents/sha256/{}/{}.pdf", &sds_digest[..2], sds_digest
+        ))).unwrap(), sds_pdf_bytes);
+        assert_eq!(
+            std::fs::read(restore_root.join("data/master/supplier_document_acquisitions.json")).unwrap(),
+            metadata
+        );
+        for (name, bytes) in corpus_metadata {
+            assert_eq!(std::fs::read(restore_root.join("data/master").join(name)).unwrap(), bytes);
+        }
+        let restored_formula: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/reference_formulations.json")).unwrap(),
+        ).unwrap();
+        let restored_normalization: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/reference_formulation_normalizations.json")).unwrap(),
+        ).unwrap();
+        let restored_review: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/reference_formulation_reviews.json")).unwrap(),
+        ).unwrap();
+        let restored_sds_evidence: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/supplier_sds_product_evidence.json")).unwrap(),
+        ).unwrap();
+        let restored_import_file: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/reference_formulation_import_files.json")).unwrap(),
+        ).unwrap();
+        let restored_acquisition_item: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/supplier_acquisition_job_items.json")).unwrap(),
+        ).unwrap();
+        assert_eq!(restored_formula[0]["sourceDocumentHash"], digest);
+        assert_eq!(restored_formula[0]["source"]["sourcePdfSha256"], digest);
+        assert_eq!(restored_formula[0]["source"]["acquisitionCode"], "supplierdoc-formula");
+        assert_eq!(restored_normalization[0]["referenceFormulationRecordId"], restored_formula[0]["id"]);
+        assert_eq!(restored_normalization[0]["sourceDocumentHash"], digest);
+        assert_eq!(restored_review[0]["referenceFormulationRecordId"], restored_formula[0]["id"]);
+        assert_eq!(restored_review[0]["sourceDocumentHash"], digest);
+        assert_eq!(restored_sds_evidence[0]["acquisitionCode"], "supplierdoc-sds");
+        assert_eq!(restored_sds_evidence[0]["sourceDocumentHash"], sds_digest);
+        assert_eq!(restored_import_file[0]["jobId"], "formula-import-1");
+        assert_eq!(restored_import_file[0]["sourceDocumentHash"], digest);
+        assert_eq!(restored_acquisition_item[0]["jobId"], "supplier-scan-1");
+        assert_eq!(restored_acquisition_item[0]["acquisitionCode"], "supplierdoc-sds");
+        assert_eq!(restored_acquisition_item[0]["sourceDocumentHash"], sds_digest);
+
+        let _ = std::fs::remove_dir_all(&source_root);
+        let _ = std::fs::remove_dir_all(&restore_root);
+        let _ = std::fs::remove_dir_all(&package_dir);
     }
 
     #[test]
@@ -1615,6 +1977,29 @@ mod tests {
         assert!(report.errors.is_empty());
         assert!(report.warnings.is_empty());
         assert!(report.manifest.is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_keeps_legacy_v1_0_backups_restorable_after_format_upgrade() {
+        let dir = verify_tmp_dir("legacy-v1-backup");
+        let bytes = br#"[{"code":"M1","schemaVersion":"1.0"}]"#;
+        let mut manifest = base_manifest();
+        manifest.backup_format_version = "1.0".to_string();
+        manifest.included.push("data/master/materials.json".to_string());
+        manifest.file_inventory.push(FileEntry {
+            path: "data/master/materials.json".to_string(),
+            bytes: bytes.len() as u64,
+            sha256: sha256_bytes(bytes),
+        });
+        manifest.total_bytes = bytes.len() as u64;
+        let path = dir.join("legacy-v1.formulab-backup");
+        write_test_package(&path, &manifest, &[("data/master/materials.json", bytes)]);
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Valid));
+        assert!(backup_format_is_supported("1.0"));
+        assert!(!backup_format_is_supported("9.9"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -1,5 +1,5 @@
 /**
- * Section 24 — structural architecture guards proving the Connector
+ * Section 24 / V01 — structural architecture guards proving the Connector
  * Management frontend never becomes a second business-rule authority:
  * no direct masterdata write bypassing the real bridge/commit layer, no
  * second Import History/Crosswalk store, no eval/new Function, no LLM
@@ -32,6 +32,14 @@ describe("CFUI27: no connector UI component performs a direct canonical write", 
   it("the only real canonical-write path reachable from this UI is confirmConnectorImport() -> commitDataExchangeRows()", () => {
     const bridgeSrc = readFileSync(join(process.cwd(), "src", "lib", "connectorImportBridge.ts"), "utf-8");
     expect(bridgeSrc).toMatch(/commitDataExchangeRows/);
+  });
+
+  it("supplier extensions cannot add direct canonical material writes beside the existing bridge", () => {
+    const bridgeSrc = readFileSync(join(process.cwd(), "src", "lib", "connectorImportBridge.ts"), "utf-8");
+    expect(bridgeSrc).toMatch(/commitDataExchangeRows/);
+    expect(bridgeSrc).not.toMatch(/upsertRecords\(\s*["'](?:materials|raw_materials|suppliers|material_documents)["']/);
+    expect(bridgeSrc).toMatch(/data_exchange_import_jobs/);
+    expect(bridgeSrc).toMatch(/data_exchange_import_row_results/);
   });
 });
 

@@ -1019,7 +1019,7 @@ const EXCHANGE_RATE_COLUMNS: DataExchangeColumnDefinition[] = [
 
 // Phase 13 Session 1: the old "chemist" role was folded into "researcher"
 // (day-to-day formulation/lab work) when the role model expanded from 6 to
-// 12 fixed roles — see docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md §1/§9.
+// fixed-role policy — see docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md §1/§9.
 const MASTER_DATA_ROLES: readonly ApprovalRole[] = ["administrator", "owner"];
 const QUALITY_MASTER_DATA_ROLES: readonly ApprovalRole[] = ["quality", "administrator", "owner"];
 const FORMULATION_ROLES: readonly ApprovalRole[] = ["researcher", "administrator", "owner"];

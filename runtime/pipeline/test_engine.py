@@ -110,6 +110,69 @@ class FunctionalRoleTests(unittest.TestCase):
 
 
 class CandidatePoolTests(unittest.TestCase):
+    def test_reviewed_field_formula_prior_strongly_ranks_exact_material_with_citations(self):
+        material = {"code": "MAT-001", "inci": "Cocamidopropyl Betaine", "name": "CAPB", "function": "primary surfactant", "active": True}
+        guidance = {
+            "schemaVersion": "formulab-new-request-reference-priors-v1",
+            "productFamilyKey": "hand dishwash",
+            "eligibleFormulaCount": 4,
+            "supplierCount": 2,
+            "ingredientPriors": [{
+                "materialCode": "MAT-001", "materialName": "CAPB", "canonicalChemistryId": "chem-capb",
+                "formulaCount": 3, "eligibleFormulaCount": 4, "supplierCount": 2,
+                "formulaWeightedFrequency": 0.75, "supplierNeutralFrequency": 0.7,
+                "sourceRecordIds": ["reference-a", "reference-b", "reference-c"],
+                "dosageGuidance": [{
+                    "formulaCount": 3, "supplierCount": 2,
+                    "observedRangePercent": {"lower": 2.0, "upper": 6.0},
+                    "typicalRangePercent": {"lower": 3.0, "upper": 5.0},
+                    "sourceRecordIds": ["reference-a", "reference-b", "reference-c"],
+                }],
+            }],
+            "interpretation": "reviewed_field_formula_appearance_is_advisory_not_suitability_safety_compatibility_or_efficacy",
+        }
+        brief = {"target": "hand dishwash detergent", "targetProductType": "Hand Dishwash", "referenceFormulationGuidance": guidance}
+        constraints = derive_constraints(brief)
+        baseline_brief = {key: value for key, value in brief.items() if key != "referenceFormulationGuidance"}
+        baseline = engine.build_candidate_pool(baseline_brief, derive_constraints(baseline_brief), [], [material])
+        candidate = baseline.candidates[normalize_ingredient_key("Cocamidopropyl Betaine")]
+        score_without_prior = engine._selection_score(candidate)
+
+        guided = engine.build_candidate_pool(brief, constraints, [], [material], reference_formulation_guidance=guidance)
+        selected = guided.candidates[normalize_ingredient_key("Cocamidopropyl Betaine")]
+        self.assertIn(engine.ORIGIN_REFERENCE_FORMULATION, selected.origins)
+        self.assertGreater(engine._selection_score(selected), score_without_prior)
+        self.assertEqual(selected.reference_formulation_evidence["source_record_ids"], ["reference-a", "reference-b", "reference-c"])
+        dosage = engine.resolve_concentration(selected, "primary_surfactant", [], "balanced")
+        self.assertEqual(dosage.source_type, "supplier_reference_formulation")
+        self.assertGreaterEqual(dosage.value, 3.0)
+        self.assertLessEqual(dosage.value, 5.0)
+        self.assertIn("reference-a", dosage.note)
+
+    def test_field_formula_prior_never_bypasses_family_identity_or_hard_exclusion(self):
+        material = {"code": "MAT-SLES", "inci": "Sodium Laureth Sulfate", "name": "SLES", "function": "primary surfactant", "active": True}
+        guidance = {
+            "schemaVersion": "formulab-new-request-reference-priors-v1",
+            "productFamilyKey": "hand dishwash", "eligibleFormulaCount": 1, "supplierCount": 1,
+            "ingredientPriors": [{
+                "materialCode": "MAT-SLES", "materialName": "SLES", "canonicalChemistryId": "chem-sles",
+                "formulaCount": 1, "eligibleFormulaCount": 1, "supplierCount": 1,
+                "formulaWeightedFrequency": 1, "supplierNeutralFrequency": 1, "sourceRecordIds": ["reference-a"],
+            }],
+            "interpretation": "reviewed_field_formula_appearance_is_advisory_not_suitability_safety_compatibility_or_efficacy",
+        }
+        mismatched = {"target": "anti-dandruff shampoo", "targetProductType": "Shampoo", "referenceFormulationGuidance": guidance}
+        mismatch_pool = engine.build_candidate_pool(mismatched, derive_constraints(mismatched), [], [material], reference_formulation_guidance=guidance)
+        sles = mismatch_pool.candidates[normalize_ingredient_key("Sodium Laureth Sulfate")]
+        self.assertIsNone(sles.reference_formulation_evidence)
+
+        constrained = {**mismatched, "targetProductType": "Hand Dishwash", "excludedIngredients": "Sodium Laureth Sulfate"}
+        constrained_pool = engine.build_candidate_pool(constrained, derive_constraints(constrained), [], [material], reference_formulation_guidance=guidance)
+        excluded = constrained_pool.candidates[normalize_ingredient_key("Sodium Laureth Sulfate")]
+        self.assertTrue(excluded.excluded)
+        self.assertIsNone(excluded.reference_formulation_evidence)
+        self.assertNotIn(excluded, engine._candidates_for_role(constrained_pool, "primary_surfactant"))
+
     def test_unknown_ingredient_never_enters_the_pool(self):
         brief = {"target": "a shampoo"}
         constraints = derive_constraints(brief)

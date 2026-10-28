@@ -303,8 +303,8 @@ mod tests {
     // -------------------------------------------- masterdata_area_for ---
 
     #[test]
-    fn masterdata_area_for_has_all_96_collections_mapped() {
-        assert_eq!(masterdata_areas().collections.len(), 96);
+    fn masterdata_area_for_has_all_106_collections_mapped() {
+        assert_eq!(masterdata_areas().collections.len(), 106);
         for collection in &masterdata_areas().collections {
             assert!(
                 masterdata_area_for(collection).is_some(),
@@ -328,6 +328,8 @@ mod tests {
         assert_eq!(masterdata_area_for("regulatory_rules"), Some("regulatory"));
         assert_eq!(masterdata_area_for("doe_studies"), Some("optimization"));
         assert_eq!(masterdata_area_for("data_exchange_import_jobs"), Some("dataExchange"));
+        assert_eq!(masterdata_area_for("supplier_acquisition_jobs"), Some("dataExchange"));
+        assert_eq!(masterdata_area_for("supplier_acquisition_job_items"), Some("dataExchange"));
         assert_eq!(masterdata_area_for("generated_document_records"), Some("documentControl"));
     }
 

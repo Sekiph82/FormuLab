@@ -23,6 +23,7 @@ import {
   FORMULA_ALTERNATIVE_COUNTS,
   type FormulationBrief,
 } from "@/lib/formulationV2";
+import { loadNewRequestReferenceFormulationPriors } from "@/lib/referenceFormulationGeneration";
 import { cn } from "@/lib/cn";
 
 /**
@@ -67,6 +68,7 @@ export function NewFormulationRequestPage() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [referenceGuidanceNotice, setReferenceGuidanceNotice] = useState<string | null>(null);
 
   const clearAll = () => {
     setRequest("");
@@ -109,6 +111,21 @@ export function NewFormulationRequestPage() {
     const cfg = loadProviderConfig();
     setBusy(true);
     setError(null);
+    setReferenceGuidanceNotice(null);
+    const referenceFamily = productType.trim();
+    if (referenceFamily) {
+      try {
+        const guidance = await loadNewRequestReferenceFormulationPriors(referenceFamily);
+        const mapped = guidance.ingredientPriors.length;
+        setReferenceGuidanceNotice(guidance.eligibleFormulaCount > 0 && mapped > 0
+          ? `${guidance.eligibleFormulaCount} reviewed ${guidance.productFamilyKey} field formula(s) were found in the local corpus. The generation engine rechecks source rights, field reviews and material identity before use; source precedent is not a safety, compatibility, efficacy or lab result.`
+          : `No eligible ${guidance.productFamilyKey} field-formula evidence is currently mapped to reviewed active RawMaterials. The generation engine independently checks the canonical local records before applying any reference.`);
+      } catch {
+        setReferenceGuidanceNotice("Field-formula evidence could not be loaded for this request. Generation will continue without it.");
+      }
+    } else {
+      setReferenceGuidanceNotice("Select a product type to match reviewed field-formula evidence to this request. Generation will continue without reference-formula influence.");
+    }
     const brief: FormulationBrief = {
       target: request.trim(),
       category: category || undefined,
@@ -158,6 +175,11 @@ export function NewFormulationRequestPage() {
         {error && (
           <div role="alert" className="mt-4 rounded-input border border-error/40 bg-error/10 px-3 py-2 text-[12px] text-error">
             {error}
+          </div>
+        )}
+        {referenceGuidanceNotice && (
+          <div role="status" className="mt-4 rounded-input border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted">
+            {referenceGuidanceNotice}
           </div>
         )}
 

@@ -26,6 +26,7 @@ import { ReportsPage } from "./routes/ReportsPage";
 import { AdministrationPage } from "./routes/AdministrationPage";
 import { DataExchangePage } from "./routes/DataExchangePage";
 import { ReverseFormulationPage } from "./routes/ReverseFormulationPage";
+import { ReferenceFormulationsPage } from "./routes/ReferenceFormulationsPage";
 import { UserGuidePage } from "./routes/UserGuidePage";
 import { NotFound } from "./routes/NotFound";
 
@@ -63,6 +64,8 @@ export const routes: RouteObject[] = [
       { path: "administration", element: <AdministrationPage /> },
       { path: "data-exchange", element: <DataExchangePage /> },
       { path: "reverse-formulation", element: <ReverseFormulationPage /> },
+      { path: "reference-formulations", element: <ReferenceFormulationsPage /> },
+      { path: "reference-formulations/:recordId", element: <ReferenceFormulationsPage /> },
       { path: "materials", element: <MaterialsPage /> },
       { path: "notebooks", element: <NotebooksPage /> },
       { path: "optimizer", element: <OptimizerPage /> },

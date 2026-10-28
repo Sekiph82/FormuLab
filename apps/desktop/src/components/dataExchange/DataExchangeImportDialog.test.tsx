@@ -8,10 +8,10 @@
  * with no `COMMIT_HANDLERS` entry, standing in for whatever future
  * template ships registered before its handler does.
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { evaluateMaterialAvailability, findRate, getDataExchangeTemplate, parseCsv, type ExchangeRate, type InventoryRecord } from "@formulab/shared";
+import { createRawMaterialApplicationProposal, evaluateMaterialAvailability, findRate, getDataExchangeTemplate, parseCsv, rawMaterialSchema, type ExchangeRate, type IdentityFieldReview, type InventoryRecord } from "@formulab/shared";
 import { DataExchangeImportDialog } from "./DataExchangeImportDialog";
 import { buildDataExchangeWorkbook } from "@/lib/dataExchangeXlsx";
 import { buildReferenceResolver, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";
@@ -52,6 +52,49 @@ beforeEach(() => {
   bridge.upsertRecords.mockResolvedValue({ inserted: 1, updated: 0, total: 1 });
   formulationsBridge.listFormulations.mockResolvedValue([]);
   formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [] });
+});
+
+describe("RawMaterial proposal Data Exchange lineage", () => {
+  it("stores the accepted SDS review and evidence references in the existing import job and row history", async () => {
+    const template = getDataExchangeTemplate("raw_materials")!;
+    const material = rawMaterialSchema.parse({
+      schemaVersion: "1.0", code: "RM-1", displayName: "Test surfactant", casNumbers: [], ecNumbers: [], functions: [],
+      activeMatterState: "missing", documents: [], regulatoryStatuses: [], hazardClassifications: [], allergens: [],
+      incompatibilities: [], substituteCodes: [], active: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const lineage = {
+      applicationProposalId: "raw-material-application:review-1",
+      acceptedReviewId: "review-1",
+      sourceEvidenceId: "sds-evidence-1",
+      sourceEvidenceRefs: ["sds:page:p1:l8"],
+    };
+    const review: IdentityFieldReview = {
+      schemaVersion: "1.0", id: lineage.acceptedReviewId, commercialProductId: "commercial-product-1", sourceEvidenceId: lineage.sourceEvidenceId,
+      targetRecordId: material.code, field: "canonical_identity", decision: "accepted", proposedValueSnapshot: JSON.stringify({ casNumbers: ["1643-20-5"] }),
+      evidenceRefs: lineage.sourceEvidenceRefs, reviewedBy: "chemist-1", reviewerRole: "administrator", reviewedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const proposal = createRawMaterialApplicationProposal({ target: material, review });
+    const headers = Object.keys(proposal.dataExchangeRow!);
+    const csv = [headers, headers.map((header) => proposal.dataExchangeRow![header as keyof typeof proposal.dataExchangeRow] ?? "")]
+      .map((values) => values.map((value) => `"${String(value).replace(/"/gu, '""')}"`).join(","))
+      .join("\r\n");
+    const initialFile = new File([csv], "raw-material-proposal.csv", { type: "text/csv" });
+    bridge.listRecords.mockImplementation(async (collection: string) => collection === "materials" ? [material] : collection === "identity_field_reviews" ? [review] : []);
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="chemist-1" initialFile={initialFile} proposalLineage={lineage} onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.querySelector('input[type="file"]')).toBeDisabled();
+    const commitButton = within(dialog).getByRole("button", { name: "Commit import" });
+    await waitFor(() => expect(commitButton).toBeEnabled());
+    await user.click(commitButton);
+
+    await waitFor(() => {
+      const jobs = bridge.upsertRecords.mock.calls.filter(([collection]) => collection === "data_exchange_import_jobs");
+      expect(jobs.some(([, records]) => (records as Array<Record<string, unknown>>).some((job) => job.status === "completed" && job.applicationProposalId === lineage.applicationProposalId && job.acceptedReviewId === lineage.acceptedReviewId))).toBe(true);
+      const rows = bridge.upsertRecords.mock.calls.filter(([collection]) => collection === "data_exchange_import_row_results");
+      expect(rows.some(([, records]) => (records as Array<Record<string, unknown>>).some((row) => row.applicationProposalId === lineage.applicationProposalId && row.acceptedReviewId === lineage.acceptedReviewId && row.sourceEvidenceId === lineage.sourceEvidenceId && Array.isArray(row.sourceEvidenceRefs) && row.sourceEvidenceRefs[0] === lineage.sourceEvidenceRefs[0]))).toBe(true);
+    });
+  });
 });
 
 describe("FVL-06 real instrument export acceptance", () => {

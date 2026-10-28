@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { ConnectorResult, SourceConnector } from "../schemas/connector";
+import { supplierDocumentCapabilitiesSchema, type ConnectorResult, type SourceConnector } from "../schemas/connector";
 import { stageCsvFile } from "./fileConnector";
 
 function mockFileConnector(): SourceConnector {
@@ -64,6 +64,44 @@ async function toResult(c: SourceConnector, entity: string): Promise<ConnectorRe
 }
 
 describe("SourceConnector — common contract (FVL-04.013)", () => {
+  it("keeps supplier-document capability declarations optional for existing connector implementations", async () => {
+    const result = await toResult(mockFileConnector(), "materials");
+    expect(result.records).toHaveLength(1);
+    expect(mockFileConnector().supplierDocumentCapabilities).toBeUndefined();
+  });
+
+  it("validates explicit supplier discovery, pagination, authorization, coverage and limitation declarations", () => {
+    const capabilities = supplierDocumentCapabilitiesSchema.parse({
+      catalogDiscovery: true,
+      documentDiscovery: true,
+      documentFetch: false,
+      formulationDiscovery: false,
+      pagination: { mode: "cursor" },
+      authorizationMode: "public",
+      coverage: {
+        status: "partial",
+        markets: ["EU"],
+        languages: ["en"],
+        productLines: ["Home Care"],
+        documentTypes: ["SDS", "TDS"],
+      },
+      limitations: ["No authenticated customer portal access."],
+    });
+    expect(capabilities.documentFetch).toBe(false);
+    expect(capabilities.coverage.status).toBe("partial");
+    expect(() => supplierDocumentCapabilitiesSchema.parse({
+      catalogDiscovery: true,
+      documentDiscovery: false,
+      documentFetch: false,
+      formulationDiscovery: false,
+      pagination: { mode: "none" },
+      authorizationMode: "public",
+      coverage: { status: "unknown", markets: [], languages: [], productLines: [], documentTypes: [] },
+      limitations: [],
+      apiKey: "must-not-be-capability-data",
+    })).toThrow();
+  });
+
   it("C13-1: a mock FILE connector satisfies the common contract", async () => {
     const c = mockFileConnector();
     expect(c.identity.connectorType).toBe("FILE");

@@ -13,6 +13,8 @@
     "codex:tasks:check": "node scripts/codex/validate-task-state.mjs",
     "codex:tasks:claim": "node scripts/codex/task-queue.mjs",
     "codex:tasks:test": "node --test scripts/codex/task-queue.test.mjs",
+    "codex:v01:tasks:check": "node scripts/codex/validate-v01-task-state.mjs",
+    "codex:v01:tasks:test": "node --test scripts/codex/validate-v01-task-state.test.mjs",
     "codex:dashboard": "node scripts/codex/dashboard-server.mjs",
     "codex:dashboard:test": "node --test scripts/codex/dashboard-server.test.mjs && node --test scripts/codex/dashboard-ui.test.mjs",
     "docs:fixture:seed": "tsx scripts/dev/seed-docs-fixture.ts",

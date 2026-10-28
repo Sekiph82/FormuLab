@@ -8,10 +8,15 @@ import { MappingProfilesScreen } from "./MappingProfilesScreen";
 import { CrosswalksScreen } from "./CrosswalksScreen";
 import { ImportRunsScreen } from "./ImportRunsScreen";
 import { PrepareReviewScreen } from "./PrepareReviewScreen";
+import { SupplierConnectionsScreen } from "./SupplierConnectionsScreen";
+import { SupplierAcquisitionJobsScreen } from "./SupplierAcquisitionJobsScreen";
+import { SupplierAcquiredDocumentsScreen } from "./SupplierAcquiredDocumentsScreen";
+import { SupplierSdsExtractionReviewScreen } from "./SupplierSdsExtractionReviewScreen";
+import { SupplierCommercialProductResolverScreen } from "./SupplierCommercialProductResolverScreen";
 import { Card, Empty } from "./ui";
 
-type ConnectorTab = "connections" | "explorer" | "mapping" | "crosswalks" | "runs" | "review";
-const TABS: ConnectorTab[] = ["connections", "explorer", "mapping", "crosswalks", "runs", "review"];
+type ConnectorTab = "connections" | "suppliers" | "acquisitions" | "documents" | "sdsReview" | "productResolver" | "explorer" | "mapping" | "crosswalks" | "runs" | "review";
+const TABS: ConnectorTab[] = ["connections", "suppliers", "acquisitions", "documents", "sdsReview", "productResolver", "explorer", "mapping", "crosswalks", "runs", "review"];
 
 /** Section 2 — the Connector Management shell, mounted as a new section
  *  inside the EXISTING Data Exchange Center (`DataExchangePage.tsx`) —
@@ -87,6 +92,11 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
           }}
         />
       )}
+      {tab === "suppliers" && <SupplierConnectionsScreen />}
+      {tab === "acquisitions" && <SupplierAcquisitionJobsScreen />}
+      {tab === "documents" && <SupplierAcquiredDocumentsScreen />}
+      {tab === "sdsReview" && <SupplierSdsExtractionReviewScreen />}
+      {tab === "productResolver" && <SupplierCommercialProductResolverScreen actorUserId={actorUserId} actorRole={actorRole} />}
       {tab === "explorer" && (
         <SourceExplorerScreen
           connection={selected}

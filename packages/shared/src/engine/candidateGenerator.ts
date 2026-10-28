@@ -7,6 +7,11 @@ import {
   IngredientDeclarationLine,
 } from '../schemas/reverseFormulation';
 import { computeTargetMatchScore } from './scoringModel';
+import {
+  referenceFormulationGenerationContextSchema,
+  type ReferenceFormulationGenerationContext,
+} from './referenceFormulationGenerationContext';
+import { identityFieldReviewSchema, type IdentityFieldReview } from '../schemas/identityFieldReview';
 
 /**
  * Input for candidate generation.
@@ -16,6 +21,8 @@ export interface GenerationInput {
   mappedIngredients: Array<{
     line: IngredientDeclarationLine;
     mapping: IngredientMappingResult;
+    /** Accepted/edited human identity review tied to this RawMaterial; only its reviewed snapshot may identify chemistry. */
+    canonicalIdentityReview?: IdentityFieldReview;
   }>;
   /** Analytical insights. */
   analysis: AnalyticalAnalysis;
@@ -25,6 +32,24 @@ export interface GenerationInput {
   constraints: ReverseConstraintSet;
   /** Available materials in catalog (filtered by constraints). */
   availableMaterials: RawMaterial[];
+  /** Optional reviewed, source-linked reference context. Generation remains valid without it. */
+  referenceContext?: ReferenceFormulationGenerationContext;
+  /** Exact normalized product-family key selected by reviewed identity resolution. */
+  canonicalProductFamilyKey?: string;
+}
+
+export interface ReferenceFormulationSupportQuality {
+  status: "BROAD" | "MODERATE" | "SPARSE" | "UNAVAILABLE";
+  policyVersion: "formulab-reference-support-quality-v1";
+  familyFormulaCount: number;
+  eligibleFormulaCount: number;
+  supplierCount: number;
+  identityResolvedFormulaCount: number;
+  identityResolutionPercent: number;
+  ingredientLineCount: number;
+  sourceCitedIngredientLineCount: number;
+  sourceCitationCoveragePercent: number;
+  interpretation: "deterministic_reviewed_corpus_sample_resolution_and_source_coverage_not_ai_confidence_or_validation";
 }
 
 /**
@@ -43,6 +68,116 @@ export interface GeneratedCandidate {
   matchScore: number;
   /** Reasoning. */
   notes: string[];
+  /** Exact reviewed product-family key used for the advisory reference context. */
+  referenceProductFamilyKey?: string;
+  referenceCorpusGuidance?: {
+    eligibleFormulaCount: number;
+    supplierCount: number;
+    suppliers: Array<{ supplierId: string; formulaCount: number; sourceRecordIds: string[] }>;
+    sourceRecordIds: string[];
+    interpretation: "reviewed_eligible_reference_corpus_summary_not_validation";
+  };
+  referenceSupportQuality?: ReferenceFormulationSupportQuality;
+  /** Source-linked dosage comparison. It is advisory metadata and never mutates the generated formula. */
+  dosageGuidance?: Array<{
+    asOf: string;
+    materialId: string;
+    canonicalChemistryId: string;
+    functionAssignment: "unassigned_or_unreviewed";
+    candidatePercent: number;
+    typicalRangePercent: { lower: number; upper: number };
+    observedRangePercent: { lower: number; upper: number };
+    position: "below_typical_range" | "within_typical_range" | "above_typical_range";
+    formulaCount: number;
+    supplierCount: number;
+    suppliers: Array<{ supplierId: string; formulaCount: number; share: number; sourceRecordIds: string[] }>;
+    sourceRecordIds: string[];
+    interpretation: "advisory_reviewed_empirical_dosage_not_hard_constraint_or_validated_recommendation";
+  }>;
+  /** Formula-presence evidence is descriptive; it never states that an ingredient is suitable or effective. */
+  ingredientGuidance?: Array<{
+    materialId: string;
+    canonicalChemistryId: string;
+    formulaCount: number;
+    eligibleFormulaCount: number;
+    formulaWeightedFrequency: number;
+    supplierNeutralFrequency: number;
+    supplierCount: number;
+    suppliers: Array<{ supplierId: string; eligibleFormulaCount: number; ingredientFormulaCount: number; frequency: number; sourceRecordIds: string[] }>;
+    sourceRecordIds: string[];
+    interpretation: "reviewed_formula_appearance_only_not_suitability_safety_compatibility_or_efficacy";
+  }>;
+  /** Nearest reviewed examples are descriptive similarity results, not validated matches. */
+  nearestReferenceGuidance?: Array<{
+    sourceRecordId: string;
+    sourceDocumentHash: string;
+    distance: number;
+    similarity: number;
+    featureCoverage: number;
+    contributingFeatureKeys: string[];
+    evidenceRefs: string[];
+    interpretation: "supplier_neutral_reference_similarity_not_validation_or_compatibility";
+  }>;
+  /** Joint appearance in reviewed corpus formulas; never a compatibility or function assignment decision. */
+  cooccurrenceGuidance?: Array<{
+    materialId: string;
+    canonicalChemistryId: string;
+    pairKind: "material_pair" | "material_function_pair";
+    otherId: string;
+    formulaCount: number;
+    eligibleFormulaCount: number;
+    frequency: number;
+    supplierCount: number;
+    sourceRecordIds: string[];
+    interpretation: "empirical_joint_appearance_only_not_compatibility_or_function_assignment";
+  }>;
+  /** Comparison against reviewed finished-product active claims; absent input active values remain unknown. */
+  activeMatterGuidance?: Array<{
+    asOf: string;
+    candidatePercent?: number;
+    candidateComparisonAvailable: boolean;
+    unavailableReason?: "candidate_active_matter_incomplete";
+    typicalRangePercent: { lower: number; upper: number };
+    observedRangePercent: { lower: number; upper: number };
+    position?: "below_typical_range" | "within_typical_range" | "above_typical_range";
+    formulaCount: number;
+    supplierCount: number;
+    sourceRecordIds: string[];
+    evidenceRefs: string[];
+    interpretation: "reviewed_active_matter_claim_distribution_advisory_only_not_candidate_validation";
+  }>;
+  /** Reviewed component ranges are exposed, but no candidate projection is made without an exact composition mapping. */
+  componentContributionGuidance?: Array<{
+    asOf: string;
+    canonicalChemistryId: string;
+    minimumLowerBound: number;
+    maximumUpperBound: number;
+    medianRangePercent: { lower: number; upper: number };
+    formulaCount: number;
+    supplierCount: number;
+    sourceRecordIds: string[];
+    evidenceRefs: string[];
+    candidateComparisonAvailable: false;
+    unavailableReason: "candidate_component_composition_not_available";
+    interpretation: "reviewed_component_distribution_not_candidate_composition_or_validation";
+  }>;
+  /** Reviewed supplier process evidence is descriptive; it is never a generated or required procedure. */
+  processPatternGuidance?: Array<{
+    asOf: string;
+    patternKind: "action" | "action_sequence" | "phase" | "condition";
+    patternId: string;
+    sourceValue: string;
+    sourceValues: string[];
+    formulaCount: number;
+    eligibleProcessFormulaCount: number;
+    frequency: number;
+    occurrenceCount: number;
+    supplierCount: number;
+    suppliers: Array<{ supplierId: string; formulaCount: number; share: number; sourceRecordIds: string[] }>;
+    sourceRecordIds: string[];
+    evidenceRefs: string[];
+    interpretation: "reviewed_supplier_process_pattern_not_candidate_recipe_or_requirement";
+  }>;
 }
 
 /** Result of one generation method: a candidate, or an honest reason it
@@ -61,6 +196,9 @@ interface GenerationAttempt {
  */
 export function generateCandidates(input: GenerationInput): GeneratedCandidate[] {
   const { mappedIngredients, analysis, target, constraints, availableMaterials } = input;
+  const referenceContext = input.referenceContext === undefined
+    ? undefined
+    : referenceFormulationGenerationContextSchema.parse(input.referenceContext);
 
   // If no mapped ingredients, we cannot generate meaningful candidates.
   if (mappedIngredients.length === 0) {
@@ -100,6 +238,13 @@ export function generateCandidates(input: GenerationInput): GeneratedCandidate[]
     candidates.push(attempt.candidate);
   }
 
+  for (const candidate of candidates) {
+    applyEmpiricalDosageGuidance(candidate, mappedIngredients, referenceContext, input.canonicalProductFamilyKey);
+    applyEmpiricalIngredientGuidance(candidate, mappedIngredients, referenceContext, input.canonicalProductFamilyKey);
+    applyEmpiricalContributionGuidance(candidate, input.availableMaterials, referenceContext, input.canonicalProductFamilyKey);
+    applyEmpiricalProcessGuidance(candidate, referenceContext, input.canonicalProductFamilyKey);
+  }
+
   // If we have no candidates, return an explicit, explained fallback rather
   // than a misleading empty-but-unexplained result.
   if (candidates.length === 0) {
@@ -112,6 +257,261 @@ export function generateCandidates(input: GenerationInput): GeneratedCandidate[]
   }
 
   return candidates;
+}
+
+/** Attach reviewed family dosage context only through caller-supplied exact identity links. */
+function applyEmpiricalDosageGuidance(
+  candidate: GeneratedCandidate,
+  mappedIngredients: GenerationInput["mappedIngredients"],
+  referenceContext: ReferenceFormulationGenerationContext | undefined,
+  canonicalProductFamilyKey: string | undefined,
+): void {
+  if (!referenceContext?.dosageGuidanceAvailable || canonicalProductFamilyKey !== referenceContext.productFamilyKey) return;
+  const guidance: NonNullable<GeneratedCandidate["dosageGuidance"]> = [];
+  for (const item of mappedIngredients) {
+    const material = item.mapping.material;
+    const canonicalChemistryId = reviewedCanonicalChemistryId(item.canonicalIdentityReview, material?.code);
+    if (!material || !canonicalChemistryId) continue;
+    const formulaLine = candidate.formula.find((line) => line.materialId === material.code);
+    if (!formulaLine) continue;
+    const matches = referenceContext.dosageGuidance.filter((entry) => entry.canonicalChemistryId === canonicalChemistryId
+      && entry.functionAssignment === "unassigned_or_unreviewed"
+      && entry.canonicalFunctionId === undefined);
+    if (matches.length !== 1) continue;
+    const sample = matches[0]!;
+    const position = formulaLine.percentage < sample.typicalRangePercent.lower
+      ? "below_typical_range"
+      : formulaLine.percentage > sample.typicalRangePercent.upper
+        ? "above_typical_range"
+        : "within_typical_range";
+    guidance.push({
+      asOf: sample.asOf,
+      materialId: material.code,
+      canonicalChemistryId,
+      functionAssignment: "unassigned_or_unreviewed",
+      candidatePercent: formulaLine.percentage,
+      typicalRangePercent: sample.typicalRangePercent,
+      observedRangePercent: sample.observedRangePercent,
+      position,
+      formulaCount: sample.formulaCount,
+      supplierCount: sample.supplierCount,
+      suppliers: sample.suppliers,
+      sourceRecordIds: sample.sourceRecordIds,
+      interpretation: "advisory_reviewed_empirical_dosage_not_hard_constraint_or_validated_recommendation",
+    });
+  }
+  if (guidance.length === 0) return;
+  candidate.dosageGuidance = guidance;
+  candidate.notes.push(...guidance.map((item) => {
+    const range = `${item.typicalRangePercent.lower.toFixed(2)}–${item.typicalRangePercent.upper.toFixed(2)}% w/w`;
+    const position = item.position === "within_typical_range" ? "within"
+      : item.position === "below_typical_range" ? "below" : "above";
+    return `Reviewed reference dosage context for ${item.materialId} as of ${item.asOf}: ${item.candidatePercent.toFixed(2)}% w/w is ${position} the observed central range ${range} (${item.formulaCount} reviewed formula${item.formulaCount === 1 ? "" : "s"}, ${item.supplierCount} supplier${item.supplierCount === 1 ? "" : "s"}; sources: ${item.sourceRecordIds.join(", ")}). Advisory only; not a hard constraint, safety approval, or validated recommendation.`;
+  }));
+}
+
+/** Resolve a dosage identity only from a named human's accepted RawMaterial canonical-identity review. */
+function reviewedCanonicalChemistryId(review: IdentityFieldReview | undefined, materialCode: string | undefined): string | undefined {
+  if (!review || !materialCode) return undefined;
+  const parsedReview = identityFieldReviewSchema.safeParse(review);
+  if (!parsedReview.success) return undefined;
+  const acceptedReview = parsedReview.data;
+  if (acceptedReview.targetRecordId !== materialCode || acceptedReview.field !== "canonical_identity"
+    || (acceptedReview.decision !== "accepted" && acceptedReview.decision !== "edited")) return undefined;
+  const snapshot = acceptedReview.decision === "edited" ? acceptedReview.reviewedValueSnapshot : acceptedReview.proposedValueSnapshot;
+  if (!snapshot) return undefined;
+  try {
+    const identity = JSON.parse(snapshot) as { canonicalChemistryId?: unknown };
+    return typeof identity.canonicalChemistryId === "string" && identity.canonicalChemistryId.trim()
+      ? identity.canonicalChemistryId.trim()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Attach only identity-bound family presence and co-occurrence context; never alter the formula or its hard gates. */
+function applyEmpiricalIngredientGuidance(
+  candidate: GeneratedCandidate,
+  mappedIngredients: GenerationInput["mappedIngredients"],
+  referenceContext: ReferenceFormulationGenerationContext | undefined,
+  canonicalProductFamilyKey: string | undefined,
+): void {
+  if (!referenceContext?.available || canonicalProductFamilyKey !== referenceContext.productFamilyKey) return;
+  candidate.referenceProductFamilyKey = referenceContext.productFamilyKey;
+  candidate.referenceCorpusGuidance = {
+    eligibleFormulaCount: referenceContext.eligibleFormulaCount,
+    supplierCount: referenceContext.supplierCount,
+    suppliers: Object.entries(referenceContext.eligibleSupplierSourceRecordIds).map(([supplierId, sourceRecordIds]) => ({
+      supplierId, formulaCount: sourceRecordIds.length, sourceRecordIds,
+    })),
+    sourceRecordIds: referenceContext.eligibleSourceRecordIds,
+    interpretation: "reviewed_eligible_reference_corpus_summary_not_validation",
+  };
+  candidate.nearestReferenceGuidance = referenceContext.nearestReferences.filter((reference) => reference.evidenceRefs.length > 0).map((reference) => ({
+    ...reference,
+    interpretation: "supplier_neutral_reference_similarity_not_validation_or_compatibility",
+  }));
+  const ingredientGuidance: NonNullable<GeneratedCandidate["ingredientGuidance"]> = [];
+  const cooccurrenceGuidance: NonNullable<GeneratedCandidate["cooccurrenceGuidance"]> = [];
+  const seenIngredients = new Set<string>();
+  const seenPairs = new Set<string>();
+  for (const item of mappedIngredients) {
+    const material = item.mapping.material;
+    const canonicalChemistryId = reviewedCanonicalChemistryId(item.canonicalIdentityReview, material?.code);
+    if (!material || !canonicalChemistryId || !candidate.formula.some((line) => line.materialId === material.code)) continue;
+    const prior = referenceContext.ingredientPriors.find((entry) => entry.canonicalChemistryId === canonicalChemistryId);
+    if (!prior) continue;
+    const ingredientKey = `${material.code}\u0000${canonicalChemistryId}`;
+    if (!seenIngredients.has(ingredientKey)) {
+      seenIngredients.add(ingredientKey);
+      ingredientGuidance.push({
+        materialId: material.code,
+        canonicalChemistryId,
+        formulaCount: prior.formulaCount,
+        eligibleFormulaCount: prior.eligibleFormulaCount,
+        formulaWeightedFrequency: prior.formulaWeightedFrequency,
+        supplierNeutralFrequency: prior.supplierNeutralFrequency,
+        supplierCount: prior.supplierCount,
+        suppliers: prior.supplierMix.map((supplier) => ({
+          supplierId: supplier.supplierId,
+          eligibleFormulaCount: supplier.eligibleFormulaCount,
+          ingredientFormulaCount: supplier.ingredientFormulaCount,
+          frequency: supplier.frequency,
+          sourceRecordIds: supplier.sourceRecordIds,
+        })),
+        sourceRecordIds: prior.sourceRecordIds,
+        interpretation: "reviewed_formula_appearance_only_not_suitability_safety_compatibility_or_efficacy",
+      });
+    }
+
+    for (const pair of referenceContext.cooccurrenceGuidance) {
+      if (pair.pairKind !== "material_pair" && pair.pairKind !== "material_function_pair") continue;
+      const isFirst = pair.firstId === canonicalChemistryId;
+      const isSecond = pair.secondId === canonicalChemistryId;
+      if (!isFirst && !isSecond) continue;
+      const otherId = isFirst ? pair.secondId : pair.firstId;
+      const pairKey = `${material.code}\u0000${pair.pairKind}\u0000${canonicalChemistryId}\u0000${otherId}`;
+      if (seenPairs.has(pairKey)) continue;
+      seenPairs.add(pairKey);
+      cooccurrenceGuidance.push({
+        materialId: material.code,
+        canonicalChemistryId,
+        pairKind: pair.pairKind,
+        otherId,
+        formulaCount: pair.formulaCount,
+        eligibleFormulaCount: pair.eligibleFormulaCount,
+        frequency: pair.frequency,
+        supplierCount: pair.supplierCount,
+        sourceRecordIds: pair.sourceRecordIds,
+        interpretation: "empirical_joint_appearance_only_not_compatibility_or_function_assignment",
+      });
+    }
+  }
+  if (ingredientGuidance.length > 0) {
+    candidate.ingredientGuidance = ingredientGuidance;
+    candidate.notes.push(...ingredientGuidance.map((item) =>
+      `Reviewed ${referenceContext.productFamilyKey} formula appearance for ${item.materialId}: ${item.formulaCount}/${item.eligibleFormulaCount} eligible formulas (${(item.formulaWeightedFrequency * 100).toFixed(1)}% formula-weighted; ${(item.supplierNeutralFrequency * 100).toFixed(1)}% equal-supplier average across ${item.supplierCount} suppliers; source records: ${item.sourceRecordIds.join(", ")}). Appearance only; this does not establish suitability, safety, compatibility, or efficacy.`));
+  }
+  if (cooccurrenceGuidance.length > 0) {
+    candidate.cooccurrenceGuidance = cooccurrenceGuidance;
+    candidate.notes.push(...cooccurrenceGuidance.map((item) =>
+      `Reviewed ${referenceContext.productFamilyKey} formulas jointly included ${item.materialId} and ${item.otherId} in ${item.formulaCount}/${item.eligibleFormulaCount} eligible formulas (${(item.frequency * 100).toFixed(1)}%; ${item.supplierCount} suppliers; source records: ${item.sourceRecordIds.join(", ")}). Joint appearance only; it is not a compatibility result or function assignment.`));
+  }
+}
+
+/** Compare candidate active matter only when every formula line has an explicitly known catalog value. */
+function applyEmpiricalContributionGuidance(
+  candidate: GeneratedCandidate,
+  availableMaterials: RawMaterial[],
+  referenceContext: ReferenceFormulationGenerationContext | undefined,
+  canonicalProductFamilyKey: string | undefined,
+): void {
+  if (!referenceContext?.available || canonicalProductFamilyKey !== referenceContext.productFamilyKey
+    || !referenceContext.contributionGuidanceAvailable) return;
+  const activeSamples = referenceContext.contributionGuidance.filter((sample) => sample.quantityKind === "active_matter_claim");
+  const componentSamples = referenceContext.contributionGuidance.filter((sample) => sample.quantityKind === "component_contribution" && sample.canonicalChemistryId);
+  if (activeSamples.length > 0) {
+    let candidateActivePercent = 0;
+    let complete = candidate.formula.length > 0
+      && Math.abs(candidate.formula.reduce((sum, line) => sum + line.percentage, 0) - 100) < 0.01;
+    for (const line of candidate.formula) {
+      const material = availableMaterials.find((item) => item.code === line.materialId);
+      const active = material?.activeMatterPercent === undefined ? Number.NaN : Number(material.activeMatterPercent);
+      if (!material || material.activeMatterState !== "known" || !Number.isFinite(active) || active < 0 || active > 100
+        || !Number.isFinite(line.percentage) || line.percentage < 0 || line.percentage > 100) {
+        complete = false;
+        break;
+      }
+      candidateActivePercent += line.percentage * active / 100;
+    }
+    candidate.activeMatterGuidance = activeSamples.map((sample) => {
+      const typicalRangePercent = { lower: sample.lowerBoundQuantiles.p50, upper: sample.upperBoundQuantiles.p50 };
+      const candidatePercent = complete ? Number(candidateActivePercent.toFixed(6)) : undefined;
+      const position = candidatePercent === undefined ? undefined
+        : candidatePercent < typicalRangePercent.lower ? "below_typical_range"
+          : candidatePercent > typicalRangePercent.upper ? "above_typical_range" : "within_typical_range";
+      candidate.notes.push(candidatePercent === undefined
+        ? `Reviewed ${referenceContext.productFamilyKey} active-matter claims are available (${sample.formulaCount} formulas), but candidate active matter cannot be compared because at least one formula ingredient has no known active-matter value. Unknown values were not treated as zero.`
+        : `Candidate active matter (${candidatePercent.toFixed(2)}%) is ${position!.replace(/_/gu, " ")} the reviewed ${referenceContext.productFamilyKey} typical claim range (${typicalRangePercent.lower}-${typicalRangePercent.upper}%; ${sample.formulaCount} formulas; source records: ${sample.sourceRecordIds.join(", ")}). This is advisory context, not candidate validation.`);
+      return {
+        asOf: sample.asOf,
+        ...(candidatePercent !== undefined ? { candidatePercent, position } : { unavailableReason: "candidate_active_matter_incomplete" as const }),
+        candidateComparisonAvailable: candidatePercent !== undefined,
+        typicalRangePercent,
+        observedRangePercent: { lower: sample.minimumLowerBound, upper: sample.maximumUpperBound },
+        formulaCount: sample.formulaCount,
+        supplierCount: sample.supplierCount,
+        sourceRecordIds: sample.sourceRecordIds,
+        evidenceRefs: sample.evidenceRefs,
+        interpretation: "reviewed_active_matter_claim_distribution_advisory_only_not_candidate_validation",
+      };
+    });
+  }
+  if (componentSamples.length > 0) {
+    candidate.componentContributionGuidance = componentSamples.map((sample) => ({
+      asOf: sample.asOf,
+      canonicalChemistryId: sample.canonicalChemistryId!,
+      minimumLowerBound: sample.minimumLowerBound,
+      maximumUpperBound: sample.maximumUpperBound,
+      medianRangePercent: { lower: sample.lowerBoundQuantiles.p50, upper: sample.upperBoundQuantiles.p50 },
+      formulaCount: sample.formulaCount,
+      supplierCount: sample.supplierCount,
+      sourceRecordIds: sample.sourceRecordIds,
+      evidenceRefs: sample.evidenceRefs,
+      candidateComparisonAvailable: false,
+      unavailableReason: "candidate_component_composition_not_available",
+      interpretation: "reviewed_component_distribution_not_candidate_composition_or_validation",
+    }));
+    candidate.notes.push(`Reviewed component-contribution ranges exist for ${componentSamples.length} component identity or identities, but candidate component amounts are unavailable because the generator input has no source-reviewed raw-material composition mapping. SDS component ranges were not assumed to represent candidate composition.`);
+  }
+}
+
+/** Attach exact-family reviewed process patterns as historical context, without proposing process controls. */
+function applyEmpiricalProcessGuidance(
+  candidate: GeneratedCandidate,
+  referenceContext: ReferenceFormulationGenerationContext | undefined,
+  canonicalProductFamilyKey: string | undefined,
+): void {
+  if (!referenceContext?.available || !referenceContext.processGuidanceAvailable
+    || canonicalProductFamilyKey !== referenceContext.productFamilyKey) return;
+  candidate.processPatternGuidance = referenceContext.processGuidance.map((pattern) => ({
+    asOf: pattern.asOf,
+    patternKind: pattern.patternKind,
+    patternId: pattern.patternId,
+    sourceValue: pattern.sourceValue,
+    sourceValues: pattern.sourceValues,
+    formulaCount: pattern.formulaCount,
+    eligibleProcessFormulaCount: pattern.eligibleProcessFormulaCount,
+    frequency: pattern.frequency,
+    occurrenceCount: pattern.occurrenceCount,
+    supplierCount: pattern.supplierCount,
+    suppliers: pattern.suppliers,
+    sourceRecordIds: pattern.sourceRecordIds,
+    evidenceRefs: pattern.evidenceRefs,
+    interpretation: "reviewed_supplier_process_pattern_not_candidate_recipe_or_requirement",
+  }));
+  candidate.notes.push(`Reviewed supplier process examples are available for ${referenceContext.productFamilyKey} (${candidate.processPatternGuidance.length} patterns; sources: ${[...new Set(candidate.processPatternGuidance.flatMap((pattern) => pattern.sourceRecordIds))].join(", ")}). They describe cited historical evidence only; no missing temperatures, times, speeds, or required process steps were inferred.`);
 }
 
 /** Canonical, order-independent identity of a formula: same materials at

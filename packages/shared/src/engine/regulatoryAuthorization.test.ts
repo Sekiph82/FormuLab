@@ -6,6 +6,7 @@ const humans = {
   regulatory: { kind: "human", role: "regulatory", userId: "alice" } satisfies Actor,
   quality: { kind: "human", role: "quality", userId: "quinn" } satisfies Actor,
   administrator: { kind: "human", role: "administrator", userId: "root" } satisfies Actor,
+  owner: { kind: "human", role: "owner", userId: "sekip" } satisfies Actor,
   rawMaterial: { kind: "human", role: "raw_material", userId: "bob" } satisfies Actor,
   researcher: { kind: "human", role: "researcher", userId: "rae" } satisfies Actor,
   production: { kind: "human", role: "production", userId: "pat" } satisfies Actor,
@@ -15,8 +16,8 @@ const system: Actor = { kind: "system", reason: "scheduled sync" };
 const importActor: Actor = { kind: "import", source: "spreadsheet.csv" };
 
 describe("AUTHORIZED_REGULATORY_ROLES", () => {
-  it("is exactly regulatory, quality, administrator", () => {
-    expect(AUTHORIZED_REGULATORY_ROLES).toEqual(["regulatory", "quality", "administrator"]);
+  it("is exactly regulatory, quality, administrator, owner", () => {
+    expect(AUTHORIZED_REGULATORY_ROLES).toEqual(["regulatory", "quality", "administrator", "owner"]);
   });
 });
 
@@ -25,6 +26,7 @@ describe("isAuthorizedRegulatoryActor", () => {
     expect(isAuthorizedRegulatoryActor(humans.regulatory)).toBe(true);
     expect(isAuthorizedRegulatoryActor(humans.quality)).toBe(true);
     expect(isAuthorizedRegulatoryActor(humans.administrator)).toBe(true);
+    expect(isAuthorizedRegulatoryActor(humans.owner)).toBe(true);
   });
 
   it("rejects every other human role", () => {

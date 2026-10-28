@@ -22,6 +22,9 @@ mod git_snapshot;
 mod identity;
 mod compute;
 mod connector_sqlite;
+mod credential_store;
+mod network_admission;
+mod supplier_document_store;
 mod jupyter;
 mod kernel;
 mod large_file;
@@ -98,6 +101,8 @@ pub fn run() {
             connector_sqlite::connector_sqlite_list_tables,
             connector_sqlite::connector_sqlite_describe_table,
             connector_sqlite::connector_sqlite_read_page,
+            credential_store::store_connector_credential,
+            credential_store::delete_connector_credential,
             jupyter::jupyter_status,
             jupyter::setup_jupyter,
             jupyter::start_jupyter,
@@ -130,6 +135,15 @@ pub fn run() {
             attachments::open_attachment,
             masterdata::list_master_records,
             masterdata::upsert_master_records,
+            masterdata::append_supplier_document_acquisitions,
+            masterdata::append_reference_formulations,
+            masterdata::append_reference_formulation_review,
+            masterdata::append_reference_formulation_normalization,
+            supplier_document_store::store_supplier_document_pdf,
+            supplier_document_store::open_supplier_document_pdf,
+            supplier_document_store::read_supplier_document_pdf,
+            masterdata::append_supplier_sds_product_evidence,
+            masterdata::append_identity_field_review,
             masterdata::delete_master_record,
             masterdata::backup_master_collection,
             masterdata::list_master_collections,

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import { CheckCircle2, ExternalLink, Sparkles } from "lucide-react";
 import {
   analyzeAnalyticalResults,
   generateCandidates,
@@ -13,6 +14,7 @@ import {
   type IngredientMapping,
   type IngredientMappingResult,
   type RawMaterial,
+  type ReferenceFormulationGenerationContext,
   type ReverseConstraintSet,
   type ReverseFormulaCandidate,
   type ReverseFormulationStudy,
@@ -20,6 +22,7 @@ import {
   type TargetProductProfile,
 } from "@formulab/shared";
 import { cn } from "@/lib/cn";
+import { loadReferenceFormulationGenerationContext } from "@/lib/referenceFormulationGeneration";
 
 /** Where the converted formula goes: a brand-new formulation, or a new
  *  version on an explicitly chosen existing one. Never decided silently —
@@ -154,16 +157,18 @@ export function CandidateComparisonPanel({
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
   const [savedCandidates, setSavedCandidates] = useState<Map<number, { candidateId: string; candidateCode: string }>>(new Map());
+  const [referenceNotice, setReferenceNotice] = useState<string | null>(null);
 
   const canGenerate = Boolean(primaryProduct) && declarationLines.length > 0 && Boolean(target);
 
   const materialsByCode = useMemo(() => new Map(materials.map((m) => [m.code, m])), [materials]);
 
-  const generate = () => {
+  const generate = async () => {
     if (!primaryProduct || !target) return;
     setGenerating(true);
     setSelectedIndex(null);
     setSavedCandidates(new Map());
+    setReferenceNotice(null);
     try {
       const mappedIngredients = declarationLines
         .slice()
@@ -171,6 +176,17 @@ export function CandidateComparisonPanel({
         .map((line) => ({ line, mapping: resolveMapping(line, mappings, materials) }));
       const analysis = analyzeAnalyticalResults(analyticalResults);
       const effectiveConstraints = constraints ?? emptyConstraints(study.id);
+      let referenceContext: ReferenceFormulationGenerationContext | undefined;
+      let referenceSupportQuality: GeneratedCandidate["referenceSupportQuality"];
+      try {
+        const reference = await loadReferenceFormulationGenerationContext(target.productFamilyCode);
+        referenceContext = reference.context;
+        referenceSupportQuality = reference.supportQuality;
+        if (!referenceContext.available) setReferenceNotice(t("reverseFormulation.candidates.noReviewedReferenceCorpus"));
+      } catch (cause) {
+        setReferenceNotice(t("reverseFormulation.candidates.referenceContextLoadFailed", { message: cause instanceof Error ? cause.message : String(cause) }));
+      }
+      const canonicalProductFamilyKey = target.productFamilyCode.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
 
       const generated = generateCandidates({
         mappedIngredients,
@@ -178,7 +194,9 @@ export function CandidateComparisonPanel({
         target,
         constraints: effectiveConstraints,
         availableMaterials: materials,
-      });
+        ...(referenceContext ? { referenceContext } : {}),
+        ...(referenceContext?.available ? { canonicalProductFamilyKey } : {}),
+      }).map((candidate) => referenceSupportQuality ? { ...candidate, referenceSupportQuality } : candidate);
 
       const scored: ScoredCandidate[] = generated
         .map((candidate, index) => ({
@@ -212,6 +230,7 @@ export function CandidateComparisonPanel({
           <span className="text-[11px] text-warn">{t("reverseFormulation.candidates.noTarget")}</span>
         ) : null}
       </div>
+      {referenceNotice && <p role="status" className="rounded-input bg-surface-2 px-2 py-1.5 text-[10.5px] text-muted">{referenceNotice}</p>}
 
       {results === null ? (
         <p className="px-2 py-6 text-center text-[12px] text-muted">{t("reverseFormulation.candidates.empty")}</p>
@@ -363,6 +382,8 @@ function CandidateCard({
         </div>
       )}
 
+      <CandidateReferenceEvidence candidate={candidate} />
+
       <div className="flex gap-1.5">
         <button
           onClick={onSelect}
@@ -439,5 +460,131 @@ function CandidateCard({
         </div>
       )}
     </div>
+  );
+}
+
+export function CandidateReferenceEvidence({ candidate }: { candidate: GeneratedCandidate }) {
+  const { t } = useTranslation("session");
+  const guidanceCount = (candidate.ingredientGuidance?.length ?? 0)
+    + (candidate.referenceSupportQuality ? 1 : 0)
+    + (candidate.referenceCorpusGuidance ? 1 : 0)
+    + (candidate.dosageGuidance?.length ?? 0)
+    + (candidate.nearestReferenceGuidance?.length ?? 0)
+    + (candidate.cooccurrenceGuidance?.length ?? 0)
+    + (candidate.activeMatterGuidance?.length ?? 0)
+    + (candidate.componentContributionGuidance?.length ?? 0)
+    + (candidate.processPatternGuidance?.length ?? 0);
+  if (!guidanceCount) return null;
+
+  const sourceLinks = (ids: string[]) => {
+    const uniqueIds = [...new Set(ids)];
+    const renderLinks = (items: string[]) => items.map((id) => (
+      <Link key={id} to={`/reference-formulations/${encodeURIComponent(id)}`} className="inline-flex items-center gap-0.5 text-accent hover:underline">
+        {id}<ExternalLink size={9} aria-hidden />
+      </Link>
+    ));
+    return <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      {renderLinks(uniqueIds.slice(0, 5))}
+      {uniqueIds.length > 5 && <details className="basis-full"><summary className="cursor-pointer text-accent">{t("reverseFormulation.candidates.moreSources", { count: uniqueIds.length - 5 })}</summary><span className="inline-flex flex-wrap gap-x-2 gap-y-1">{renderLinks(uniqueIds.slice(5))}</span></details>}
+    </span>;
+  };
+  const supplierList = (suppliers: Array<{
+    supplierId: string; sourceRecordIds: string[]; formulaCount?: number; ingredientFormulaCount?: number;
+    eligibleFormulaCount?: number; frequency?: number; share?: number;
+  }>) => suppliers.map((supplier) => {
+    const samples = supplier.formulaCount ?? supplier.ingredientFormulaCount;
+    const denominator = supplier.eligibleFormulaCount;
+    const prevalence = supplier.frequency;
+    const share = supplier.share;
+    return `${supplier.supplierId}${samples === undefined ? "" : ` (${samples}${denominator === undefined ? "" : `/${denominator}`}${prevalence === undefined ? share === undefined ? "" : `, ${(share * 100).toFixed(1)}% of sample` : `, ${(prevalence * 100).toFixed(1)}%`})`}`;
+  }).join(", ");
+
+  return (
+    <section aria-label={t("reverseFormulation.candidates.referenceEvidence")} className="rounded-input border border-border bg-surface-2/60 p-2.5 text-[10.5px]">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-1">
+        <h4 className="font-medium text-text">{t("reverseFormulation.candidates.referenceEvidence")}</h4>
+        {candidate.referenceProductFamilyKey && <span className="font-mono text-muted">{candidate.referenceProductFamilyKey}</span>}
+      </div>
+      <p role="note" className="mb-2 rounded border border-warning/30 bg-warning/5 p-2 text-xs font-medium text-text">{t("reverseFormulation.candidates.referenceAdvisory")}</p>
+      <div className="space-y-2.5">
+        {candidate.referenceSupportQuality && (
+          <div className="border-t border-border-faint pt-2 first:border-0 first:pt-0" data-testid="reference-support-quality">
+            <p className="font-medium text-text">{t("reverseFormulation.candidates.referenceSupportQuality", { status: candidate.referenceSupportQuality.status })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceSupportQualityCounts", {
+              family: candidate.referenceSupportQuality.familyFormulaCount,
+              eligible: candidate.referenceSupportQuality.eligibleFormulaCount,
+              suppliers: candidate.referenceSupportQuality.supplierCount,
+              resolved: candidate.referenceSupportQuality.identityResolvedFormulaCount,
+              resolution: candidate.referenceSupportQuality.identityResolutionPercent.toFixed(1),
+              cited: candidate.referenceSupportQuality.sourceCitedIngredientLineCount,
+              lines: candidate.referenceSupportQuality.ingredientLineCount,
+              coverage: candidate.referenceSupportQuality.sourceCitationCoveragePercent.toFixed(1),
+            })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceSupportQualityCriteria")}</p>
+          </div>
+        )}
+        {candidate.referenceCorpusGuidance && (
+          <div className="border-t border-border-faint pt-2 first:border-0 first:pt-0">
+            <p className="font-medium text-text">{t("reverseFormulation.candidates.referenceCorpusSummary", { count: candidate.referenceCorpusGuidance.eligibleFormulaCount, suppliers: candidate.referenceCorpusGuidance.supplierCount })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceSupplierMix", { mix: supplierList(candidate.referenceCorpusGuidance.suppliers) })}</p>
+            <p className="mt-0.5">{sourceLinks(candidate.referenceCorpusGuidance.sourceRecordIds)}</p>
+          </div>
+        )}
+        {candidate.ingredientGuidance?.map((item) => (
+          <div key={`${item.materialId}:${item.canonicalChemistryId}`} className="border-t border-border-faint pt-2 first:border-0 first:pt-0">
+            <p className="font-medium text-text">{t("reverseFormulation.candidates.referenceIngredient", { material: item.materialId })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceFrequency", { count: item.formulaCount, total: item.eligibleFormulaCount, weighted: (item.formulaWeightedFrequency * 100).toFixed(1), neutral: (item.supplierNeutralFrequency * 100).toFixed(1), suppliers: item.supplierCount })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceSupplierMix", { mix: supplierList(item.suppliers) })}</p>
+            <p className="mt-0.5">{sourceLinks(item.sourceRecordIds)}</p>
+          </div>
+        ))}
+        {candidate.dosageGuidance?.map((item) => (
+          <div key={`${item.materialId}:${item.canonicalChemistryId}`} className="border-t border-border-faint pt-2">
+            <p className="font-medium text-text">{t("reverseFormulation.candidates.referenceDosage", { material: item.materialId })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceDosageRange", { candidate: item.candidatePercent.toFixed(2), lower: item.typicalRangePercent.lower.toFixed(2), upper: item.typicalRangePercent.upper.toFixed(2), observedLower: item.observedRangePercent.lower.toFixed(2), observedUpper: item.observedRangePercent.upper.toFixed(2), count: item.formulaCount, suppliers: item.supplierCount })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceSupplierMix", { mix: supplierList(item.suppliers) })}</p>
+            <p className="mt-0.5">{sourceLinks(item.sourceRecordIds)}</p>
+          </div>
+        ))}
+        {candidate.nearestReferenceGuidance?.map((item) => (
+          <div key={item.sourceRecordId} className="border-t border-border-faint pt-2">
+            <p className="font-medium text-text">{t("reverseFormulation.candidates.nearestReference")}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceSimilarity", { similarity: (item.similarity * 100).toFixed(1), coverage: (item.featureCoverage * 100).toFixed(1), features: item.contributingFeatureKeys.join(", ") || t("reverseFormulation.candidates.notAvailable") })}</p>
+            <p className="mt-0.5">{sourceLinks([item.sourceRecordId])}</p>
+            <p className="break-words text-muted">{t("reverseFormulation.candidates.evidenceReferences", { refs: item.evidenceRefs.join(", ") })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.similarityDisclaimer")}</p>
+          </div>
+        ))}
+        {candidate.referenceCorpusGuidance && (candidate.nearestReferenceGuidance?.length ?? 0) === 0 && (
+          <p className="border-t border-border-faint pt-2 text-muted">{t("reverseFormulation.candidates.similarityNotEvaluated")}</p>
+        )}
+        {candidate.cooccurrenceGuidance?.map((item, index) => (
+          <div key={`${item.materialId}:${item.otherId}:${index}`} className="border-t border-border-faint pt-2">
+            <p className="font-medium text-text">{t("reverseFormulation.candidates.cooccurrence", { first: item.materialId, second: item.otherId })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceCooccurrenceFrequency", { count: item.formulaCount, total: item.eligibleFormulaCount, frequency: (item.frequency * 100).toFixed(1), suppliers: item.supplierCount })}</p>
+            <p className="mt-0.5">{sourceLinks(item.sourceRecordIds)}</p>
+          </div>
+        ))}
+        {candidate.activeMatterGuidance?.map((item, index) => (
+          <div key={`active:${index}`} className="border-t border-border-faint pt-2">
+            <p className="font-medium text-text">{t("reverseFormulation.candidates.activeMatterRange", { lower: item.typicalRangePercent.lower, upper: item.typicalRangePercent.upper, count: item.formulaCount, suppliers: item.supplierCount })}</p>
+            <p className="mt-0.5">{sourceLinks(item.sourceRecordIds)}</p>
+          </div>
+        ))}
+        {candidate.componentContributionGuidance?.map((item) => (
+          <div key={`component:${item.canonicalChemistryId}`} className="border-t border-border-faint pt-2">
+            <p className="font-medium text-text">{t("reverseFormulation.candidates.componentRange", { chemistry: item.canonicalChemistryId, lower: item.medianRangePercent.lower, upper: item.medianRangePercent.upper, count: item.formulaCount, suppliers: item.supplierCount })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.candidateComparisonUnavailable")}</p>
+            <p className="mt-0.5">{sourceLinks(item.sourceRecordIds)}</p>
+          </div>
+        ))}
+        {candidate.processPatternGuidance?.map((item) => (
+          <div key={`${item.patternKind}:${item.patternId}`} className="border-t border-border-faint pt-2">
+            <p className="font-medium text-text">{t("reverseFormulation.candidates.processPattern", { pattern: item.sourceValue, count: item.formulaCount, suppliers: item.supplierCount })}</p>
+            <p className="mt-0.5">{sourceLinks(item.sourceRecordIds)}</p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

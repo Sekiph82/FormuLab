@@ -12,6 +12,7 @@ import {
   FileBarChart2,
   FileCheck2,
   FilePlus2,
+  ClipboardCheck,
   FlaskConical,
   FlaskRound,
   FolderKanban,
@@ -165,6 +166,7 @@ export function Sidebar() {
           { key: "optimization", icon: Sparkles, label: t("workspacesNav.optimization"), path: "/optimization" },
           { key: "doe", icon: Grid3x3, label: t("workspacesNav.doe"), path: "/doe" },
           { key: "reverseFormulation", icon: Microscope, label: t("workspacesNav.reverseFormulation"), path: "/reverse-formulation" },
+          { key: "referenceFormulations", icon: ClipboardCheck, label: t("workspacesNav.referenceFormulations"), path: "/reference-formulations" },
         ],
       },
       {

@@ -142,6 +142,50 @@ export interface ConnectorStats {
   errorRecords: number;
 }
 
+/** Supplier-document features a connector profile can declare. This is a
+ *  capability description, not an authenticated-session status or a claim
+ *  that a catalog scan has covered every product. Secrets, cookies and
+ *  credential values must never be represented here. */
+export const SUPPLIER_AUTHORIZATION_MODES = [
+  "public",
+  "api",
+  "authenticated_portal",
+  "user_attended",
+  "manual_assisted",
+  "unknown",
+] as const;
+export type SupplierAuthorizationMode = (typeof SUPPLIER_AUTHORIZATION_MODES)[number];
+
+export const SUPPLIER_PAGINATION_MODES = ["none", "cursor", "page", "offset", "unknown"] as const;
+export type SupplierPaginationMode = (typeof SUPPLIER_PAGINATION_MODES)[number];
+
+export const SUPPLIER_DOCUMENT_TYPES = ["SDS", "TDS", "FORMULATION", "CERTIFICATE", "OTHER"] as const;
+export type SupplierDocumentType = (typeof SUPPLIER_DOCUMENT_TYPES)[number];
+
+export const supplierDocumentCapabilitiesSchema = z.object({
+  catalogDiscovery: z.boolean(),
+  documentDiscovery: z.boolean(),
+  documentFetch: z.boolean(),
+  formulationDiscovery: z.boolean(),
+  pagination: z.object({
+    mode: z.enum(SUPPLIER_PAGINATION_MODES),
+    maxPageSize: z.number().int().positive().optional(),
+  }).strict(),
+  /** Static access requirement only; never a live auth state or secret. */
+  authorizationMode: z.enum(SUPPLIER_AUTHORIZATION_MODES),
+  /** Declared profile scope, not measured scan coverage. Actual run coverage
+   *  belongs to the acquisition/reporting contract introduced later. */
+  coverage: z.object({
+    status: z.enum(["declared", "partial", "unknown"]),
+    markets: z.array(z.string()),
+    languages: z.array(z.string()),
+    productLines: z.array(z.string()),
+    documentTypes: z.array(z.enum(SUPPLIER_DOCUMENT_TYPES)),
+  }).strict(),
+  limitations: z.array(z.string()),
+}).strict();
+export type SupplierDocumentCapabilities = z.infer<typeof supplierDocumentCapabilitiesSchema>;
+
 /** What kind of resource a connector read from, generalized so FILE,
  *  DATABASE, and REST_API sources can all describe themselves through one
  *  shape without forcing fake file fields onto a database table or a REST
@@ -215,6 +259,10 @@ export interface ConnectorResult {
  */
 export interface SourceConnector {
   readonly identity: ConnectorIdentity;
+  /** Optional so existing generic FILE/DATABASE/REST connectors keep their
+   *  current contract. Supplier adapters declare this only when they can
+   *  state support and scope honestly. */
+  readonly supplierDocumentCapabilities?: SupplierDocumentCapabilities;
   discoverEntities(): string[] | Promise<string[]>;
   extract(entity: string, opts?: { cursor?: string }): ConnectorResult | Promise<ConnectorResult>;
 }
@@ -547,6 +595,19 @@ export interface CrosswalkConflict {
 export const CONNECTOR_CONNECTION_STATUSES = ["never_tested", "ready", "error"] as const;
 export type ConnectorConnectionStatus = (typeof CONNECTOR_CONNECTION_STATUSES)[number];
 
+/** Connection lifecycle is intentionally separate from `status`, which is
+ *  only the last connector test outcome. These states do not carry secrets
+ *  or imply a successful provider-side authorization check by themselves. */
+export const CONNECTOR_LIFECYCLE_STATES = [
+  "configured",
+  "authenticated",
+  "expired",
+  "revoked",
+  "unavailable",
+  "manual_assisted",
+] as const;
+export type ConnectorLifecycleState = (typeof CONNECTOR_LIFECYCLE_STATES)[number];
+
 export const CONNECTOR_FILE_KINDS = ["csv", "json", "xml", "xlsx"] as const;
 export type ConnectorFileKind = (typeof CONNECTOR_FILE_KINDS)[number];
 
@@ -613,6 +674,8 @@ export const connectorConnectionSchema = z.object({
   requireExplicitId: z.boolean().optional(),
 
   status: z.enum(CONNECTOR_CONNECTION_STATUSES).default("never_tested"),
+  /** Optional for backward compatibility with saved v1 connector records. */
+  lifecycleState: z.enum(CONNECTOR_LIFECYCLE_STATES).optional(),
   lastTestedAt: z.string().optional(),
   /** A sanitized, human-readable outcome message ONLY — never raw
    *  response bodies, headers, connection strings, or any value a real
