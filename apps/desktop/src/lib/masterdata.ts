@@ -111,6 +111,7 @@ import type {
   SupplierSdsProductEvidenceRecord,
   SupplierProductDocumentEvidence,
   SupplierProductCardVersion,
+  SupplierProductClaimReview,
   SupplierProductEvidenceRecord,
   TestDefinition,
   TestResult,
@@ -276,6 +277,15 @@ export async function appendSupplierProductEvidenceUpdate(
     throw new Error("A product evidence update requires a document snapshot and card version.");
   }
   return call("append_supplier_product_evidence", { evidence: parsedEvidence, cardVersion: parsedCardVersion });
+}
+
+/** Append a decision for one exact cited claim; Rust supplies trusted reviewer identity and time. */
+export async function appendSupplierProductClaimReview(
+  review: Omit<SupplierProductClaimReview, "reviewedBy" | "reviewerRole" | "reviewedAt">,
+): Promise<SupplierProductClaimReview> {
+  const parsed = supplierProductEvidenceRecordSchema.parse(review);
+  if (parsed.recordType !== "claim_review") throw new Error("A supplier product claim review is required.");
+  return call<SupplierProductClaimReview>("append_supplier_product_claim_review", { review: parsed });
 }
 
 /** Persist a named human's immutable, field-level supplier identity decision. */

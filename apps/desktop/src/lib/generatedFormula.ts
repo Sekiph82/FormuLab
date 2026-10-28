@@ -21,6 +21,40 @@ export interface GeneratedIngredient {
    *  when the generator matched a candidate to the Material Master.
    *  Absent means genuinely unresolved — never fabricated. */
   material_code?: string;
+  supplier_product_card_evidence?: Array<{
+    productCardId: string;
+    cardVersion: number;
+    supplierName?: string;
+    supplierItemCode?: string;
+    tradeName?: string;
+    grade?: string;
+    market: string;
+    language: string;
+    identityStatus: string;
+    conflicts: Array<{ fieldCode: string; claimIds: string[]; status: "review_required" }>;
+    claimComparisons: Array<{ claimId: string; field: string; currentValue: unknown }>;
+    interpretation: string;
+    claims: Array<{
+      claimId: string;
+      fieldCode: string;
+      rawValue: string;
+      normalizedValue?: string;
+      originalUnit?: string;
+      normalizedUnit?: string;
+      qualifier: string;
+      basis: string;
+      documentType: "SDS" | "TDS";
+      documentHash: string;
+      sourceEvidenceId: string;
+      acquisitionCode: string;
+      originalFilename?: string;
+      sourceRevision?: string;
+      reviewId: string;
+      reviewedBy: string;
+      reviewedAt: string;
+      citations: Array<{ pageNumber: number; excerpt: string; documentHash: string; lineNumber?: number }>;
+    }>;
+  }>;
 }
 
 export interface GeneratedFormula {

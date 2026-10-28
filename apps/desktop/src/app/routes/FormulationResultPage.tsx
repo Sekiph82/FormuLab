@@ -618,13 +618,13 @@ function TopBar({
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="end" sideOffset={5} className="z-50 min-w-40 rounded-card border border-border bg-surface p-1 shadow-lg">
               <DropdownMenu.Item
-                onSelect={() => void downloadFormulationReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion, compatibilityByVersion, "html")}
+                onSelect={() => void downloadFormulationReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion, compatibilityByVersion, REPORT_FORMAT_HTML)}
                 className="cursor-pointer rounded-input px-3 py-2 text-xs text-text outline-none hover:bg-surface-2 focus:bg-surface-2"
               >
                 {t("formulationResult.actions.downloadHtml")}
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                onSelect={() => void downloadFormulationReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion, compatibilityByVersion, "pdf")}
+                onSelect={() => void downloadFormulationReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion, compatibilityByVersion, REPORT_FORMAT_PDF)}
                 className="cursor-pointer rounded-input px-3 py-2 text-xs text-text outline-none hover:bg-surface-2 focus:bg-surface-2"
               >
                 {t("formulationResult.actions.downloadPdf")}
@@ -1107,6 +1107,25 @@ function FormulaTab({
                     <div className="text-[9px] text-muted" title={t("formulationResult.formula.materialCodeHint")}>
                       {ing.material_code || t("formulationResult.formula.materialCodeUnresolved")}
                     </div>
+                    {(ing.supplier_product_card_evidence?.length ?? 0) > 0 && (
+                      <details className="mt-1 text-[9px] text-accent" onClick={(event) => event.stopPropagation()}>
+                        <summary className="cursor-pointer">{t("formulationResult.formula.supplierProductEvidence", { count: ing.supplier_product_card_evidence!.length })}</summary>
+                        <div className="mt-1 space-y-2 text-muted">
+                          {ing.supplier_product_card_evidence!.map((card) => <section key={card.productCardId} className="rounded border border-border-faint p-1.5">
+                            <p className="font-medium text-text">{t("formulationResult.formula.supplierProductCardHeading", { product: card.tradeName || card.supplierItemCode || card.productCardId, supplier: card.supplierName || t("formulationResult.formula.materialCodeUnresolved"), version: card.cardVersion })}</p>
+                            <p>{card.grade || "—"} · {card.market}/{card.language} · {card.identityStatus}</p>
+                            {card.conflicts.length > 0 && <p className="text-warning">{t("formulationResult.formula.supplierProductConflicts", { count: card.conflicts.length })}</p>}
+                            {card.claims.map((claim) => <div key={claim.reviewId} className="mt-1 border-t border-border-faint pt-1">
+                              <p className="font-medium text-text">{claim.fieldCode.replace(/_/gu, " ")}: {claim.rawValue}{claim.originalUnit ? " " + claim.originalUnit : ""} · {claim.documentType} · {claim.sourceRevision || claim.originalFilename || claim.acquisitionCode}</p>
+                              {card.claimComparisons.find((comparison) => comparison.claimId === claim.claimId) && <p>{t("formulationResult.formula.currentRawMaterialValue", { field: card.claimComparisons.find((comparison) => comparison.claimId === claim.claimId)?.field, value: card.claimComparisons.find((comparison) => comparison.claimId === claim.claimId)?.currentValue === null ? t("formulationResult.formula.notRecorded") : JSON.stringify(card.claimComparisons.find((comparison) => comparison.claimId === claim.claimId)?.currentValue) })}</p>}
+                              <p>{claim.basis} · {claim.qualifier} · {t("formulationResult.formula.reviewedBy", { reviewer: claim.reviewedBy })}</p>
+                              {claim.citations.map((citation, index) => <p key={claim.documentHash + ":" + citation.pageNumber + ":" + index}>{t("formulationResult.formula.sourceCitation", { page: citation.pageNumber, hash: citation.documentHash.slice(0, 12) })} · {citation.excerpt}</p>)}
+                            </div>)}
+                            <p className="mt-1 italic">{t("formulationResult.formula.supplierProductEvidenceLimit")}</p>
+                          </section>)}
+                        </div>
+                      </details>
+                    )}
                   </td>
                   <td className="py-1.5 pr-2 text-muted">{ing.function || "—"}</td>
                   <td className="py-1.5 pr-2 tabular-nums text-text">{ing.weight_pct || "—"}</td>
@@ -1369,6 +1388,8 @@ function IngredientEvidencePanel({
 /** Lower rank = stronger evidence, for picking the single strongest linked
  *  record to summarize in "Why this concentration?" above. */
 const CLASS_RANK: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
+const REPORT_FORMAT_HTML = "html";
+const REPORT_FORMAT_PDF = "pdf";
 
 /** Phase 14 Session 4 §11 — a compact origin/support badge, so an
  *  evidence-free AI-selected ingredient no longer looks identical to an

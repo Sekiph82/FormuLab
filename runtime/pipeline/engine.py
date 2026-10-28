@@ -1185,6 +1185,7 @@ class SolvedIngredient:
     scientific_formulation_ref: Optional[Dict[str, Any]] = None
     material_code: Optional[str] = None
     reference_formulation_evidence: Optional[Dict[str, Any]] = None
+    supplier_product_card_evidence: Optional[List[Dict[str, Any]]] = None
     """FVL-03.002 — carried through from `IngredientCandidate.material_code`
     when the winning candidate matched a canonical Material Master row."""
 
@@ -1379,6 +1380,7 @@ def build_formula_for_strategy(
                 scientific_formulation_ref=c.scientific_formulation_ref,
                 material_code=c.material_code,
                 reference_formulation_evidence=c.reference_formulation_evidence,
+                supplier_product_card_evidence=(c.supplier_material or {}).get("supplier_product_card_evidence"),
             ))
             # FVL-03.002: `material_code` (the real, canonical identity) is
             # preferred over the legacy `material_id` string when present —
@@ -1434,12 +1436,14 @@ def build_formula_for_strategy(
     for s in solved:
         if s.key == water_key:
             ingredients_json.append({"inci": s.display_name, "function": "Solvent", "weight_pct": "q.s. 100",
-                                      "material_code": s.material_code})
+                                      "material_code": s.material_code,
+                                      "supplier_product_card_evidence": s.supplier_product_card_evidence or []})
         else:
             ingredients_json.append({
                 "inci": s.display_name, "function": s.role.replace("_", " ").title(),
                 "weight_pct": f"{s.concentration.value:g}",
                 "material_code": s.material_code,
+                "supplier_product_card_evidence": s.supplier_product_card_evidence or [],
             })
     if not has_water and any(m["role"] == "solvent" for m in missing_roles):
         pass  # honestly incomplete — no fabricated water line
@@ -1519,6 +1523,10 @@ def build_formula_for_strategy(
         "references": references,
         "reference_formulation_evidence": [s.reference_formulation_evidence for s in solved
                                             if s.reference_formulation_evidence],
+        "supplier_product_card_evidence": [
+            {"ingredient": s.display_name, "materialCode": s.material_code, "cards": s.supplier_product_card_evidence}
+            for s in solved if s.supplier_product_card_evidence
+        ],
     }
 
     return FormulaResult(

@@ -523,7 +523,15 @@
         "deterministic_rule": "Rule",
         "user_required": "User",
         "ai_formulation_inference": "AI Inference"
-      }
+      },
+      "supplierProductCardHeading": "{{product}} · {{supplier}} · v{{version}}",
+      "supplierProductConflicts": "{{count}} source field conflict(s) remain review-required",
+      "currentRawMaterialValue": "Current RawMaterial {{field}}: {{value}} (read-only comparison)",
+      "notRecorded": "not recorded",
+      "supplierProductEvidence": "Matched supplier products and evidence ({{count}})",
+      "reviewedBy": "Reviewed by {{reviewer}}",
+      "sourceCitation": "Source page {{page}} · SHA-256 {{hash}}…",
+      "supplierProductEvidenceLimit": "Exact supplier-linked product records for this selected RawMaterial; evidence and comparison only, not validated substitutions or performance, safety, or compatibility approval."
     },
     "evidencePanel": {
       "heading": "Ingredient Evidence",
@@ -3096,7 +3104,33 @@
         "confidence": "confidence {{value}}%",
         "confidenceUnavailable": "confidence not available",
         "storedFactContext": "Saved SDS source fact; no measurement conditions recorded",
-        "reviewRequired": "Requires human review"
+        "reviewRequired": "Requires human review",
+        "productEvidencePreview": "Product card evidence preview",
+        "extractedClaims": "{{documentType}} · {{count}} cited claims · exact document hash",
+        "saveProductCard": "Save / update product card",
+        "savingProductCard": "Saving…",
+        "savedProductCard": "Saved product card version {{version}}. The source document and prior card versions remain available.",
+        "extractionDoesNotOverwrite": "Extracted values remain review-required evidence. They do not overwrite RawMaterial records.",
+        "productCards": "Saved product cards",
+        "noProductCards": "No product cards have been saved yet. Save an SDS or TDS extraction to create one.",
+        "unknownSupplier": "Supplier not identified",
+        "cardVersion": "Version {{version}}",
+        "sourceDocuments": "Linked source documents",
+        "sourceDocumentSummary": "{{type}} · {{revision}} · SHA-256 {{hash}}",
+        "revisionUnknown": "Revision date unavailable",
+        "claimsHeading": "Extracted claims ({{count}})",
+        "acceptClaim": "Accept claim",
+        "needsReview": "Needs review",
+        "rejectClaim": "Reject",
+        "savingClaimReview": "Saving review…",
+        "claimRejectReason": "Reason for rejecting this claim",
+        "claimNeedsReviewReason": "What needs further review?",
+        "accepted": "Accepted",
+        "rejected": "Rejected",
+        "noClaims": "No cited claims were extracted; missing data remains unknown.",
+        "conflictReview": "Conflicting source values",
+        "cardHistory": "Version history ({{count}})",
+        "sourceCount": "sources"
       },
       "acquiredDocuments": {
         "title": "Acquired Supplier Documents",
@@ -3508,6 +3542,44 @@
           "reviewAndApply": "Review and apply in Data Exchange",
           "applyGate": "This screen does not write RawMaterial. Import the CSV through the existing Data Exchange review and commit flow to apply the field change.",
           "sourceEvidence": "Accepted supplier evidence"
+        },
+        "productCardCompare": {
+          "title": "Supplier product card and RawMaterial comparison",
+          "intro": "Browse persistent SDS/TDS product cards, inspect exact identifier candidates, and compare cited claims with a selected RawMaterial. Product cards and disclosed SDS components are kept distinct.",
+          "empty": "No persistent supplier product cards are available yet. Extract an acquired SDS or TDS in Document Intelligence first.",
+          "product": "Supplier product card",
+          "cardOption": "{{supplier}} · {{product}} · v{{version}}",
+          "identityStatus": "Card identity status",
+          "supplierCode": "Supplier item code",
+          "gradeMarket": "Grade · market / language",
+          "sources": "Versions · linked documents",
+          "sourceCount": "{{versions}} versions · {{documents}} documents",
+          "acquisitionMissing": "source acquisition record missing",
+          "acquisitionHashMismatch": "source acquisition hash mismatch",
+          "unknownSupplier": "Unknown supplier",
+          "material": "Compare with RawMaterial",
+          "noMaterial": "Select a RawMaterial",
+          "exactProductCandidates": "Exact commercial-product candidates",
+          "exactComponentCandidates": "Exact disclosed-component candidates",
+          "exactMatchOnly": "Candidates are listed only for exact code, name, grade text or validated CAS/EC matches. No fuzzy identity is inferred.",
+          "noExactProductCandidates": "No exact commercial-product candidate was found in RawMaterials.",
+          "componentCaution": "These are Section 3 disclosed components, not the supplier's complete commercial product formula or product identity.",
+          "noExactComponentCandidates": "No exact Section 3 component identifier matched a RawMaterial.",
+          "fieldComparison": "Cited product claims versus current RawMaterial values",
+          "conflicts": "{{count}} conflicting field(s) require review",
+          "selectMaterial": "Select a RawMaterial to compare its recorded values.",
+          "noClaims": "The linked source documents contain no extracted claims for comparison.",
+          "sourceClaim": "Document claim · qualifier · basis",
+          "documentHash": "Source document SHA-256",
+          "subject": {
+            "product": "Commercial product claim",
+            "disclosed_component": "Disclosed component only",
+            "regulatory": "Regulatory claim"
+          },
+          "selectedMaterial": "Current RawMaterial value",
+          "notComparable": "No direct RawMaterial field",
+          "noAutomaticChanges": "Read-only comparison. No RawMaterial is created, changed, approved or verified here. Product-card claims are unreviewed and cannot be applied until an authorized human reviews them.",
+          "pdfError": "The cited product-card source PDF could not be read."
         }
       }
     }
@@ -3549,7 +3621,12 @@
     "decisionEdit": "Edit proposal",
     "decisionReject": "Reject",
     "decisionNeedsReview": "Needs review",
-    "decision": { "accepted": "Accepted", "edited": "Edited proposal", "rejected": "Rejected", "needs_review": "Needs review" },
+    "decision": {
+      "accepted": "Accepted",
+      "edited": "Edited proposal",
+      "rejected": "Rejected",
+      "needs_review": "Needs review"
+    },
     "familyCandidates": "Product family candidates",
     "commercialCandidates": "Commercial product candidates",
     "chemistryCandidates": "Canonical chemistry candidates",
@@ -3600,7 +3677,11 @@
     "notDisclosed": "not disclosed or not extracted",
     "sdsComponentFacts": "Section 3 component: {{name}} · CAS {{cas}} · EC {{ec}} · material number {{material}} · cited evidence: {{refs}}",
     "nameNotDisclosed": "name not disclosed",
-    "status": { "exact": "exact", "range": "range", "unknown": "unknown" },
+    "status": {
+      "exact": "exact",
+      "range": "range",
+      "unknown": "unknown"
+    },
     "viewPdfPage": "View PDF page {{page}}",
     "extractionOverviewLabel": "Formulation extraction overview",
     "extractionOverviewTitle": "Extracted formulation evidence · review required",
@@ -3613,13 +3694,22 @@
     "qsAmountRetained": "q.s. · source amount retained",
     "phaseSequence": "Phase / sequence",
     "quantitySemantics": "Quantity semantics",
-    "quantity": { "explicit_amount": "explicit amount", "q_s": "q.s.", "not_stated": "not stated" },
+    "quantity": {
+      "explicit_amount": "explicit amount",
+      "q_s": "q.s.",
+      "not_stated": "not stated"
+    },
     "commercialLinkCandidates": "Commercial-product link candidates",
     "matchStatus": "{{resolution}} · {{linkage}} · review required",
     "autoLinked": "auto-linked",
     "notAutoLinked": "not auto-linked",
     "noProductMatch": "No product match record",
-    "matchTier": { "external_id_crosswalk": "external ID crosswalk", "exact": "exact", "controlled_alias": "controlled alias", "fuzzy_proposal": "fuzzy proposal" },
+    "matchTier": {
+      "external_id_crosswalk": "external ID crosswalk",
+      "exact": "exact",
+      "controlled_alias": "controlled alias",
+      "fuzzy_proposal": "fuzzy proposal"
+    },
     "identifierMatch": "identifier match",
     "similarityProposal": "similarity proposal {{percent}}%",
     "noCommercialCandidate": "No commercial product candidate; the source line remains unresolved.",
@@ -3631,9 +3721,26 @@
     "targetsLabel": "Extracted formulation targets",
     "targetsTitle": "Source-stated targets and reported results",
     "noTargetCandidates": "No target or result candidates were extracted.",
-    "resultSemantics": { "target": "target", "typical_result": "typical result", "unspecified": "unspecified" },
-    "valueShape": { "point_or_exact": "point or exact", "range": "range", "approximate": "approximate", "approximate_range": "approximate range", "unparsed": "unparsed" },
-    "resolution": { "external_id_crosswalk_candidate": "external ID crosswalk candidate", "exact_match_candidate": "exact match candidate", "alias_match_candidate": "alias match candidate", "fuzzy_proposal": "fuzzy proposal", "ambiguous": "ambiguous", "unmatched": "unmatched" },
+    "resultSemantics": {
+      "target": "target",
+      "typical_result": "typical result",
+      "unspecified": "unspecified"
+    },
+    "valueShape": {
+      "point_or_exact": "point or exact",
+      "range": "range",
+      "approximate": "approximate",
+      "approximate_range": "approximate range",
+      "unparsed": "unparsed"
+    },
+    "resolution": {
+      "external_id_crosswalk_candidate": "external ID crosswalk candidate",
+      "exact_match_candidate": "exact match candidate",
+      "alias_match_candidate": "alias match candidate",
+      "fuzzy_proposal": "fuzzy proposal",
+      "ambiguous": "ambiguous",
+      "unmatched": "unmatched"
+    },
     "viewSourcePdfPage": "View source PDF page {{page}}",
     "pageNumber": "Page {{page}}",
     "rowNumber": "row {{row}}",
@@ -3641,7 +3748,12 @@
     "sourceEvidenceLabel": "Source evidence",
     "sourceEvidenceHeading": "Source evidence {{location}}",
     "noSourceExcerpt": "No source excerpt was retained.",
-    "sourceKind": { "digital": "Digital text", "ocr": "OCR text", "mixed": "Mixed text sources", "unknown": "Source kind unknown" },
+    "sourceKind": {
+      "digital": "Digital text",
+      "ocr": "OCR text",
+      "mixed": "Mixed text sources",
+      "unknown": "Source kind unknown"
+    },
     "extractionConfidence": "{{percent}}% extraction confidence",
     "extractedValueLabel": "Extracted value",
     "extractedValueHeading": "Extracted value",

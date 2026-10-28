@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { listRecordsMock, readMock, openMock, extractMock } = vi.hoisted(() => ({ listRecordsMock: vi.fn(), readMock: vi.fn(), openMock: vi.fn(), extractMock: vi.fn() }));
-vi.mock("@/lib/masterdata", () => ({ listRecords: listRecordsMock, readSupplierDocumentPdf: readMock, openSupplierDocumentPdf: openMock }));
+const { listRecordsMock, readMock, openMock, extractMock, extractProductMock, appendClaimReviewMock } = vi.hoisted(() => ({ listRecordsMock: vi.fn(), readMock: vi.fn(), openMock: vi.fn(), extractMock: vi.fn(), extractProductMock: vi.fn(), appendClaimReviewMock: vi.fn() }));
+vi.mock("@/lib/masterdata", () => ({ listRecords: listRecordsMock, readSupplierDocumentPdf: readMock, openSupplierDocumentPdf: openMock, appendSupplierProductClaimReview: appendClaimReviewMock }));
 vi.mock("@/lib/supplierSdsReview", () => ({ extractSupplierSdsReview: extractMock }));
+vi.mock("@/lib/supplierProductExtraction", () => ({ extractSupplierProductDocumentEvidence: extractProductMock }));
 vi.mock("./SupplierSdsPdfPagePreview", () => ({
   SupplierSdsPdfPagePreview: ({ pageNumber, lineNumber }: { pageNumber: number; lineNumber: number }) => <div>PDF page {pageNumber} · cited line {lineNumber}</div>,
 }));
@@ -26,10 +27,20 @@ const extraction = {
     reconciliations: [],
   },
 };
+const productClaim = {
+  id: "product-claim-1", fieldCode: "product_identifier", sectionNumber: 1, subject: "product",
+  rawValue: "Crodateric CDA 38", qualifier: "specified", basis: "unknown", context: {},
+  extraction: { method: "explicit_label", parserVersion: "supplier-product-v1" },
+  evidence: [{ documentHash: "a".repeat(64), pageNumber: 1, excerpt: "Crodateric CDA 38", source: "digital" }],
+};
+const productEvidence = [
+  { recordType: "document", schemaVersion: "1.0", id: "product-evidence-1", acquisitionCode: "supplierdoc-sds-1", productCardId: "card-1", documentType: "SDS", documentHash: "a".repeat(64), parserVersion: "supplier-product-v1", claims: [productClaim], reviewStatus: "unreviewed", createdAt: timestamp },
+  { recordType: "card_version", schemaVersion: "1.0", id: "card-version-1", productCardId: "card-1", version: 1, supplierName: "Croda", tradeName: "Crodateric CDA 38", market: "US", language: "en", identityStatus: "review_required", evidenceRecordIds: ["product-evidence-1"], claimIds: ["product-claim-1"], conflicts: [], createdAt: timestamp },
+];
 const reviewResult = {
   status: "extracted", extraction: { warnings: ["no_text_layer"] }, ocr: { warnings: [] },
   sections: { sections: [{ sectionNumber: 1 }, { sectionNumber: 9 }], unobservedSectionNumbers: [2, 3, 4, 5, 6, 7, 8], warnings: [] },
-  section2: { candidates: [] }, section7: { candidates: [] }, section8: { candidates: [] },
+  section1: { candidates: [] }, section2: { candidates: [] }, section3: { declaration: null, components: [] }, section7: { candidates: [] }, section8: { candidates: [] },
   section9: { candidates: [{ field: "ph", rawValue: "5.0–5.5 at 25 °C", reviewRequired: true,
     measurementContext: { normalizedValue: { text: "5.0–5.5 at 25 °C", status: "range_normalized", lowerBound: 5, upperBound: 5.5 }, temperature: { value: 25, unit: "°C", originalText: "25 °C" }, deliveredFormBasis: "as_supplied", claimKind: "typical", evidenceKind: "unspecified" },
     evidence: [{ pageNumber: 9, lineNumber: 2, excerpt: "pH: 5.0–5.5 at 25 °C", source: "ocr", confidence: 0.91 }] }] },
@@ -39,17 +50,19 @@ const reviewResult = {
 describe("SupplierSdsExtractionReviewScreen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    listRecordsMock.mockImplementation((collection: string) => Promise.resolve(collection === "supplier_document_acquisitions" ? [acquisition] : [extraction]));
+    listRecordsMock.mockImplementation((collection: string) => Promise.resolve(collection === "supplier_document_acquisitions" ? [acquisition] : collection === "supplier_product_evidence" ? productEvidence : collection === "supplier_sds_product_evidence" ? [extraction] : []));
     readMock.mockResolvedValue(new Uint8Array([1, 2, 3]));
     openMock.mockResolvedValue(undefined);
     extractMock.mockResolvedValue(reviewResult);
+    extractProductMock.mockResolvedValue(productEvidence[0]);
+    appendClaimReviewMock.mockResolvedValue({ recordType: "claim_review" });
   });
 
   it("shows persisted Sections 1/3 separately from local section candidates and opens cited source pages", async () => {
     const user = userEvent.setup();
     render(<SupplierSdsExtractionReviewScreen />);
     expect(await screen.findByRole("combobox")).toHaveValue("supplierdoc-sds-1");
-    await user.click(screen.getByRole("button", { name: "Extract locally" }));
+    await user.click(screen.getByRole("button", { name: "Extract product facts" }));
     expect(await screen.findByText("Section 1 · Saved source facts")).toBeInTheDocument();
     expect(screen.getByText("Section 3 · Disclosed component evidence")).toBeInTheDocument();
     expect(screen.getByText("Section 3 is a hazard-disclosure list, not a complete commercial formula.")).toBeInTheDocument();
@@ -65,7 +78,22 @@ describe("SupplierSdsExtractionReviewScreen", () => {
     readMock.mockRejectedValueOnce(new Error("supplier document exceeds the local review size limit"));
     const user = userEvent.setup();
     render(<SupplierSdsExtractionReviewScreen />);
-    await user.click(await screen.findByRole("button", { name: "Extract locally" }));
+    await user.click(await screen.findByRole("button", { name: "Extract product facts" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("supplier document exceeds the local review size limit");
+  });
+
+  it("records a field-level human acceptance against the exact persisted claim and page citation", async () => {
+    const user = userEvent.setup();
+    render(<SupplierSdsExtractionReviewScreen />);
+    await user.click(await screen.findByRole("button", { name: "Accept claim" }));
+    expect(appendClaimReviewMock).toHaveBeenCalledWith(expect.objectContaining({
+      recordType: "claim_review",
+      productCardId: "card-1",
+      sourceEvidenceId: "product-evidence-1",
+      claimId: "product-claim-1",
+      claimSnapshot: productClaim,
+      decision: "accepted",
+      evidenceRefs: ["a".repeat(64) + ":p1"],
+    }));
   });
 });

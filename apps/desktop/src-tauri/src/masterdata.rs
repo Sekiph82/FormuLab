@@ -130,6 +130,7 @@ static REFERENCE_FORMULATION_NORMALIZATION_WRITE_LOCK: Mutex<()> = Mutex::new(()
 static REFERENCE_FORMULATION_REVIEW_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static SUPPLIER_SDS_EVIDENCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static SUPPLIER_PRODUCT_EVIDENCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
+static SUPPLIER_PRODUCT_CLAIM_REVIEW_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static IDENTITY_FIELD_REVIEW_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static SUPPLIER_DOCUMENT_ACQUISITION_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static REFERENCE_FORMULATION_SOURCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
@@ -911,6 +912,79 @@ pub async fn append_supplier_product_evidence(
     if inserted_card != 1 { return Err("supplier product card version was not appended".to_string()); }
     write_array(&path, &rows_with_card)?;
     Ok(serde_json::json!({ "evidence": evidence, "cardVersion": card_version }))
+}
+
+/// Append a named human's decision for one exact persisted product claim.
+/// The document extraction and card are immutable; the caller cannot provide
+/// reviewer identity or time, and no RawMaterial is created or changed.
+#[tauri::command(async)]
+pub async fn append_supplier_product_claim_review(
+    app: AppHandle,
+    token: String,
+    mut review: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let actor = authz::authorize_any_app(&app, &token, "supplierDocuments", &WRITE_CAPABILITIES)
+        .or_else(|_| authz::authorize_any_app(&app, &token, "rawMaterials", &WRITE_CAPABILITIES))?;
+    let _guard = SUPPLIER_PRODUCT_CLAIM_REVIEW_WRITE_LOCK.lock()
+        .map_err(|_| "supplier product claim review storage is unavailable".to_string())?;
+    ensure_object_keys(&review, &["recordType", "schemaVersion", "id", "productCardId", "sourceEvidenceId", "claimId", "claimSnapshot", "decision", "decisionNote", "evidenceRefs", "reviewedBy", "reviewerRole", "reviewedAt", "supersedesReviewId"], "supplier product claim review")?;
+    if review["recordType"].as_str() != Some("claim_review") || review["schemaVersion"].as_str() != Some("1.0")
+        || !matches!(review["decision"].as_str(), Some("accepted" | "rejected" | "needs_review"))
+        || ["id", "productCardId", "sourceEvidenceId", "claimId"].iter().any(|key| review[*key].as_str().map_or(true, |value| value.trim().is_empty()))
+        || (review["decision"] != "accepted" && review["decisionNote"].as_str().map_or(true, |note| note.trim().is_empty()))
+    {
+        return Err("supplier product claim review is invalid".to_string());
+    }
+    let path = collection_path(&app, "supplier_product_evidence")?;
+    let mut rows = read_array(&path);
+    if rows.iter().any(|row| row["id"] == review["id"]) {
+        return Err("supplier product claim review ID already exists".to_string());
+    }
+    let card_id = review["productCardId"].as_str().unwrap();
+    let evidence_id = review["sourceEvidenceId"].as_str().unwrap();
+    let claim_id = review["claimId"].as_str().unwrap();
+    let source = rows.iter().find(|row| row["recordType"].as_str() == Some("document") && row["id"].as_str() == Some(evidence_id)
+        && row["productCardId"].as_str() == Some(card_id)).ok_or_else(|| "review must cite the exact persisted product evidence snapshot".to_string())?;
+    let claim = source["claims"].as_array().and_then(|claims| claims.iter().find(|claim| claim["id"].as_str() == Some(claim_id)))
+        .ok_or_else(|| "review claim does not exist in the cited immutable evidence snapshot".to_string())?;
+    if review["claimSnapshot"] != *claim {
+        return Err("review snapshot must exactly match the persisted claim".to_string());
+    }
+    let card_contains_source = rows.iter().any(|row| row["recordType"].as_str() == Some("card_version")
+        && row["productCardId"].as_str() == Some(card_id)
+        && row["evidenceRecordIds"].as_array().map_or(false, |ids| ids.iter().any(|id| id.as_str() == Some(evidence_id)))
+        && row["claimIds"].as_array().map_or(false, |ids| ids.iter().any(|id| id.as_str() == Some(claim_id))));
+    if !card_contains_source { return Err("review claim is not linked by a persisted product-card version".to_string()); }
+    let citations = claim["evidence"].as_array().ok_or_else(|| "source claim has no citations".to_string())?;
+    let refs = review["evidenceRefs"].as_array().ok_or_else(|| "review must preserve source citations".to_string())?;
+    let expected_refs = citations.iter().map(|citation| {
+        let mut reference = format!("{}:p{}", citation["documentHash"].as_str().unwrap_or_default(), citation["pageNumber"].as_u64().unwrap_or_default());
+        if let Some(line) = citation["lineNumber"].as_u64() { reference.push_str(&format!(":l{line}")); }
+        reference
+    }).collect::<Vec<_>>();
+    if !supplier_product_review_citations_match(refs, &expected_refs) {
+        return Err("review citations must exactly match the source claim citations".to_string());
+    }
+    let prior_review_ids = rows.iter().filter(|row| row["recordType"].as_str() == Some("claim_review")
+        && row["productCardId"].as_str() == Some(card_id) && row["sourceEvidenceId"].as_str() == Some(evidence_id)
+        && row["claimId"].as_str() == Some(claim_id)).filter_map(|row| row["id"].as_str()).collect::<Vec<_>>();
+    let supersedes = review["supersedesReviewId"].as_str();
+    match (prior_review_ids.last(), supersedes) {
+        (None, None) => {},
+        (Some(latest), Some(supersedes)) if latest == &supersedes => {},
+        _ => return Err("a new decision must explicitly supersede the latest decision for this exact claim".to_string()),
+    }
+    review["reviewedBy"] = serde_json::Value::String(actor.user_id);
+    review["reviewerRole"] = serde_json::Value::String(actor.role);
+    review["reviewedAt"] = serde_json::Value::String(now_rfc3339_utc());
+    rows.push(review.clone());
+    write_array(&path, &rows)?;
+    Ok(review)
+}
+
+fn supplier_product_review_citations_match(refs: &[serde_json::Value], expected: &[String]) -> bool {
+    refs.len() == expected.len()
+        && refs.iter().zip(expected).all(|(reference, expected)| reference.as_str() == Some(expected.as_str()))
 }
 
 fn validate_supplier_product_document_evidence(app: &AppHandle, record: &serde_json::Value) -> Result<(), String> {
@@ -4171,5 +4245,16 @@ mod tests {
         assert!(validate_raw_sensitive_write("safety_rules", &[], &promoted, "administrator").is_err());
         let demoted = vec![serde_json::json!({ "id": "rule-1", "status": "draft", "verificationStatus": "not_verified" })];
         assert!(validate_raw_sensitive_write("safety_rules", &existing, &demoted, "administrator").is_err());
+    }
+
+    #[test]
+    fn supplier_product_claim_reviews_require_the_exact_ordered_citation_list() {
+        let expected = vec!["a:p1:l1".to_string(), "b:p2:l3".to_string()];
+        let exact = vec![serde_json::json!("a:p1:l1"), serde_json::json!("b:p2:l3")];
+        let duplicate = vec![serde_json::json!("a:p1:l1"), serde_json::json!("a:p1:l1")];
+        let reordered = vec![serde_json::json!("b:p2:l3"), serde_json::json!("a:p1:l1")];
+        assert!(supplier_product_review_citations_match(&exact, &expected));
+        assert!(!supplier_product_review_citations_match(&duplicate, &expected));
+        assert!(!supplier_product_review_citations_match(&reordered, &expected));
     }
 }

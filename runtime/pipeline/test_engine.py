@@ -283,6 +283,51 @@ class CandidatePoolTests(unittest.TestCase):
 
 
 class ConcentrationHierarchyTests(unittest.TestCase):
+    def test_reviewed_product_claims_are_carried_as_lineage_not_as_concentration_evidence(self):
+        card_evidence = [{
+            "productCardId": "card-croda-1",
+            "tradeName": "Incromine Oxide C",
+            "claims": [{
+                "fieldCode": "active_matter",
+                "rawValue": "30%",
+                "basis": "as_supplied",
+                "reviewedBy": "chemist-1",
+            }],
+        }]
+        material = {
+            "code": "RM-INCROMINE",
+            "name": "Incromine Oxide C",
+            "inci": "Cocamine Oxide",
+            "function": "primary surfactant",
+            "active": True,
+            "supplier_product_card_evidence": card_evidence,
+        }
+        brief = {"target": "hand dishwashing liquid"}
+        constraints = derive_constraints(brief)
+        pool = engine.build_candidate_pool(brief, constraints, [], [material])
+        candidate = pool.candidates[normalize_ingredient_key("Cocamine Oxide")]
+        self.assertEqual(candidate.supplier_material["supplier_product_card_evidence"], card_evidence)
+        resolution = engine.resolve_concentration(candidate, "primary_surfactant", [], "balanced")
+        self.assertEqual(resolution.source_type, "unresolved")
+        self.assertIsNone(resolution.value)
+        # A separate existing RawMaterial recommendation makes the ingredient
+        # selectable; the product-card claim remains result lineage only.
+        candidate.supplier_material["recommended_min_pct"] = 0.5
+        candidate.supplier_material["recommended_max_pct"] = 1.0
+        import strategy as strategy_mod
+        strategy = strategy_mod.VersionStrategy(
+            formula_version_id="v1", label="V1", strategy_type="balanced", title="Balanced",
+            rationale="r", primary_priorities=[], secondary_priorities=[], tradeoffs_accepted=[], tradeoffs_forbidden=[],
+        )
+        parsed = engine.parse_requirements(brief)
+        result = engine.build_formula_for_strategy(
+            strategy, "cleansing", {"primary_surfactant": engine.REQUIRED}, pool, [], constraints, parsed,
+        )
+        self.assertEqual(result.formula["supplier_product_card_evidence"][0]["cards"], card_evidence)
+        selected = next(row for row in result.formula["ingredients"] if row["material_code"] == "RM-INCROMINE")
+        self.assertEqual(selected["supplier_product_card_evidence"], card_evidence)
+        self.assertNotEqual(selected["weight_pct"], "30")
+
     def test_resolves_from_comparable_evidence_statistics(self):
         records = [
             make_record("Piroctone Olamine", value=1.0, doi="10.1/a"),

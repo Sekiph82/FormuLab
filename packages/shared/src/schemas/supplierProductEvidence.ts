@@ -114,14 +114,48 @@ export const supplierProductCardVersionSchema = z.object({
   }
 });
 
+/** Immutable named-human decision on one exact extracted supplier-product
+ * claim. The source claim and citation are snapshotted so later extraction
+ * revisions cannot silently change what was reviewed. */
+export const supplierProductClaimReviewSchema = z.object({
+  recordType: z.literal("claim_review"),
+  schemaVersion: z.literal("1.0"),
+  id: z.string().trim().min(1),
+  productCardId: z.string().trim().min(1),
+  sourceEvidenceId: z.string().trim().min(1),
+  claimId: z.string().trim().min(1),
+  claimSnapshot: supplierProductClaimEvidenceSchema,
+  decision: z.enum(["accepted", "rejected", "needs_review"]),
+  decisionNote: z.string().trim().min(1).optional(),
+  evidenceRefs: z.array(z.string().trim().min(1)).min(1),
+  reviewedBy: z.string().trim().min(1),
+  reviewerRole: z.string().trim().min(1),
+  reviewedAt: z.string().datetime({ offset: true }),
+  supersedesReviewId: z.string().trim().min(1).optional(),
+}).strict().superRefine((review, context) => {
+  if (review.claimSnapshot.id !== review.claimId) {
+    context.addIssue({ code: "custom", path: ["claimId"], message: "Review must identify the snapshotted source claim." });
+  }
+  const expectedRefs = review.claimSnapshot.evidence.map((citation) => `${citation.documentHash}:p${citation.pageNumber}${citation.lineNumber ? `:l${citation.lineNumber}` : ""}`);
+  if (review.evidenceRefs.length !== expectedRefs.length
+    || review.evidenceRefs.some((reference, index) => reference !== expectedRefs[index])) {
+    context.addIssue({ code: "custom", path: ["evidenceRefs"], message: "Review citations must exactly reference the source claim citations." });
+  }
+  if (review.decision !== "accepted" && !review.decisionNote) {
+    context.addIssue({ code: "custom", path: ["decisionNote"], message: "Rejected and needs-review decisions require a note." });
+  }
+});
+
 export const supplierProductEvidenceRecordSchema = z.discriminatedUnion("recordType", [
   supplierProductDocumentEvidenceSchema,
   supplierProductCardVersionSchema,
+  supplierProductClaimReviewSchema,
 ]);
 
 export type SupplierProductClaimEvidence = z.infer<typeof supplierProductClaimEvidenceSchema>;
 export type SupplierProductDocumentEvidence = z.infer<typeof supplierProductDocumentEvidenceSchema>;
 export type SupplierProductCardVersion = z.infer<typeof supplierProductCardVersionSchema>;
+export type SupplierProductClaimReview = z.infer<typeof supplierProductClaimReviewSchema>;
 export type SupplierProductEvidenceRecord = z.infer<typeof supplierProductEvidenceRecordSchema>;
 
 /** Stable field vocabulary for extraction and resolver mapping. */

@@ -144,6 +144,7 @@ pub fn run() {
             supplier_document_store::read_supplier_document_pdf,
             masterdata::append_supplier_sds_product_evidence,
             masterdata::append_supplier_product_evidence,
+            masterdata::append_supplier_product_claim_review,
             masterdata::append_identity_field_review,
             masterdata::delete_master_record,
             masterdata::backup_master_collection,

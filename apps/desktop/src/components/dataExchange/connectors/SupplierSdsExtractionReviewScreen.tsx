@@ -10,9 +10,11 @@ import {
   type SupplierSdsProductEvidenceRecord,
   type SupplierProductCardVersion,
   type SupplierProductDocumentEvidence,
+  type SupplierProductClaimEvidence,
+  type SupplierProductClaimReview,
   type SupplierProductEvidenceRecord,
 } from "@formulab/shared";
-import { appendSupplierProductEvidenceUpdate, listRecords, readSupplierDocumentPdf } from "@/lib/masterdata";
+import { appendSupplierProductClaimReview, appendSupplierProductEvidenceUpdate, listRecords, readSupplierDocumentPdf } from "@/lib/masterdata";
 import { extractSupplierSdsReview } from "@/lib/supplierSdsReview";
 import { extractSupplierProductDocumentEvidence } from "@/lib/supplierProductExtraction";
 import { createSupplierProductCardVersion, deriveSupplierProductCardId } from "@/lib/supplierProductCards";
@@ -54,6 +56,7 @@ export function SupplierSdsExtractionReviewScreen() {
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   const [running, setRunning] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingReviewId, setSavingReviewId] = useState<string | null>(null);
   const [savedCardVersion, setSavedCardVersion] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -141,6 +144,38 @@ export function SupplierSdsExtractionReviewScreen() {
     }
   };
 
+  const saveClaimDecision = async (productCardId: string, sourceEvidenceId: string, claim: SupplierProductClaimEvidence, decision: SupplierProductClaimReview["decision"]) => {
+    const decisionNote = decision === "accepted" ? undefined : window.prompt(t(decision === "rejected" ? "dataExchange.connectors.sdsReview.claimRejectReason" : "dataExchange.connectors.sdsReview.claimNeedsReviewReason"))?.trim();
+    if (decision !== "accepted" && !decisionNote) return;
+    const prior = productEvidence.filter((record): record is SupplierProductClaimReview => record.recordType === "claim_review"
+      && record.productCardId === productCardId && record.sourceEvidenceId === sourceEvidenceId && record.claimId === claim.id)
+      .sort((left, right) => left.reviewedAt.localeCompare(right.reviewedAt)).slice(-1)[0];
+    const reviewId = crypto.randomUUID();
+    const review = {
+      recordType: "claim_review" as const,
+      schemaVersion: "1.0" as const,
+      id: reviewId,
+      productCardId,
+      sourceEvidenceId,
+      claimId: claim.id,
+      claimSnapshot: claim,
+      decision,
+      ...(decisionNote ? { decisionNote } : {}),
+      evidenceRefs: claim.evidence.map((citation) => `${citation.documentHash}:p${citation.pageNumber}${citation.lineNumber ? `:l${citation.lineNumber}` : ""}`),
+      ...(prior ? { supersedesReviewId: prior.id } : {}),
+    };
+    setSavingReviewId(reviewId);
+    setError(null);
+    try {
+      await appendSupplierProductClaimReview(review);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save the product claim review.");
+    } finally {
+      setSavingReviewId(null);
+    }
+  };
+
   const openPage = async (citation: Citation) => {
     const documentHash = citation.documentHash ?? selected?.sha256;
     if (documentHash) {
@@ -179,7 +214,7 @@ export function SupplierSdsExtractionReviewScreen() {
       {loading && <p className="text-[11px] text-muted">{t("dataExchange.connectors.sdsReview.loading")}</p>}
       {loadFailed && <p role="alert" className="text-[11px] text-error">{t("dataExchange.connectors.sdsReview.loadError")}</p>}
       {!loading && !loadFailed && documents.length === 0 && <p className="text-[11px] text-muted">{t("dataExchange.connectors.sdsReview.empty")}</p>}
-      {!loading && !loadFailed && <ProductCardLibrary cards={productCards} acquisitions={documents} onOpenCitation={openPage} />}
+      {!loading && !loadFailed && <ProductCardLibrary cards={productCards} acquisitions={documents} records={productEvidence} savingReviewId={savingReviewId} onReviewClaim={saveClaimDecision} onOpenCitation={openPage} />}
       {!loadFailed && documents.length > 0 && (
         <div className="mb-3 flex flex-wrap items-end gap-2">
           <label className="min-w-64 flex-1 text-[10px] text-muted">
@@ -218,7 +253,7 @@ export function SupplierSdsExtractionReviewScreen() {
             <button type="button" onClick={() => void saveProductCard()} disabled={saving} className="rounded-input border border-accent px-3 py-1.5 text-[10px] font-medium text-accent disabled:opacity-50">{saving ? t("dataExchange.connectors.sdsReview.savingProductCard") : t("dataExchange.connectors.sdsReview.saveProductCard")}</button>
           </div>
           {savedCardVersion !== null && <p role="status" className="mt-2 text-[10px] text-success">{t("dataExchange.connectors.sdsReview.savedProductCard", { version: savedCardVersion })}</p>}
-          {candidateEvidence.documentType === "TDS" && <div className="mt-2 space-y-2">{candidateEvidence.claims.map((claim) => <article key={claim.id} className="rounded border border-border-faint px-2 py-1.5 text-[10px]"><p className="font-medium text-text">{humanize(claim.fieldCode)}</p><p className="text-muted">{claim.rawValue}</p>{claim.evidence.map((source, index) => <button key={`${source.pageNumber}-${index}`} type="button" onClick={() => void openPage({ documentHash: source.documentHash, pageNumber: source.pageNumber, lineNumber: source.lineNumber ?? 1, excerpt: source.excerpt, source: source.source, confidence: source.confidence })} className="mr-2 text-accent underline">Page {source.pageNumber}</button>)}</article>)}</div>}
+          {candidateEvidence.documentType === "TDS" && <div className="mt-2 space-y-2">{candidateEvidence.claims.map((claim) => <article key={claim.id} className="rounded border border-border-faint px-2 py-1.5 text-[10px]"><p className="font-medium text-text">{humanize(claim.fieldCode)}</p><p className="text-muted">{claim.rawValue}</p>{claim.evidence.map((source, index) => <button key={`${source.pageNumber}-${index}`} type="button" onClick={() => void openPage({ documentHash: source.documentHash, pageNumber: source.pageNumber, lineNumber: source.lineNumber ?? 1, excerpt: source.excerpt, source: source.source, confidence: source.confidence })} className="mr-2 text-accent underline">{t("dataExchange.connectors.sdsReview.pageLink", { page: source.pageNumber, line: source.lineNumber ?? "—" })}</button>)}</article>)}</div>}
           <p className="mt-2 text-[10px] text-muted">{t("dataExchange.connectors.sdsReview.extractionDoesNotOverwrite")}</p>
         </section>
       )}
@@ -227,20 +262,32 @@ export function SupplierSdsExtractionReviewScreen() {
   );
 }
 
-function ProductCardLibrary({ cards, acquisitions, onOpenCitation }: { cards: ProductCardView[]; acquisitions: SupplierDocumentAcquisition[]; onOpenCitation: (citation: Citation) => Promise<void> }) {
+function ProductCardLibrary({ cards, acquisitions, records, savingReviewId, onReviewClaim, onOpenCitation }: {
+  cards: ProductCardView[];
+  acquisitions: SupplierDocumentAcquisition[];
+  records: SupplierProductEvidenceRecord[];
+  savingReviewId: string | null;
+  onReviewClaim: (productCardId: string, sourceEvidenceId: string, claim: SupplierProductClaimEvidence, decision: SupplierProductClaimReview["decision"]) => Promise<void>;
+  onOpenCitation: (citation: Citation) => Promise<void>;
+}) {
   const { t } = useTranslation("session");
   const acquisitionByCode = new Map(acquisitions.map((record) => [record.code, record]));
   return <section className="mb-4 rounded-input border border-border-faint bg-surface-1 p-3">
     <div className="flex items-baseline justify-between gap-3"><h4 className="text-xs font-semibold text-text">{t("dataExchange.connectors.sdsReview.productCards")}</h4><span className="text-[10px] text-muted">{cards.length}</span></div>
     {cards.length === 0 ? <p className="mt-2 text-[10px] text-muted">{t("dataExchange.connectors.sdsReview.noProductCards")}</p> : <div className="mt-2 space-y-2">{cards.map(({ latest, versions, documents }) => {
-      const claims = documents.flatMap((record) => record.claims).filter((claim) => latest.claimIds.includes(claim.id));
+      const claims = documents.flatMap((record) => record.claims.map((claim) => ({ sourceEvidenceId: record.id, claim }))).filter(({ claim }) => latest.claimIds.includes(claim.id));
       const conflicts = new Set(latest.conflicts.flatMap((conflict) => conflict.claimIds));
       return <details key={latest.productCardId} className="rounded-input border border-border-faint bg-surface p-2">
         <summary className="cursor-pointer list-none"><div className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-[11px] font-medium text-text">{latest.tradeName ?? latest.supplierItemCode ?? latest.productCardId}</span><span className="text-[10px] text-muted">{latest.supplierName ?? latest.supplierId ?? t("dataExchange.connectors.sdsReview.unknownSupplier")} · {t("dataExchange.connectors.sdsReview.cardVersion", { version: latest.version })} · {humanize(latest.identityStatus)}</span></div><div className="mt-1 flex flex-wrap gap-1">{latest.grade && <Badge>{latest.grade}</Badge>}<Badge>{latest.market}/{latest.language}</Badge>{documents.map((document) => <Badge key={document.id}>{document.documentType}</Badge>)}</div></summary>
         <div className="mt-2 space-y-2">
           <p className="break-all text-[9px] text-muted">{latest.productCardId}</p>
-          <div><p className="text-[10px] font-medium text-text">{t("dataExchange.connectors.sdsReview.sourceDocuments")}</p><div className="mt-1 space-y-1">{documents.map((document) => { const acquisition = acquisitionByCode.get(document.acquisitionCode); return <p key={document.id} className="break-all text-[9px] text-muted">{document.documentType} · {acquisition?.sourceRevision ?? acquisition?.revisionDate ?? acquisition?.publicationDate ?? t("dataExchange.connectors.sdsReview.revisionUnknown")} · SHA-256 {document.documentHash}</p>; })}</div></div>
-          <div><p className="text-[10px] font-medium text-text">{t("dataExchange.connectors.sdsReview.claimsHeading", { count: claims.length })}</p>{claims.length === 0 ? <p className="mt-1 text-[9px] text-muted">{t("dataExchange.connectors.sdsReview.noClaims")}</p> : <div className="mt-1 space-y-1">{claims.map((claim) => <article key={claim.id} className="rounded border border-border-faint px-2 py-1.5 text-[9px]"><div className="flex flex-wrap items-center gap-1"><span className="font-medium text-text">{humanize(claim.fieldCode)}</span>{conflicts.has(claim.id) && <Badge>{t("dataExchange.connectors.sdsReview.conflictReview")}</Badge>}<Badge>{t("dataExchange.connectors.sdsReview.reviewRequired")}</Badge></div><p className="mt-0.5 break-words text-muted">{claim.rawValue}{claim.originalUnit ? " · " + claim.originalUnit : ""}{claim.basis !== "unknown" ? " · " + humanize(claim.basis) : ""}</p>{Object.entries(claim.context).length > 0 && <p className="text-muted">{Object.entries(claim.context).map(([key, value]) => humanize(key) + ": " + value).join(" · ")}</p>}{claim.evidence.map((citation, index) => <button key={claim.id + ":" + index} type="button" onClick={() => void onOpenCitation({ documentHash: citation.documentHash, pageNumber: citation.pageNumber, lineNumber: citation.lineNumber ?? 1, excerpt: citation.excerpt, source: citation.source, confidence: citation.confidence })} className="mr-2 text-accent underline">{t("dataExchange.connectors.sdsReview.pageLink", { page: citation.pageNumber, line: citation.lineNumber ?? "—" })}</button>)}</article>)}</div>}</div>
+          <div><p className="text-[10px] font-medium text-text">{t("dataExchange.connectors.sdsReview.sourceDocuments")}</p><div className="mt-1 space-y-1">{documents.map((document) => { const acquisition = acquisitionByCode.get(document.acquisitionCode); return <p key={document.id} className="break-all text-[9px] text-muted">{t("dataExchange.connectors.sdsReview.sourceDocumentSummary", { type: document.documentType, revision: acquisition?.sourceRevision ?? acquisition?.revisionDate ?? acquisition?.publicationDate ?? t("dataExchange.connectors.sdsReview.revisionUnknown"), hash: document.documentHash })}</p>; })}</div></div>
+          <div><p className="text-[10px] font-medium text-text">{t("dataExchange.connectors.sdsReview.claimsHeading", { count: claims.length })}</p>{claims.length === 0 ? <p className="mt-1 text-[9px] text-muted">{t("dataExchange.connectors.sdsReview.noClaims")}</p> : <div className="mt-1 space-y-1">{claims.map(({ sourceEvidenceId, claim }) => {
+            const history = records.filter((record): record is SupplierProductClaimReview => record.recordType === "claim_review" && record.productCardId === latest.productCardId && record.sourceEvidenceId === sourceEvidenceId && record.claimId === claim.id).sort((left, right) => left.reviewedAt.localeCompare(right.reviewedAt));
+            const current = history[history.length - 1];
+            const decisionLabel = current ? current.decision === "accepted" ? t("dataExchange.connectors.sdsReview.accepted") : current.decision === "rejected" ? t("dataExchange.connectors.sdsReview.rejected") : t("dataExchange.connectors.sdsReview.needsReview") : t("dataExchange.connectors.sdsReview.reviewRequired");
+            return <article key={claim.id} className="rounded border border-border-faint px-2 py-1.5 text-[9px]"><div className="flex flex-wrap items-center gap-1"><span className="font-medium text-text">{humanize(claim.fieldCode)}</span>{conflicts.has(claim.id) && <Badge>{t("dataExchange.connectors.sdsReview.conflictReview")}</Badge>}<Badge>{current ? decisionLabel + " · " + current.reviewedBy : decisionLabel}</Badge></div><p className="mt-0.5 break-words text-muted">{claim.rawValue}{claim.originalUnit ? " · " + claim.originalUnit : ""}{claim.basis !== "unknown" ? " · " + humanize(claim.basis) : ""}</p>{Object.entries(claim.context).length > 0 && <p className="text-muted">{Object.entries(claim.context).map(([key, value]) => humanize(key) + ": " + value).join(" · ")}</p>}{claim.evidence.map((citation, index) => <button key={claim.id + ":" + index} type="button" onClick={() => void onOpenCitation({ documentHash: citation.documentHash, pageNumber: citation.pageNumber, lineNumber: citation.lineNumber ?? 1, excerpt: citation.excerpt, source: citation.source, confidence: citation.confidence })} className="mr-2 text-accent underline">{t("dataExchange.connectors.sdsReview.pageLink", { page: citation.pageNumber, line: citation.lineNumber ?? "—" })}</button>)}<div className="mt-1 flex gap-2"><button type="button" disabled={savingReviewId !== null} onClick={() => void onReviewClaim(latest.productCardId, sourceEvidenceId, claim, "accepted")} className="text-accent underline disabled:opacity-50">{savingReviewId ? t("dataExchange.connectors.sdsReview.savingClaimReview") : t("dataExchange.connectors.sdsReview.acceptClaim")}</button><button type="button" disabled={savingReviewId !== null} onClick={() => void onReviewClaim(latest.productCardId, sourceEvidenceId, claim, "needs_review")} className="text-muted underline disabled:opacity-50">{t("dataExchange.connectors.sdsReview.needsReview")}</button><button type="button" disabled={savingReviewId !== null} onClick={() => void onReviewClaim(latest.productCardId, sourceEvidenceId, claim, "rejected")} className="text-muted underline disabled:opacity-50">{t("dataExchange.connectors.sdsReview.rejectClaim")}</button></div></article>;
+          })}</div>}</div>
           <details className="text-[9px] text-muted"><summary className="cursor-pointer">{t("dataExchange.connectors.sdsReview.cardHistory", { count: versions.length })}</summary><ol className="mt-1 space-y-1">{versions.map((version) => <li key={version.id}>{t("dataExchange.connectors.sdsReview.cardVersion", { version: version.version })} · {version.evidenceRecordIds.length} {t("dataExchange.connectors.sdsReview.sourceCount")} · {new Date(version.createdAt).toLocaleString()}</li>)}</ol></details>
         </div>
       </details>;
