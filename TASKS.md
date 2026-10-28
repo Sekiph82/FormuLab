@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: None
-- Current Sprint: None
-- Current Task: None
-- Current Task Status: COMPLETE
-- Next Task: None
+- Current Milestone: FVL-12 — Supplier document intelligence and portable Desktop checkout
+- Current Sprint: FVL-12-S01 — Product evidence extraction and resolution
+- Current Task: FVL-12.002 — Persist citation-linked SDS/TDS extraction snapshots
+- Current Task Status: IN_PROGRESS
+- Next Task: FVL-12.003 — Product resolver and evidence-backed RawMaterial comparison
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -19,10 +19,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 179
-- Completed Tasks: 179
-- Remaining Tasks: 0
-- Completion: 100%
+- Total Tasks: 184
+- Completed Tasks: 180
+- Remaining Tasks: 4
+- Completion: 97.83%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -330,6 +330,17 @@ Sprint grouping below is a management-only organization of the existing frozen t
 
 ## Sprint DEVX-02-S01 — Project-aware workflow dashboard
 - [x] DEVX-02.001 — Read workflow data from each configured project root and expand merged items after the latest three
+
+# FVL-12
+
+## Sprint FVL-12-S01 — Product evidence extraction and resolution
+- [x] FVL-12.001 — Versioned SDS/TDS product evidence contract and field vocabulary
+- [~] FVL-12.002 — Persist citation-linked SDS/TDS extraction snapshots
+- [ ] FVL-12.003 — Product resolver and evidence-backed RawMaterial comparison
+
+## Sprint FVL-12-S02 — Portable checkout and local data lifecycle
+- [ ] FVL-12.004 — Remove runtime dependence on source worktrees and verify portable installation
+- [ ] FVL-12.005 — Safely retire superseded FormuLab worktree/runtime artifacts after migration acceptance
 
 ## Historical Detail & Evidence
 
