@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { CompatibilityFinding, RegulatoryFinding, SafetyFinding } from "@formulab/shared";
-import { buildReportHtml } from "./formulationReport";
+const downloadMocks = vi.hoisted(() => ({ saveTextWithFeedback: vi.fn(), saveBinaryWithFeedback: vi.fn() }));
+vi.mock("./download", () => ({
+  saveTextWithFeedback: downloadMocks.saveTextWithFeedback,
+  saveBinaryWithFeedback: downloadMocks.saveBinaryWithFeedback,
+}));
+
+import { buildReportHtml, downloadFormulationReport } from "./formulationReport";
 import type { SessionDetail } from "./formulationV2";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
@@ -164,6 +170,30 @@ describe("buildReportHtml", () => {
       expect(html).toContain(inci);
     }
     expect((html.match(/Manufacturing Procedure/g) ?? []).length).toBe(7);
+  });
+});
+
+describe("downloadFormulationReport", () => {
+  it("saves the complete report using a filesystem-safe name and HTML type", async () => {
+    downloadMocks.saveTextWithFeedback.mockReset().mockResolvedValue(undefined);
+    await downloadFormulationReport(SESSION, "session:/2026-test");
+    expect(downloadMocks.saveTextWithFeedback).toHaveBeenCalledWith(
+      "session--2026-test-formulation-report.html",
+      expect.stringContaining("FormuLab — Formulation Report"),
+      "text/html;charset=utf-8",
+    );
+  });
+
+  it("renders and saves the complete report as a PDF when requested", async () => {
+    downloadMocks.saveBinaryWithFeedback.mockReset().mockResolvedValue(undefined);
+    downloadMocks.saveTextWithFeedback.mockReset();
+    await downloadFormulationReport(SESSION, "session-123", {}, {}, {}, "pdf");
+    expect(downloadMocks.saveBinaryWithFeedback).toHaveBeenCalledWith(
+      "session-123-formulation-report.pdf",
+      expect.any(Uint8Array),
+      "application/pdf",
+    );
+    expect(downloadMocks.saveTextWithFeedback).not.toHaveBeenCalled();
   });
 });
 

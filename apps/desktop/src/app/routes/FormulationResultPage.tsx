@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   AlertTriangle,
   Beaker,
@@ -25,7 +26,8 @@ import {
 import { createAlternativeRankingRecord, displayMoney, newId, rankAlternatives, type AlternativeRankingRecord, type CostSnapshot, type RankedAlternative } from "@formulab/shared";
 import { readSession, type ArchitectureBasis, type ExperimentalOutcome, type FormulationCard, type LiteratureDocument, type ManufacturingPlan, type ResearchCorpusSummary, type ScientificFormulationRecord, type ScientificFormulationSummary, type SessionDetail } from "@/lib/formulationV2";
 import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
-import { openAndPrintReport } from "@/lib/formulationReport";
+import { downloadFormulationReport } from "@/lib/formulationReport";
+import { shareFormulationResult } from "@/lib/formulationShare";
 import { costGeneratedFormula } from "@/lib/generatedFormulaCost";
 import { pickCheapestValidVersion } from "@/lib/costComparison";
 import { evaluateGeneratedFormulaInventory, type FormulaInventoryFeasibility } from "@/lib/generatedFormulaInventory";
@@ -605,14 +607,35 @@ function TopBar({
     <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-3">
       <span className="text-[13px] font-medium uppercase tracking-wider text-muted">{t("formulationResult.heading")}</span>
       <div className="flex items-center gap-2">
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-[11px] text-text hover:bg-surface-2">
+              <FileDown size={13} className="text-muted" />
+              {t("formulationResult.actions.downloadReport")}
+              <ChevronDown size={12} className="text-muted" />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content align="end" sideOffset={5} className="z-50 min-w-40 rounded-card border border-border bg-surface p-1 shadow-lg">
+              <DropdownMenu.Item
+                onSelect={() => void downloadFormulationReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion, compatibilityByVersion, "html")}
+                className="cursor-pointer rounded-input px-3 py-2 text-xs text-text outline-none hover:bg-surface-2 focus:bg-surface-2"
+              >
+                {t("formulationResult.actions.downloadHtml")}
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                onSelect={() => void downloadFormulationReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion, compatibilityByVersion, "pdf")}
+                className="cursor-pointer rounded-input px-3 py-2 text-xs text-text outline-none hover:bg-surface-2 focus:bg-surface-2"
+              >
+                {t("formulationResult.actions.downloadPdf")}
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
         <button
-          onClick={() => openAndPrintReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion, compatibilityByVersion)}
+          onClick={() => void shareFormulationResult(sessionId ?? session.id)}
           className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-[11px] text-text hover:bg-surface-2"
         >
-          <FileDown size={13} className="text-muted" />
-          {t("formulationResult.actions.downloadReport")}
-        </button>
-        <button className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-[11px] text-text hover:bg-surface-2">
           <Share2 size={13} className="text-muted" />
           {t("formulationResult.actions.share")}
         </button>

@@ -90,8 +90,8 @@ export function AppShell() {
     return () => document.removeEventListener("click", onClick);
   }, []);
 
-  // The live session page's own header doubles as the titlebar when the
-  // sidebar is collapsed; every other route gets this fallback strip so the
+  // The compatibility live session page's own header doubles as the titlebar
+  // when the sidebar is collapsed; every other route gets this fallback strip so the
   // macOS traffic lights don't overlap content, the window stays draggable,
   // and the sidebar can be re-expanded.
   const isMac = navigator.userAgent.includes("Mac");

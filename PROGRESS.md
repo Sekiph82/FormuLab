@@ -1,5 +1,11 @@
 # Progress
 
+2026-10-22 22:03 · Rebuilt the release EXE from the current desktop source; verified `FormuLab.lnk` still targets it (SHA-256 `0B076D384D30569D037FE21ACF50566BF703468CA56178EB3D015F0324642E91`).
+
+2026-10-22 21:48 · Aligned autonomous queue guidance with chat-based owner questions and local-only claims; removed remote fetch/push behavior; canonical task validation remains 178/178 complete.
+
+2026-10-22 21:39 · Made the new formulation request/result flow the root landing experience; kept `/live` routes as a compatibility bridge and routed new-session entry points to the new flow.
+
 2026-10-22 14:07 · DEVX-01.007 added an accessible light/dark theme toggle with system-theme default and persisted user preference; browser verified both themes and dark preference after reload; FVL-11.001 remains READY.
 
 2026-10-22 14:03 · DEVX-01 dashboard now shows the seven retained Codex workspaces and five selected GitHub repositories; removed the five excluded Codex groups, linked repository cards, and kept FVL-11.001 READY; dashboard checks 5/5.

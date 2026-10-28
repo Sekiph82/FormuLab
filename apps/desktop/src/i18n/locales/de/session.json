@@ -400,6 +400,8 @@
     "noCandidate": "No candidate formula is available for this version.",
     "actions": {
       "downloadReport": "Download Report",
+      "downloadHtml": "HTML herunterladen",
+      "downloadPdf": "PDF herunterladen",
       "share": "Share"
     },
     "originalRequest": {

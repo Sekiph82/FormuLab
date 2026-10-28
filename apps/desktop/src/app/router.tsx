@@ -34,7 +34,9 @@ export const routes: RouteObject[] = [
     path: "/",
     element: <AppShell />,
     children: [
-      { index: true, element: <Navigate to="/live" replace /> },
+      { index: true, element: <Navigate to="/formulation-request" replace /> },
+      // Temporary compatibility bridge for historical `/live` deep links and
+      // workflows not yet mapped to the new request/result screens.
       { path: "live", element: <FormulationWorkspaceV2 /> },
       { path: "live/:sessionId", element: <FormulationWorkspaceV2 /> },
       { path: "example/:sessionId", element: <SessionPage /> },
