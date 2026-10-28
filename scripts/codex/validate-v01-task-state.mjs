@@ -13,7 +13,7 @@ function singleField(source, name) {
 
 export function validateV01TaskState(source) {
   const tasks = source.split(/\r?\n/).flatMap((line) => {
-    const match = line.match(/^- \[([ x~!])\] \*\*V01-(\d{2})\.(\d{3}) - (.+?)\*\*: /);
+    const match = line.match(/^- \[([ x~!])\] \*\*V01-(\d{2})\.(\d{3})(?: - | — )(.+?)\*\*: /);
     return match
       ? [{ marker: match[1], id: `V01-${match[2]}.${match[3]}`, milestone: Number(match[2]), ordinal: Number(match[3]), title: match[4] }]
       : [];
@@ -52,7 +52,7 @@ export function validateV01TaskState(source) {
       throw new Error("Current task may be None only for a complete queue with no remaining or in-progress tasks.");
     }
   } else {
-    const current = currentValue.match(/^(V01-\d{2}\.\d{3}) - (.+)$/);
+    const current = currentValue.match(/^(V01-\d{2}\.\d{3})(?: - | — )(.+)$/);
     if (!current) throw new Error("Current task must contain one explicit V01 task ID and title, or None.");
     const index = tasks.findIndex(({ id }) => id === current[1]);
     if (index < 0 || tasks[index].title !== current[2]) throw new Error(`Current task ${current[1]} does not match a task row.`);
@@ -70,7 +70,7 @@ export function validateV01TaskState(source) {
     if (!next) {
       if (nextValue !== "None") throw new Error("Next task must be None after the final task.");
     } else {
-      const parsedNext = nextValue.match(/^(V01-\d{2}\.\d{3}) - (.+)$/);
+      const parsedNext = nextValue.match(/^(V01-\d{2}\.\d{3})(?: - | — )(.+)$/);
       if (!parsedNext || parsedNext[1] !== next.id || parsedNext[2] !== next.title || next.marker !== " ") {
         throw new Error("Next task must identify the immediately following, not-yet-started task row.");
       }

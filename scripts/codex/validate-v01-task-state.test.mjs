@@ -4,21 +4,12 @@ import { test } from "node:test";
 import { validateV01TaskState } from "./validate-v01-task-state.mjs";
 
 const plan = await readFile(new URL("../../tasks.v01.md", import.meta.url), "utf8");
-const activePlan = plan
-  .replace(/^- Completed: 156$/m, "- Completed: 154")
-  .replace(/^- Remaining: 1$/m, "- Remaining: 3")
-  .replace(/^- Completion: 99.4%$/m, "- Completion: 98.1%")
-  .replace(/^- Current task: V01-10\.019 - Owner-selected local formulation and supplier-document folder import$/m, "- Current task: V01-10.017 - V01 branch state and publication check")
-  .replace(/^- Current status: IN PROGRESS$/m, "- Current status: IN PROGRESS")
-  .replace(/^- Next task: None$/m, "- Next task: V01-10.018 - V01 completion handoff")
-  .replace(/^- \[x\] \*\*V01-10\.017(.*?)$/m, (row) => row.replace("[x]", "[~]"))
-  .replace(/^- \[x\] \*\*V01-10\.018(.*?)$/m, (row) => row.replace("[x]", "[ ]"))
-  .replace(/^- \[~\] \*\*V01-10\.019(.*?)$/m, (row) => row.replace("[~]", "[ ]"));
+const activePlan = plan;
 
 test("accepts the current ordered V01 task plan", () => {
   const result = validateV01TaskState(plan);
   const field = (name) => plan.match(new RegExp(`^- ${name}: (.+)$`, "mi"))?.[1].trim();
-  assert.equal(result.total, 157);
+  assert.equal(result.total, 164);
   assert.equal(result.completed, Number(field("Completed")));
   assert.equal(result.remaining, Number(field("Remaining")));
   assert.equal(result.current, field("Current task"));
@@ -44,8 +35,9 @@ test("rejects task rows placed out of order", () => {
 test("rejects completion markers that skip ahead of the current task", () => {
   const nextId = activePlan.match(/^- Next task: (V01-\d{2}\.\d{3})/m)[1];
   const completed = Number(activePlan.match(/^- Completed: (\d+)$/m)[1]) + 1;
-  const remaining = 157 - completed;
-  const completion = Math.round((completed / 157) * 1000) / 10;
+  const total = Number(activePlan.match(/^- Total tasks: (\d+)$/m)[1]);
+  const remaining = total - completed;
+  const completion = Math.round((completed / total) * 1000) / 10;
   const skipped = activePlan
     .replace(new RegExp(`^- \\[ \\] \\*\\*${nextId}`, "m"), (row) => row.replace("[ ]", "[x]"))
     .replace(/^- Completed: \d+$/m, `- Completed: ${completed}`)
