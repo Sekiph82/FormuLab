@@ -140,6 +140,7 @@ export function UsersPanel() {
             {creating && (
               <CreateUserForm
                 t={t}
+                allowOwnerRole={trusted?.role === "owner"}
                 onCreated={(user) => {
                   setUsers((prev) => [user, ...prev]);
                   setCreating(false);
@@ -171,10 +172,11 @@ export function UsersPanel() {
                       <td className="py-1.5">
                         <select
                           value={u.role}
+                          disabled={u.role === "owner" && trusted?.role !== "owner"}
                           onChange={(e) => void applyRoleChange(u, e.target.value)}
                           className="rounded-input border border-border bg-surface px-1 py-0.5 text-[11px]"
                         >
-                          {ROLES.map((r) => (
+                          {ROLES.filter((r) => r !== "owner" || trusted?.role === "owner" || u.userId === trusted?.userId || u.role === "owner").map((r) => (
                             <option key={r} value={r}>
                               {r}
                             </option>
@@ -262,10 +264,12 @@ function IconButton({ label, onClick, children }: { label: string; onClick: () =
 
 function CreateUserForm({
   t,
+  allowOwnerRole,
   onCreated,
   onError,
 }: {
   t: SimpleT;
+  allowOwnerRole: boolean;
   onCreated: (user: SafeUser) => void;
   onError: (message: string) => void;
 }) {
@@ -308,7 +312,7 @@ function CreateUserForm({
         <label className="block">
           <span className="mb-1 block text-[10px] text-muted">{t("administration.users.fieldRole")}</span>
           <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="w-full rounded-input border border-border bg-surface px-1.5 py-1 text-[11px] text-text">
-            {ROLES.map((r) => (
+            {ROLES.filter((r) => r !== "owner" || allowOwnerRole).map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>

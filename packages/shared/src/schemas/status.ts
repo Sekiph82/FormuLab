@@ -25,7 +25,7 @@ export type Actor =
   | { kind: "import"; source: string };
 
 /**
- * Phase 13 Session 1 — the fixed 12-role enterprise model (superseded the
+ * Phase 13 Session 1 — the fixed 13-role enterprise model (superseded the
  * original 6-role set: `chemist` was folded into `researcher`, and
  * `quality`/`production` each split into an employee tier plus a manager
  * tier that alone holds approval authority). See
@@ -45,6 +45,7 @@ export const APPROVAL_ROLES = [
   "production_manager",
   "document_control",
   "administrator",
+  "owner",
 ] as const;
 export type ApprovalRole = (typeof APPROVAL_ROLES)[number];
 
@@ -61,8 +62,8 @@ export type ApprovalRole = (typeof APPROVAL_ROLES)[number];
  * Regulatory as one fixed role, not employee/manager tiers).
  */
 export const APPROVAL_AUTHORITY: Record<FormulaStatus, readonly ApprovalRole[]> = {
-  pilot_approved: ["research_manager", "quality_manager", "administrator"],
-  production_approved: ["quality_manager", "regulatory", "production_manager", "administrator"],
+  pilot_approved: ["research_manager", "quality_manager", "administrator", "owner"],
+  production_approved: ["quality_manager", "regulatory", "production_manager", "administrator", "owner"],
   // Everything else is a working state, not an approval.
   concept: [],
   literature_candidate: [],
@@ -70,8 +71,8 @@ export const APPROVAL_AUTHORITY: Record<FormulaStatus, readonly ApprovalRole[]> 
   lab_candidate: [],
   stability_testing: [],
   pilot_candidate: [],
-  retired: ["research_manager", "quality_manager", "administrator"],
-  rejected: ["research_manager", "quality_manager", "regulatory", "administrator"],
+  retired: ["research_manager", "quality_manager", "administrator", "owner"],
+  rejected: ["research_manager", "quality_manager", "regulatory", "administrator", "owner"],
 };
 
 /**

@@ -11,7 +11,7 @@
  *
  * An AI (`kind: "agent"`), a system process, or an import can never
  * satisfy this — see `schemas/status.ts`'s `Actor` union. Only a human
- * whose `role` is `regulatory`, `quality` or `administrator` passes;
+ * whose `role` is `regulatory`, `quality`, `administrator` or `owner` passes;
  * every other human role (`researcher`, `chemist`, `production`) is
  * rejected exactly like a non-human actor. Throws before any record is
  * built, so a caller that checks this first can never end up with a
@@ -19,7 +19,7 @@
  */
 import type { Actor } from "../schemas/status";
 
-export const AUTHORIZED_REGULATORY_ROLES = ["regulatory", "quality", "administrator"] as const;
+export const AUTHORIZED_REGULATORY_ROLES = ["regulatory", "quality", "administrator", "owner"] as const;
 export type AuthorizedRegulatoryRole = (typeof AUTHORIZED_REGULATORY_ROLES)[number];
 
 export function isAuthorizedRegulatoryActor(actor: Actor): actor is Extract<Actor, { kind: "human" }> & { role: AuthorizedRegulatoryRole } {
@@ -31,7 +31,7 @@ export function requireAuthorizedRegulatoryActor(
   action: string,
 ): asserts actor is Extract<Actor, { kind: "human" }> & { role: AuthorizedRegulatoryRole } {
   if (!isAuthorizedRegulatoryActor(actor)) {
-    throw new Error(`Only an authorized regulatory, quality or administrator role may ${action}.`);
+    throw new Error(`Only an authorized regulatory, quality, administrator or owner role may ${action}.`);
   }
 }
 

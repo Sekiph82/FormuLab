@@ -11,7 +11,7 @@
 // data root, never `.FormuLab/runs.db`, never any `.formulab-backup`
 // payload) holding user accounts, sessions, login attempts, and a
 // security audit trail for FormuLab's closed-enterprise-account model:
-// administrator-created users, username + password login, one of 12
+// administrator-created users, username + password login, one of 13
 // fixed built-in roles per user. No public registration, no email/SMS
 // verification, no per-user permission overrides — see
 // docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md for the full design.
@@ -35,12 +35,12 @@ const DB_FILE: &str = "identity.db";
 
 // ------------------------------------------------------------- roles ---
 
-/// The 12 fixed, built-in FormuLab roles (Phase 13 Session 1 — supersedes
+/// The 13 fixed, built-in FormuLab roles (Phase 13 Session 1 — supersedes
 /// the earlier 6-role draft from Session 0; `chemist` was folded into
 /// `researcher`, and `quality`/`production` each split into an employee
 /// tier plus a manager tier). This is the Rust-side mirror of
 /// `packages/shared/src/schemas/status.ts`'s `APPROVAL_ROLES` — the two
-/// must name the exact same 12 strings; a parity test in this module's
+/// must name the exact same 13 strings; a parity test in this module's
 /// `#[cfg(test)]` block only checks the Rust side's own round-trip
 /// (string <-> Role), not cross-language identity — a real cross-language
 /// parity test needs a fixture both sides read, left for the session that
@@ -60,13 +60,14 @@ pub enum Role {
     ProductionManager,
     DocumentControl,
     Administrator,
+    Owner,
 }
 
 impl Role {
     /// Every fixed role, for validation/enumeration. Not a database table —
     /// role policy is application-versioned code, not editable data (see
     /// architecture doc §15).
-    pub const ALL: [Role; 12] = [
+    pub const ALL: [Role; 13] = [
         Role::Researcher,
         Role::ResearchManager,
         Role::Quality,
@@ -79,6 +80,7 @@ impl Role {
         Role::ProductionManager,
         Role::DocumentControl,
         Role::Administrator,
+        Role::Owner,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -95,10 +97,18 @@ impl Role {
             Role::ProductionManager => "production_manager",
             Role::DocumentControl => "document_control",
             Role::Administrator => "administrator",
+            Role::Owner => "owner",
         }
     }
 
-    /// Rejects anything not exactly one of the 12 fixed role strings —
+    /// Owner is a named human with the administrator lifecycle authority;
+    /// it is still a distinct role whose application capabilities are
+    /// granted only to accounts explicitly assigned `owner`.
+    pub fn has_administrator_authority(self) -> bool {
+        matches!(self, Role::Administrator | Role::Owner)
+    }
+
+    /// Rejects anything not exactly one of the 13 fixed role strings —
     /// callers (a future create-user/change-role command) must never be
     /// able to smuggle an arbitrary string into `users.role`.
     pub fn parse(s: &str) -> Result<Role, String> {
@@ -106,7 +116,7 @@ impl Role {
             .iter()
             .copied()
             .find(|r| r.as_str() == s)
-            .ok_or_else(|| format!("\"{s}\" is not one of the 12 fixed FormuLab roles"))
+            .ok_or_else(|| format!("\"{s}\" is not one of the 13 fixed FormuLab roles"))
     }
 }
 
@@ -516,14 +526,13 @@ fn no_such_user(e: rusqlite::Error) -> String {
     }
 }
 
-/// Every active administrator other than `user_id`. Disabled/non-active
-/// administrators never count as a "backup" — an installation with one
-/// active administrator and three disabled ones still has exactly one
-/// active administrator, and this is what both guards below check.
+/// Every active administrator/owner other than `user_id`. Disabled/non-active
+/// accounts never count as a "backup" — an installation with one active
+/// administrator authority and disabled backups still has exactly one.
 fn other_active_administrators(tx: &rusqlite::Transaction, user_id: &str) -> Result<i64, String> {
     tx.query_row(
-        "SELECT count(*) FROM users WHERE role = ?1 AND status = 'active' AND id != ?2",
-        params![Role::Administrator.as_str(), user_id],
+        "SELECT count(*) FROM users WHERE role IN (?1, ?2) AND status = 'active' AND id != ?3",
+        params![Role::Administrator.as_str(), Role::Owner.as_str(), user_id],
         |r| r.get(0),
     )
     .map_err(|e| e.to_string())
@@ -548,7 +557,8 @@ pub(crate) fn update_role_guarded(conn: &mut Connection, user_id: &str, new_role
     let (current_role, current_status): (String, String) = tx
         .query_row("SELECT role, status FROM users WHERE id = ?1", params![user_id], |r| Ok((r.get(0)?, r.get(1)?)))
         .map_err(no_such_user)?;
-    let removes_admin_authority = current_role == Role::Administrator.as_str() && new_role != Role::Administrator;
+    let removes_admin_authority = Role::parse(&current_role)?.has_administrator_authority()
+        && !new_role.has_administrator_authority();
     if removes_admin_authority && current_status == "active" && other_active_administrators(&tx, user_id)? == 0 {
         return Err("cannot change this role: it is the last active administrator".into());
     }
@@ -576,7 +586,10 @@ pub(crate) fn update_account_status_guarded(conn: &mut Connection, user_id: &str
         let (role, status): (String, String) = tx
             .query_row("SELECT role, status FROM users WHERE id = ?1", params![user_id], |r| Ok((r.get(0)?, r.get(1)?)))
             .map_err(no_such_user)?;
-        if role == Role::Administrator.as_str() && status == "active" && other_active_administrators(&tx, user_id)? == 0 {
+        if Role::parse(&role)?.has_administrator_authority()
+            && status == "active"
+            && other_active_administrators(&tx, user_id)? == 0
+        {
             return Err("cannot disable the last active administrator".into());
         }
     }
@@ -654,8 +667,22 @@ pub(crate) fn is_locked(user: &User) -> bool {
 pub(crate) fn any_administrator_exists(conn: &Connection) -> Result<bool, String> {
     let count: i64 = conn
         .query_row(
+            "SELECT count(*) FROM users WHERE role IN (?1, ?2)",
+            params![Role::Administrator.as_str(), Role::Owner.as_str()],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(count > 0)
+}
+
+/// Whether an Owner account is already assigned. The first owner can only be
+/// bootstrapped by an administrator changing their own role; after that,
+/// only an Owner may grant or manage Owner accounts.
+pub(crate) fn any_owner_exists(conn: &Connection) -> Result<bool, String> {
+    let count: i64 = conn
+        .query_row(
             "SELECT count(*) FROM users WHERE role = ?1",
-            params![Role::Administrator.as_str()],
+            params![Role::Owner.as_str()],
             |r| r.get(0),
         )
         .map_err(|e| e.to_string())?;
@@ -687,8 +714,8 @@ pub(crate) fn bootstrap_administrator(
         .map_err(|e| e.to_string())?;
     let count: i64 = tx
         .query_row(
-            "SELECT count(*) FROM users WHERE role = ?1",
-            params![Role::Administrator.as_str()],
+            "SELECT count(*) FROM users WHERE role IN (?1, ?2)",
+            params![Role::Administrator.as_str(), Role::Owner.as_str()],
             |r| r.get(0),
         )
         .map_err(|e| e.to_string())?;
@@ -1011,8 +1038,8 @@ mod tests {
     // ------------------------------------------------------------ roles ---
 
     #[test]
-    fn all_12_fixed_roles_round_trip_through_as_str_and_parse() {
-        assert_eq!(Role::ALL.len(), 12);
+    fn all_13_fixed_roles_round_trip_through_as_str_and_parse() {
+        assert_eq!(Role::ALL.len(), 13);
         for role in Role::ALL {
             let s = role.as_str();
             assert_eq!(Role::parse(s).unwrap(), role);

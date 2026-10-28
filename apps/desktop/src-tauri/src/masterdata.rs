@@ -2640,8 +2640,8 @@ fn ensure_master_delete_allowed(name: &str, append_only: bool) -> Result<(), Str
 /// matrix, transcribed literally, grants the `delete` capability to no role
 /// in ANY domain content area (`rawMaterials`/`formulation`/`laboratory`/
 /// `stability`/`regulatory`/`optimization`/`dataExchange`/`documentControl`
-/// all deny `delete` to every one of the 12 roles, `administrator`
-/// included) — the only cell anywhere in the whole matrix that grants
+/// all deny `delete` to every fixed role, `administrator` and `owner`
+/// included — the only cell anywhere in the whole matrix that grants
 /// `delete` at all is `projects`/`administrator`. Gating this destructive,
 /// snapshot-first, "genuinely mistaken rows" operation (see its own doc
 /// comment below) against `rawMaterials`/`formulation`/etc. `delete` would

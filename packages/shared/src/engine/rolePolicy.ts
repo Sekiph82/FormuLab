@@ -15,13 +15,13 @@
  * Default-deny by construction: `can()` looks a role/area/capability triple
  * up in a fixed, fully-enumerated table and returns `false` for anything
  * not explicitly present — an unknown area, an unsupported capability, or
- * a role string that isn't one of the 12 fixed roles all fall through the
+ * a role string that isn't one of the 13 fixed roles all fall through the
  * same `undefined` lookup path to `false`. There is no "if not explicitly
  * denied, allow" branch anywhere in this file.
  *
  * `Role` is a re-export of `status.ts`'s `ApprovalRole` — deliberately not
  * a second, independently-declared string union. `identity.rs` (Rust) is
- * the storage-layer mirror of the same 12 strings; the parity mechanism
+ * the storage-layer mirror of the same 13 strings; the parity mechanism
  * (`rolePolicy.roleVocabularyParity.test.ts` + `identity.rs`'s own
  * `role_vocabulary_matches_the_shared_json_fixture` test) is a shared JSON
  * fixture (`roleVocabulary.json`) both languages check *themselves*
@@ -128,21 +128,22 @@ export type Capability = (typeof CAPABILITIES)[number];
 
 type CapabilityGrid = Record<PolicyArea, Record<Role, readonly Capability[]>>;
 
-/** Zips a 12-cell row (in `ROLES`'/`APPROVAL_ROLES`' exact column order —
+/** Zips the existing 12-role policy row (in the original `ROLES` order —
  *  researcher, research_manager, quality, quality_manager, regulatory,
  *  raw_material, procurement, production_engineering, production,
  *  production_manager, document_control, administrator) into a
- *  `Record<Role, Capability[]>`, so each matrix row below reads as one
- *  line per role in the architecture doc's own column order instead of a
- *  hand-built object literal that could silently transpose two roles. */
+ *  `Record<Role, Capability[]>`; the individually assigned Owner role is
+ *  added uniformly below so it cannot drift between policy areas. */
 function row(cells: readonly (readonly Capability[])[]): Record<Role, readonly Capability[]> {
-  if (cells.length !== ROLES.length) {
-    throw new Error(`rolePolicy row() expected ${ROLES.length} cells, got ${cells.length}`);
+  const matrixRoles = ROLES.filter((role) => role !== "owner");
+  if (cells.length !== matrixRoles.length) {
+    throw new Error(`rolePolicy row() expected ${matrixRoles.length} legacy cells, got ${cells.length}`);
   }
   const out = {} as Record<Role, readonly Capability[]>;
-  ROLES.forEach((role, i) => {
+  matrixRoles.forEach((role, i) => {
     out[role] = cells[i];
   });
+  out.owner = CAPABILITIES.filter((capability) => capability !== "delete");
   return out;
 }
 
