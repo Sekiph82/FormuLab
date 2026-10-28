@@ -121,7 +121,7 @@ same locale policy every screenshot in this guide follows.
 ![Formulation generation](screenshots/formulation-live-generation-light-en.png "The composer: target product, category, market, and Generate")
 
 **Sessions** (the sidebar's pinned bottom section, or `Ctrl/Cmd+B`'s
-default landing page) opens the composer at `/live` — FormuLab's front
+default landing page) opens the composer at `/formulation-request` — FormuLab's front
 door for a brand-new idea, distinct from the **Formulation** project
 workspace described from [§1](#1-create-a-formula-project) onward.
 

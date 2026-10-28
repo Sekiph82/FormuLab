@@ -16,7 +16,7 @@
     "codex:v01:tasks:check": "node scripts/codex/validate-v01-task-state.mjs",
     "codex:v01:tasks:test": "node --test scripts/codex/validate-v01-task-state.test.mjs",
     "codex:dashboard": "node scripts/codex/dashboard-server.mjs",
-    "codex:dashboard:test": "node --test scripts/codex/dashboard-server.test.mjs scripts/codex/dashboard-ui.test.mjs",
+    "codex:dashboard:test": "node --test scripts/codex/dashboard-server.test.mjs && node --test scripts/codex/dashboard-ui.test.mjs",
     "docs:fixture:seed": "tsx scripts/dev/seed-docs-fixture.ts",
     "docs:fixture:reset": "tsx scripts/dev/seed-docs-fixture.ts --reset",
     "docs:guide:generate": "tsx scripts/dev/generate-user-guide.ts",

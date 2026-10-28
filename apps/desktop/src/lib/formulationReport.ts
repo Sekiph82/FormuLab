@@ -5,6 +5,8 @@
 // the result screen itself renders), never from the live app DOM — this is
 // what makes it complete regardless of what the user currently has open.
 import type { FormulationCard, LiteratureDocument, ScientificFormulationRecord, SessionDetail } from "./formulationV2";
+import { saveBinaryWithFeedback, saveTextWithFeedback } from "./download";
+import { renderFormulationReportPdf } from "./formulationReportPdf";
 import { asGeneratedFormula } from "./generatedFormula";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
@@ -214,21 +216,22 @@ export function buildReportHtml(
   return `<!doctype html><html><head><meta charset="utf-8"><title>FormuLab Report — ${esc(sessionId)}</title><style>${style}</style></head><body>${body}</body></html>`;
 }
 
-/** Opens the report in a new window and triggers print. Real browser API,
- *  not a screenshot of the current viewport. */
-export function openAndPrintReport(
+/** Save the complete, print-ready report as an HTML file. The desktop app
+ *  uses its native Save As dialog; browser builds use the download flow. */
+export async function downloadFormulationReport(
   session: SessionDetail,
   sessionId: string,
   safetyByVersion: Record<string, GeneratedFormulaSafety | undefined> = {},
   regulatoryByVersion: Record<string, GeneratedFormulaRegulatory | undefined> = {},
   compatibilityByVersion: Record<string, GeneratedFormulaCompatibility | undefined> = {},
-): void {
+  format: "html" | "pdf" = "html",
+): Promise<void> {
   const html = buildReportHtml(session, sessionId, safetyByVersion, regulatoryByVersion, compatibilityByVersion);
-  const win = window.open("", "_blank");
-  if (!win) return;
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  win.print();
+  const safeSessionId = sessionId.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").trim() || "formulation";
+  if (format === "pdf") {
+    const bytes = await renderFormulationReportPdf(html, sessionId);
+    await saveBinaryWithFeedback(`${safeSessionId}-formulation-report.pdf`, bytes, "application/pdf");
+    return;
+  }
+  await saveTextWithFeedback(`${safeSessionId}-formulation-report.html`, html, "text/html;charset=utf-8");
 }

@@ -400,6 +400,8 @@
     "noCandidate": "No candidate formula is available for this version.",
     "actions": {
       "downloadReport": "Download Report",
+      "downloadHtml": "下载 HTML",
+      "downloadPdf": "下载 PDF",
       "share": "Share"
     },
     "originalRequest": {

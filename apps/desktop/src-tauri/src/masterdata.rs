@@ -129,6 +129,7 @@ use crate::authz;
 static REFERENCE_FORMULATION_NORMALIZATION_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static REFERENCE_FORMULATION_REVIEW_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static SUPPLIER_SDS_EVIDENCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
+static SUPPLIER_PRODUCT_EVIDENCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static IDENTITY_FIELD_REVIEW_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static SUPPLIER_DOCUMENT_ACQUISITION_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static REFERENCE_FORMULATION_SOURCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
@@ -138,7 +139,7 @@ static REFERENCE_FORMULATION_SOURCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 106] = [
+const COLLECTIONS: [(&str, bool); 107] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -382,6 +383,7 @@ const COLLECTIONS: [(&str, bool); 106] = [
     // must never be silently rewritten.
     ("supplier_document_acquisitions", true),
     ("supplier_sds_product_evidence", true),
+    ("supplier_product_evidence", true),
     // Named human decisions on supplier evidence are immutable and appended
     // through the dedicated command, never through generic collection writes.
     ("identity_field_reviews", true),
@@ -856,6 +858,154 @@ pub async fn append_supplier_sds_product_evidence(
     }
     write_array(&path, &next_rows)?;
     Ok(evidence)
+}
+
+/// Append citation-backed SDS/TDS claims and product-card versions. Documents
+/// and card revisions share one append-only project collection so a card can
+/// be rebuilt after restart without relying on renderer memory.
+#[tauri::command(async)]
+pub async fn append_supplier_product_evidence(
+    app: AppHandle,
+    token: String,
+    mut evidence: serde_json::Value,
+    mut card_version: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    authz::authorize_any_app(&app, &token, "rawMaterials", &WRITE_CAPABILITIES)?;
+    let _guard = SUPPLIER_PRODUCT_EVIDENCE_WRITE_LOCK.lock()
+        .map_err(|_| "supplier product evidence storage is unavailable".to_string())?;
+    let path = collection_path(&app, "supplier_product_evidence")?;
+    let rows = read_array(&path);
+    if evidence["recordType"].as_str() != Some("document") || card_version["recordType"].as_str() != Some("card_version") {
+        return Err("a product evidence update must include one document snapshot and one product-card version".to_string());
+    }
+    validate_supplier_product_document_evidence(&app, &evidence)?;
+    if let Some(object) = evidence.as_object_mut() {
+        object.insert("createdAt".to_string(), serde_json::Value::String(now_rfc3339_utc()));
+    }
+    let (rows_with_evidence, inserted_evidence, _) = apply_upsert(rows, vec![evidence.clone()], true, "supplier_product_evidence")?;
+    if inserted_evidence != 1 { return Err("supplier product evidence was not appended".to_string()); }
+    if card_version["productCardId"] != evidence["productCardId"] {
+        return Err("the new product-card version must belong to the extracted product card".to_string());
+    }
+    validate_supplier_product_card_version(&card_version, &rows_with_evidence)?;
+    if let Some(object) = card_version.as_object_mut() {
+        object.insert("createdAt".to_string(), serde_json::Value::String(now_rfc3339_utc()));
+    }
+    let (rows_with_card, inserted_card, _) = apply_upsert(rows_with_evidence, vec![card_version.clone()], true, "supplier_product_evidence")?;
+    if inserted_card != 1 { return Err("supplier product card version was not appended".to_string()); }
+    write_array(&path, &rows_with_card)?;
+    Ok(serde_json::json!({ "evidence": evidence, "cardVersion": card_version }))
+}
+
+fn validate_supplier_product_document_evidence(app: &AppHandle, record: &serde_json::Value) -> Result<(), String> {
+    ensure_object_keys(record, &["recordType", "schemaVersion", "id", "acquisitionCode", "productCardId", "documentType", "documentHash", "parserVersion", "ocrVersion", "claims", "reviewStatus", "createdAt"], "supplier product document evidence")?;
+    if record["schemaVersion"].as_str() != Some("1.0")
+        || record["id"].as_str().map_or(true, str::is_empty)
+        || record["productCardId"].as_str().map_or(true, str::is_empty)
+        || record["parserVersion"].as_str().map_or(true, str::is_empty)
+        || record["reviewStatus"].as_str() != Some("unreviewed")
+        || record["claims"].as_array().is_none()
+    {
+        return Err("supplier product evidence snapshot is invalid or is not unreviewed".to_string());
+    }
+    let acquisition_code = record["acquisitionCode"].as_str().ok_or_else(|| "supplier product evidence is missing its document acquisition".to_string())?;
+    let acquisition_path = collection_path(app, "supplier_document_acquisitions")?;
+    let acquisitions = read_array(&acquisition_path);
+    let acquisition = acquisitions.iter().find(|item| item["code"].as_str() == Some(acquisition_code))
+        .ok_or_else(|| "supplier product evidence must reference a persisted acquisition".to_string())?;
+    validate_supplier_document_acquisition_record(acquisition)?;
+    let hash = acquisition["sha256"].as_str().unwrap_or_default();
+    if record["documentType"].as_str() != acquisition["documentType"].as_str()
+        || !["SDS", "TDS"].contains(&record["documentType"].as_str().unwrap_or_default())
+        || record["documentHash"].as_str().map_or(true, |value| !value.eq_ignore_ascii_case(hash))
+        || !is_sha256_hex(hash)
+    {
+        return Err("product evidence type and hash must match the exact acquired SDS or TDS".to_string());
+    }
+    let claims = record["claims"].as_array().unwrap();
+    let mut claim_ids = std::collections::HashSet::new();
+    let allowed_sds_fields = [
+        "product_identifier", "product_chemical_nature", "product_cas", "product_ec", "supplier_material_number", "product_description", "recommended_use", "use_restrictions", "industry_sector", "emergency_contact",
+        "substance_or_mixture", "disclosed_component_name", "disclosed_component_cas", "disclosed_component_ec", "disclosed_component_concentration",
+        "component_m_factor", "component_specific_concentration_limit", "component_acute_toxicity_estimate", "composition_disclosure", "undisclosed_remainder",
+        "handling", "handling_constraints", "storage", "storage_temperature", "storage_conditions", "storage_stability", "container_material_compatibility", "sds_shelf_life",
+        "physical_state", "appearance", "color", "odor", "odor_threshold", "ph", "density", "relative_density", "viscosity", "solubility", "flash_point",
+        "boiling_point", "melting_point", "freezing_point", "melting_freezing_point", "vapor_pressure", "vapor_density", "partition_coefficient", "molecular_weight", "other_physical_property",
+        "regulatory_status", "chemical_safety_assessment", "other_regulatory_information",
+    ];
+    let allowed_tds_fields = [
+        "active_matter", "total_solids", "nonvolatile_content", "water_content", "density", "relative_density", "ph", "viscosity",
+        "ionic_character", "appearance", "color", "odor", "solubility", "recommended_dosage", "application_guidance", "application_area",
+        "processing_conditions", "addition_sequence", "compatibility", "stability", "storage_conditions", "shelf_life", "packaging",
+        "analytical_method", "cloud_point", "pour_point", "flash_point", "performance_claim", "certification_claim",
+    ];
+    for claim in claims {
+        ensure_object_keys(claim, &["id", "fieldCode", "sectionNumber", "subject", "rawValue", "normalizedValue", "originalUnit", "normalizedUnit", "qualifier", "basis", "context", "extraction", "evidence"], "supplier product claim")?;
+        let claim_id = claim["id"].as_str().filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "supplier product claim ID is required".to_string())?;
+        if !claim_ids.insert(claim_id.to_string()) { return Err("supplier product claim IDs must be unique".to_string()); }
+        let field = claim["fieldCode"].as_str().unwrap_or_default();
+        let section = claim["sectionNumber"].as_u64();
+        let valid_sds = match field {
+            "product_identifier" | "product_chemical_nature" | "product_cas" | "product_ec" | "supplier_material_number" | "product_description" | "recommended_use" | "use_restrictions" | "industry_sector" | "emergency_contact" => section == Some(1),
+            "substance_or_mixture" | "disclosed_component_name" | "disclosed_component_cas" | "disclosed_component_ec" | "disclosed_component_concentration" | "component_m_factor" | "component_specific_concentration_limit" | "component_acute_toxicity_estimate" | "composition_disclosure" | "undisclosed_remainder" => section == Some(3),
+            "handling" | "handling_constraints" | "storage" | "storage_temperature" | "storage_conditions" | "storage_stability" | "container_material_compatibility" | "sds_shelf_life" => section == Some(7),
+            "physical_state" | "appearance" | "color" | "odor" | "odor_threshold" | "ph" | "density" | "relative_density" | "viscosity" | "solubility" | "flash_point" | "boiling_point" | "melting_point" | "freezing_point" | "melting_freezing_point" | "vapor_pressure" | "vapor_density" | "partition_coefficient" | "molecular_weight" | "other_physical_property" => section == Some(9),
+            "regulatory_status" | "chemical_safety_assessment" | "other_regulatory_information" => section == Some(15),
+            _ => false,
+        };
+        if record["documentType"].as_str() == Some("SDS") && (!allowed_sds_fields.contains(&field) || !valid_sds) {
+            return Err("SDS product claims are limited to Sections 1, 3, 7, 9 and 15 with the matching field".to_string());
+        }
+        if record["documentType"].as_str() == Some("TDS") && (!allowed_tds_fields.contains(&field) || section.is_some()) {
+            return Err("TDS product claim field is unsupported or contains a non-TDS section number".to_string());
+        }
+        if claim["rawValue"].as_str().map_or(true, |value| value.trim().is_empty())
+            || claim["evidence"].as_array().map_or(true, Vec::is_empty)
+        {
+            return Err("every supplier product claim requires a value and source citation".to_string());
+        }
+        for cite in claim["evidence"].as_array().unwrap() {
+            ensure_object_keys(cite, &["documentHash", "pageNumber", "lineNumber", "excerpt", "source", "confidence", "position"], "supplier product citation")?;
+            if cite["documentHash"].as_str().map_or(true, |value| !value.eq_ignore_ascii_case(hash))
+                || cite["pageNumber"].as_u64().map_or(true, |page| page == 0)
+                || cite["excerpt"].as_str().map_or(true, |value| value.trim().is_empty())
+            {
+                return Err("supplier product citation must identify a page and excerpt from the exact acquired document".to_string());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_supplier_product_card_version(record: &serde_json::Value, rows: &[serde_json::Value]) -> Result<(), String> {
+    ensure_object_keys(record, &["recordType", "schemaVersion", "id", "productCardId", "version", "supplierId", "supplierName", "supplierItemCode", "tradeName", "grade", "market", "language", "identityStatus", "evidenceRecordIds", "claimIds", "conflicts", "createdAt"], "supplier product card version")?;
+    if record["schemaVersion"].as_str() != Some("1.0")
+        || record["productCardId"].as_str().map_or(true, |value| value.trim().is_empty())
+        || record["version"].as_u64().map_or(true, |version| version == 0)
+        || (record["supplierItemCode"].as_str().map_or(true, str::is_empty) && record["tradeName"].as_str().map_or(true, str::is_empty))
+        || !["provisional", "review_required", "verified"].contains(&record["identityStatus"].as_str().unwrap_or_default())
+    {
+        return Err("supplier product card identity or version is invalid".to_string());
+    }
+    let card_id = record["productCardId"].as_str().unwrap();
+    let documents = rows.iter().filter(|row| row["recordType"].as_str() == Some("document") && row["productCardId"].as_str() == Some(card_id)).collect::<Vec<_>>();
+    let evidence_ids = record["evidenceRecordIds"].as_array().ok_or_else(|| "product card requires evidence record IDs".to_string())?;
+    let claim_ids = record["claimIds"].as_array().ok_or_else(|| "product card requires extracted claim IDs".to_string())?;
+    if documents.is_empty() || evidence_ids.iter().any(|id| !documents.iter().any(|document| document["id"] == *id)) {
+        return Err("product card must cite persisted supplier product evidence for the same product".to_string());
+    }
+    let actual_claim_ids = documents.iter().flat_map(|document| document["claims"].as_array().into_iter().flatten())
+        .filter_map(|claim| claim["id"].as_str()).collect::<std::collections::HashSet<_>>();
+    if claim_ids.iter().any(|id| id.as_str().map_or(true, |value| !actual_claim_ids.contains(value))) {
+        return Err("product card claims must point to persisted extracted evidence".to_string());
+    }
+    let expected_version = rows.iter().filter(|row| row["recordType"].as_str() == Some("card_version") && row["productCardId"].as_str() == Some(card_id))
+        .filter_map(|row| row["version"].as_u64()).max().unwrap_or(0) + 1;
+    if record["version"].as_u64() != Some(expected_version) {
+        return Err("product card updates must append the next sequential version".to_string());
+    }
+    Ok(())
 }
 
 /// Append an authorized human's field-level identity decision against the
@@ -2402,7 +2552,7 @@ fn stamp_reference_formulation_review(
 }
 
 fn ensure_generic_collection_write_allowed(name: &str) -> Result<(), String> {
-    if matches!(name, "supplier_document_acquisitions" | "reference_formulations" | "reference_formulation_reviews" | "reference_formulation_normalizations" | "supplier_sds_product_evidence" | "identity_field_reviews") {
+    if matches!(name, "supplier_document_acquisitions" | "reference_formulations" | "reference_formulation_reviews" | "reference_formulation_normalizations" | "supplier_sds_product_evidence" | "supplier_product_evidence" | "identity_field_reviews") {
         return Err("immutable supplier evidence must use its dedicated validated append command".to_string());
     }
     Ok(())
@@ -3109,7 +3259,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 106);
+        assert_eq!(COLLECTIONS.len(), 107);
     }
 
     #[test]

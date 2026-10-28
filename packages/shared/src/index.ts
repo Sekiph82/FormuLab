@@ -594,6 +594,7 @@ export * from "./schemas/chemicalIdentifiers";
 export * from "./schemas/chemicalNameNormalization";
 export * from "./schemas/commercialProductType";
 export * from "./schemas/supplierSdsProductEvidence";
+export * from "./schemas/supplierProductEvidence";
 export * from "./schemas/singleComponentResolver";
 export * from "./schemas/solutionResolver";
 export * from "./schemas/canonicalPolymer";

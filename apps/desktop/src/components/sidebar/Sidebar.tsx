@@ -266,7 +266,7 @@ export function Sidebar() {
           <>
             <div className={cn("px-3 pb-2", overlayTitlebar ? "pt-0" : "pt-3")}>
               <button
-                onClick={() => navigate("/live")}
+                onClick={() => navigate("/formulation-request")}
                 className="flex w-full items-center gap-2 rounded-input px-2 py-1.5 text-[13px] text-muted transition-colors hover:bg-surface-2 hover:text-text"
               >
                 <ArrowLeft size={15} />

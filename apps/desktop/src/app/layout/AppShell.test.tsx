@@ -1,7 +1,7 @@
 /**
  * Phase 10 Session 8 navigation correction: collapsing the sidebar on a
- * page that owns its own titlebar (currently only `/live`, the app's
- * default landing route) left NO way to reopen it — the pre-existing
+ * page that owns its own titlebar (currently only the compatibility `/live`
+ * route) left NO way to reopen it — the pre-existing
  * expand-button strip in `AppShell` was gated behind `!pageOwnsTitlebar`,
  * and neither `FormulationStudio` nor `FormulationWorkspaceV2` rendered
  * any restore control of their own. `Ctrl/Cmd+B` still worked, but a

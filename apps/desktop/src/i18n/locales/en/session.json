@@ -400,6 +400,8 @@
     "noCandidate": "No candidate formula is available for this version.",
     "actions": {
       "downloadReport": "Download Report",
+      "downloadHtml": "Download HTML",
+      "downloadPdf": "Download PDF",
       "share": "Share"
     },
     "originalRequest": {
@@ -3063,19 +3065,19 @@
         }
       },
       "sdsReview": {
-        "title": "SDS Extraction Review",
-        "intro": "Run bounded local extraction on an acquired SDS. Review candidates with source excerpts and page citations. Results remain temporary review evidence and never update RawMaterial.",
+        "title": "Supplier Product Evidence",
+        "intro": "Extract only SDS Sections 1, 3, 7, 9 and 15, plus technical fields from acquired TDS documents. Save cited claims into a durable product card; extraction never updates RawMaterial.",
         "refresh": "Refresh",
-        "loading": "Loading acquired SDS documents…",
-        "loadError": "Could not load acquired SDS documents or evidence.",
-        "empty": "No acquired SDS documents are available.",
-        "select": "Select acquired SDS",
-        "run": "Extract locally",
+        "loading": "Loading acquired SDS/TDS documents…",
+        "loadError": "Could not load acquired supplier documents or evidence.",
+        "empty": "No acquired SDS or TDS documents are available.",
+        "select": "Select acquired SDS or TDS",
+        "run": "Extract product facts",
         "running": "Extracting…",
-        "extractionError": "Local SDS extraction failed.",
+        "extractionError": "Local product-document extraction failed.",
         "openError": "Could not open the source PDF for page {{page}}.",
         "quarantined": "PDF was quarantined: {{reason}}",
-        "reviewOnly": "Local parser output; every candidate requires qualified human review. No records were changed.",
+        "reviewOnly": "Local parser output; every candidate requires human review. The source PDF and earlier product-card versions remain unchanged.",
         "coverage": "Sections detected: {{detected}} · sections not detected: {{missing}}",
         "sourceIdentity": "{{supplier}} · {{provider}} · SHA-256 {{hash}}",
         "noStoredFacts": "No persisted Section 1/3 extraction record is linked to this acquisition.",
@@ -3094,7 +3096,13 @@
         "confidence": "confidence {{value}}%",
         "confidenceUnavailable": "confidence not available",
         "storedFactContext": "Saved SDS source fact; no measurement conditions recorded",
-        "reviewRequired": "Requires human review"
+        "reviewRequired": "Requires human review",
+        "productEvidencePreview": "Product card evidence preview",
+        "extractedClaims": "{{documentType}} · {{count}} cited claims · exact document hash",
+        "saveProductCard": "Save / update product card",
+        "savingProductCard": "Saving…",
+        "savedProductCard": "Saved product card version {{version}}. The source document and prior card versions remain available.",
+        "extractionDoesNotOverwrite": "Extracted values remain review-required evidence. They do not overwrite RawMaterial records."
       },
       "acquiredDocuments": {
         "title": "Acquired Supplier Documents",
