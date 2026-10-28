@@ -529,6 +529,19 @@ class SolverTests(unittest.TestCase):
         self.assertEqual(result.state, engine.FORMULA_INCOMPLETE_MISSING_FUNCTIONAL_ROLE)
         self.assertTrue(result.missing_roles)
 
+    def test_generation_without_eligible_supplier_product_cards_is_deterministic(self):
+        brief = {"target": "hand soap", "category": "hand soap"}
+        constraints = derive_constraints(brief)
+        parsed = engine.parse_requirements(brief)
+        roles = {"preservative": engine.REQUIRED}
+        materials = [{"code": "RM-1", "name": "Glycerin", "active": True}]
+        # No eligible card evidence is present in the material projection.
+        pool = engine.build_candidate_pool(brief, constraints, [], materials)
+        first = engine.build_formula_for_strategy(self._strategy(), "cleansing", roles, pool, [], constraints, parsed)
+        second = engine.build_formula_for_strategy(self._strategy(), "cleansing", roles, pool, [], constraints, parsed)
+        self.assertEqual(first, second)
+        self.assertEqual(first.formula.get("supplier_product_card_evidence", []), [])
+
     def test_strategies_produce_meaningfully_different_concentrations(self):
         brief = {"target": "an anti-dandruff shampoo", "category": "shampoo", "targetCostLevel": "economy"}
         constraints = derive_constraints(brief)

@@ -172,7 +172,7 @@ export const SDS_PRODUCT_EVIDENCE_FIELDS = [
 ] as const;
 
 export const TDS_PRODUCT_EVIDENCE_FIELDS = [
-  "active_matter", "total_solids", "nonvolatile_content", "water_content", "density", "relative_density", "ph",
+  "product_identifier", "active_matter", "total_solids", "nonvolatile_content", "water_content", "density", "relative_density", "ph",
   "viscosity", "ionic_character", "appearance", "color", "odor", "solubility", "recommended_dosage",
   "application_guidance", "application_area", "processing_conditions", "addition_sequence", "compatibility",
   "stability", "storage_conditions", "shelf_life", "packaging", "analytical_method", "cloud_point", "pour_point",

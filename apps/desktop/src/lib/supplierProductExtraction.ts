@@ -9,12 +9,13 @@ import { extractSupplierSdsReview } from "./supplierSdsReview";
 import { extractSupplierPdfText } from "./supplierPdfTextExtraction";
 import { runConditionalSupplierPdfOcr } from "./supplierPdfOcr";
 
-export const SUPPLIER_TDS_PARSER_VERSION = "formulab-tds-explicit-label-v1";
+export const SUPPLIER_TDS_PARSER_VERSION = "formulab-tds-explicit-label-v2";
 type SdsReviewResult = Awaited<ReturnType<typeof extractSupplierSdsReview>>;
 type CandidateMeasurementContext = Pick<SupplierSdsMeasurementContext,
   "normalizedValue" | "temperature" | "sampleConcentration" | "deliveredFormBasis" | "deliveredFormBasisText" | "methodOrStandard" | "claimKind" | "evidenceKind">;
 
 const TDS_LABELS: ReadonlyArray<[string, readonly string[]]> = [
+  ["product_identifier", ["product identifier", "product name", "trade name", "commercial name", "product name / grade", "product name/grade"]],
   ["active_matter", ["active matter", "active content", "active substance", "actives", "aktif madde", "aktif madde içeriği"]],
   ["total_solids", ["total solids", "solids content", "solids", "dry matter", "toplam katı", "katı madde"]],
   ["nonvolatile_content", ["non volatile content", "non-volatile content", "nonvolatile matter", "uçucu olmayan madde"]],
@@ -224,6 +225,27 @@ async function extractTdsEvidence(acquisition: SupplierDocumentAcquisition, byte
       extraction: { method: "explicit_label", parserVersion: SUPPLIER_TDS_PARSER_VERSION },
       evidence: citedEvidence(hash, evidenceLines),
     });
+  }
+  // A TDS title is useful as an identity claim only when its normalized text
+  // exactly matches the product name already supplied with the acquisition. This avoids
+  // treating a supplier logo, heading, or guessed filename as product proof.
+  const requestedTradeName = acquisition.sourceProduct.tradeName?.trim();
+  if (requestedTradeName && !claims.some((claim) => claim.fieldCode === "product_identifier")) {
+    const matchingTitle = lines.find((line) => line.pageNumber === 1
+      && normalizeLabel(line.excerpt) === normalizeLabel(requestedTradeName));
+    if (matchingTitle) {
+      claims.unshift({
+        id: `${evidenceId}:claim:${claims.length + 1}`,
+        fieldCode: "product_identifier",
+        subject: "product",
+        rawValue: matchingTitle.excerpt.trim(),
+        qualifier: "unknown",
+        basis: "unknown",
+        context: {},
+        extraction: { method: "other", parserVersion: SUPPLIER_TDS_PARSER_VERSION },
+        evidence: citedEvidence(hash, [matchingTitle]),
+      });
+    }
   }
   return supplierProductDocumentEvidenceSchema.parse({
     recordType: "document", schemaVersion: "1.0", id: evidenceId,

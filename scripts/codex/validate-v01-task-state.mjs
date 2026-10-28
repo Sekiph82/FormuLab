@@ -47,7 +47,11 @@ export function validateV01TaskState(source) {
   if (tasks.some(({ marker }) => marker === "!")) throw new Error("V01 task rows must not use blocked [!] states.");
 
   const inProgress = tasks.filter(({ marker }) => marker === "~");
-  if (currentValue === "None") {
+  if (currentValue === "V01 COMPLETE") {
+    if (currentStatus !== "COMPLETE" || nextValue !== "None" || actualRemaining !== 0 || inProgress.length !== 0) {
+      throw new Error("V01 COMPLETE requires a complete queue with no remaining or in-progress tasks.");
+    }
+  } else if (currentValue === "None") {
     if (currentStatus !== "COMPLETE" || nextValue !== "None" || actualRemaining !== 0 || inProgress.length !== 0) {
       throw new Error("Current task may be None only for a complete queue with no remaining or in-progress tasks.");
     }

@@ -49,7 +49,7 @@ describe("requireAuthorizedRegulatoryActor", () => {
 
   it("throws an explanatory error naming the required roles for every unauthorized actor", () => {
     for (const actor of [humans.rawMaterial, humans.researcher, humans.production, agent, system, importActor]) {
-      expect(() => requireAuthorizedRegulatoryActor(actor, "do the thing")).toThrow(/Only an authorized regulatory, quality or administrator role may/);
+      expect(() => requireAuthorizedRegulatoryActor(actor, "do the thing")).toThrow(/Only an authorized regulatory, quality, administrator or owner role may/);
     }
   });
 });

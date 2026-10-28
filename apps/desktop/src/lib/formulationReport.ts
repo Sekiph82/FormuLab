@@ -227,7 +227,10 @@ export async function downloadFormulationReport(
   format: "html" | "pdf" = "html",
 ): Promise<void> {
   const html = buildReportHtml(session, sessionId, safetyByVersion, regulatoryByVersion, compatibilityByVersion);
-  const safeSessionId = sessionId.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").trim() || "formulation";
+  const safeSessionId = Array.from(sessionId, (character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return '<>:"/\\|?*'.includes(character) || codePoint <= 0x1f ? "-" : character;
+  }).join("").trim() || "formulation";
   if (format === "pdf") {
     const bytes = await renderFormulationReportPdf(html, sessionId);
     await saveBinaryWithFeedback(`${safeSessionId}-formulation-report.pdf`, bytes, "application/pdf");

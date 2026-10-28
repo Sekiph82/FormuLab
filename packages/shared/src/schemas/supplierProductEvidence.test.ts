@@ -117,4 +117,31 @@ describe("supplier product evidence persistence records", () => {
     expect(restored.find((record) => record.recordType === "claim_review")?.evidenceRefs).toEqual(["f".repeat(64) + ":p3"]);
     expect(restored.find((record) => record.recordType === "document" && record.id === "pair-sds-doc")?.recordType).toBe("document");
   });
+
+  it("allows source-cited TDS product identity and rejects SDS claims outside Sections 1/3/7/9/15", () => {
+    const tdsIdentity = {
+      recordType: "document", schemaVersion: "1.0", id: "tds-identity", acquisitionCode: "acq-tds",
+      productCardId: "card-tds", documentType: "TDS", documentHash: "a".repeat(64), parserVersion: "tds-v1",
+      claims: [{
+        id: "tds-name", fieldCode: "product_identifier", subject: "product", rawValue: "Example Product",
+        qualifier: "unknown", basis: "unknown", context: {}, extraction: { method: "explicit_label", parserVersion: "tds-v1" },
+        evidence: [{ documentHash: "a".repeat(64), pageNumber: 1, excerpt: "Product name: Example Product", source: "digital" }],
+      }], reviewStatus: "unreviewed", createdAt: "2026-10-28T08:00:00Z",
+    };
+    expect(supplierProductEvidenceRecordSchema.parse(tdsIdentity)).toMatchObject({ claims: [{ fieldCode: "product_identifier" }] });
+
+    for (const sectionNumber of [2, 8, 10, 11, 12, 13, 14]) {
+      expect(() => supplierProductEvidenceRecordSchema.parse({
+        ...tdsIdentity,
+        id: `sds-unsupported-section-${sectionNumber}`,
+        documentType: "SDS",
+        claims: [{
+          ...tdsIdentity.claims[0],
+          fieldCode: "product_identifier",
+          sectionNumber,
+          evidence: [{ documentHash: "a".repeat(64), pageNumber: sectionNumber, excerpt: "Product name: Example Product", source: "digital" }],
+        }],
+      })).toThrow(/must cite Section 1/);
+    }
+  });
 });

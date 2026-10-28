@@ -115,6 +115,8 @@ describe("reference formulation evidence review page", () => {
     const search = await screen.findByRole("searchbox", { name: /Search corpus fields/ });
 
     await user.tab();
+    expect(screen.getByRole("button", { name: /Choose folder/ })).toHaveFocus();
+    for (let tabCount = 0; tabCount < 12 && document.activeElement !== search; tabCount += 1) await user.tab();
     expect(search).toHaveFocus();
     await user.keyboard("dishwash");
     expect(screen.getByRole("status")).toHaveTextContent("Showing 0 of 1 source records");

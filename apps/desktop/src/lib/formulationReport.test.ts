@@ -184,6 +184,16 @@ describe("downloadFormulationReport", () => {
     );
   });
 
+  it("replaces control characters in the saved filename", async () => {
+    downloadMocks.saveTextWithFeedback.mockReset().mockResolvedValue(undefined);
+    await downloadFormulationReport(SESSION, "session\u0000bad\u001f");
+    expect(downloadMocks.saveTextWithFeedback).toHaveBeenCalledWith(
+      "session-bad--formulation-report.html",
+      expect.any(String),
+      "text/html;charset=utf-8",
+    );
+  });
+
   it("renders and saves the complete report as a PDF when requested", async () => {
     downloadMocks.saveBinaryWithFeedback.mockReset().mockResolvedValue(undefined);
     downloadMocks.saveTextWithFeedback.mockReset();

@@ -282,7 +282,7 @@ describe("evidence confirmations", () => {
   });
 
   it("refuses a human without an authorized regulatory/quality/administrator role", () => {
-    expect(() => recordEvidenceConfirmation(CONFIRM_INPUT, RESEARCHER_ACTOR)).toThrow(/authorized regulatory, quality or administrator/);
+    expect(() => recordEvidenceConfirmation(CONFIRM_INPUT, RESEARCHER_ACTOR)).toThrow(/authorized regulatory, quality, administrator or owner/);
   });
 
   it("regulatory, quality and administrator roles may each confirm evidence", () => {
@@ -329,7 +329,7 @@ describe("regulatory review equivalence", () => {
   it("refuses a human without an authorized regulatory/quality/administrator role", () => {
     expect(() =>
       declareRegulatoryReviewEquivalence({ formulationId: "p1", targetVersionId: "v1", sourceVersionId: "v0", jurisdiction: "KE", justification: "x" }, RESEARCHER_ACTOR),
-    ).toThrow(/authorized regulatory, quality or administrator/);
+    ).toThrow(/authorized regulatory, quality, administrator or owner/);
   });
 
   it("regulatory, quality and administrator roles may each declare an equivalence", () => {

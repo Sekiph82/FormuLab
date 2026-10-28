@@ -4,7 +4,15 @@ import { test } from "node:test";
 import { validateV01TaskState } from "./validate-v01-task-state.mjs";
 
 const plan = await readFile(new URL("../../tasks.v01.md", import.meta.url), "utf8");
-const activePlan = plan;
+const activePlan = plan
+  .replace("- Completed: 164", "- Completed: 162")
+  .replace("- Remaining: 0", "- Remaining: 2")
+  .replace("- Completion: 100%", "- Completion: 98.8%")
+  .replace("- Current task: V01 COMPLETE", "- Current task: V01-11.006 — Verify workspace persistence, backup/restore and portability")
+  .replace("- Current status: COMPLETE", "- Current status: IN PROGRESS")
+  .replace("- Next task: None", "- Next task: V01-11.007 — Product-card and New Request closure acceptance")
+  .replace("- [x] **V01-11.006 — Verify workspace persistence, backup/restore and portability**", "- [~] **V01-11.006 — Verify workspace persistence, backup/restore and portability**")
+  .replace("- [x] **V01-11.007 — Product-card and New Request closure acceptance**", "- [ ] **V01-11.007 — Product-card and New Request closure acceptance**");
 
 test("accepts the current ordered V01 task plan", () => {
   const result = validateV01TaskState(plan);

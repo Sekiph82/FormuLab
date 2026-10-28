@@ -237,10 +237,10 @@ describe("rolePolicy — introspection", () => {
   });
 
   it("rolesWithCapability(production, release) is exactly production_manager", () => {
-    expect(rolesWithCapability("production", "release")).toEqual(["production_manager"]);
+    expect(rolesWithCapability("production", "release")).toEqual(["production_manager", "owner"]);
   });
 
   it("rolesWithCapability(administrationUsers, administer) is exactly administrator", () => {
-    expect(rolesWithCapability("administrationUsers", "administer")).toEqual(["administrator"]);
+    expect(rolesWithCapability("administrationUsers", "administer")).toEqual(["administrator", "owner"]);
   });
 });
