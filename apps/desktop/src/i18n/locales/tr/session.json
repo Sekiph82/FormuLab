@@ -3102,7 +3102,18 @@
         "saveProductCard": "Ürün kartını kaydet / güncelle",
         "savingProductCard": "Kaydediliyor…",
         "savedProductCard": "Ürün kartının {{version}}. sürümü kaydedildi. Kaynak belge ve önceki kart sürümleri korunuyor.",
-        "extractionDoesNotOverwrite": "Çıkarılan değerler inceleme gerektiren kanıt olarak kalır. RawMaterial kayıtlarının üzerine yazılmaz."
+        "extractionDoesNotOverwrite": "Çıkarılan değerler inceleme gerektiren kanıt olarak kalır. RawMaterial kayıtlarının üzerine yazılmaz.",
+        "productCards": "Kaydedilmiş ürün kartları",
+        "noProductCards": "Henüz ürün kartı kaydedilmedi. Kart oluşturmak için bir SDS veya TDS çıkarımını kaydedin.",
+        "unknownSupplier": "Tedarikçi belirlenmedi",
+        "cardVersion": "Sürüm {{version}}",
+        "sourceDocuments": "Bağlı kaynak belgeler",
+        "revisionUnknown": "Revizyon tarihi yok",
+        "claimsHeading": "Çıkarılan iddialar ({{count}})",
+        "noClaims": "Atıflı iddia çıkarılmadı; eksik veriler bilinmiyor olarak kalır.",
+        "conflictReview": "Kaynak değerleri çelişiyor",
+        "cardHistory": "Sürüm geçmişi ({{count}})",
+        "sourceCount": "kaynak"
       },
       "acquiredDocuments": {
         "title": "Edinilmiş Tedarikçi Belgeleri",

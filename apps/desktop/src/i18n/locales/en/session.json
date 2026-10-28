@@ -3102,7 +3102,18 @@
         "saveProductCard": "Save / update product card",
         "savingProductCard": "Saving…",
         "savedProductCard": "Saved product card version {{version}}. The source document and prior card versions remain available.",
-        "extractionDoesNotOverwrite": "Extracted values remain review-required evidence. They do not overwrite RawMaterial records."
+        "extractionDoesNotOverwrite": "Extracted values remain review-required evidence. They do not overwrite RawMaterial records.",
+        "productCards": "Saved product cards",
+        "noProductCards": "No product cards have been saved yet. Save an SDS or TDS extraction to create one.",
+        "unknownSupplier": "Supplier not identified",
+        "cardVersion": "Version {{version}}",
+        "sourceDocuments": "Linked source documents",
+        "revisionUnknown": "Revision date unavailable",
+        "claimsHeading": "Extracted claims ({{count}})",
+        "noClaims": "No cited claims were extracted; missing data remains unknown.",
+        "conflictReview": "Conflicting source values",
+        "cardHistory": "Version history ({{count}})",
+        "sourceCount": "sources"
       },
       "acquiredDocuments": {
         "title": "Acquired Supplier Documents",
