@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { listRecordsMock, readMock, appendReviewMock } = vi.hoisted(() => ({ listRecordsMock: vi.fn(), readMock: vi.fn(), appendReviewMock: vi.fn() }));
@@ -161,11 +161,13 @@ describe("SupplierCommercialProductResolverScreen", () => {
       identityStatus: "provisional", evidenceRecordIds: ["product-evidence-1", "product-evidence-2"], claimIds: ["claim-product-cas", "claim-component-cas", "claim-active"], conflicts: [], createdAt: timestamp,
     };
     const matchingMaterial = { ...material, casNumbers: ["1643-20-5"], activeMatterPercent: "32" } as RawMaterial;
+    const selectedMaterial = { ...material, code: "RM-2", displayName: "Sodium Chloride" } as RawMaterial;
+    const otherMaterial = { ...material, code: "RM-3", displayName: "Sodium Lauryl Sulfate" } as RawMaterial;
     listRecordsMock.mockImplementation((collection: string) => Promise.resolve(
       collection === "supplier_document_acquisitions" ? [acquisition, tdsAcquisition]
         : collection === "supplier_sds_product_evidence" ? [evidence]
           : collection === "supplier_product_evidence" ? [sdsProductEvidence, tdsProductEvidence, cardVersion]
-            : collection === "materials" ? [matchingMaterial] : [],
+            : collection === "materials" ? [matchingMaterial, selectedMaterial, otherMaterial] : [],
     ));
     const user = userEvent.setup();
     render(<SupplierCommercialProductResolverScreen {...screenProps} />);
@@ -175,6 +177,12 @@ describe("SupplierCommercialProductResolverScreen", () => {
     expect(screen.getByText("30-35% as supplied · range · as_supplied")).toBeInTheDocument();
     expect(screen.getByText("32")).toBeInTheDocument();
     expect(screen.getByText(/No RawMaterial is created, changed, approved or verified here/u)).toBeInTheDocument();
+    const materialSelector = screen.getByRole("combobox", { name: "Compare with RawMaterial" });
+    await user.selectOptions(materialSelector, "RM-2");
+    await user.type(screen.getByRole("textbox", { name: "Find a RawMaterial" }), "amine");
+    expect(within(materialSelector).getByRole("option", { name: "RM-1 · Amine Oxide" })).toBeInTheDocument();
+    expect(within(materialSelector).getByRole("option", { name: "RM-2 · Sodium Chloride" })).toBeInTheDocument();
+    expect(within(materialSelector).queryByRole("option", { name: "RM-3 · Sodium Lauryl Sulfate" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "View source page 5, line 4" }));
     expect(await screen.findByText("PDF page 5 · cited line 4")).toBeInTheDocument();
     expect(readMock).toHaveBeenCalledWith("b".repeat(64));

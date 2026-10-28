@@ -777,6 +777,18 @@ frozen formula/packaging snapshot that a spreadsheet row can't safely
 provide); importing one reports every row honestly skipped rather than
 silently doing nothing or faking success.
 
+The existing **Connector Management** area also includes supplier document
+acquisition, SDS extraction review, and a **Commercial Product Resolver**.
+The resolver browses persistent product cards created from acquired SDS or
+TDS documents, with document versions, cited claims, identity status, and
+conflicts. Search the RawMaterial list by code, name, trade name, or INCI,
+then compare a selected material with exact product-level candidates and
+disclosed Section 3 component candidates. Section 3 components remain
+separate from the commercial product identity. This comparison does not
+create or change RawMaterial records; any field update must go through the
+existing authorized review and Data Exchange commit flow. Missing or
+conflicting supplier evidence remains visible as unresolved.
+
 Full model: [DATA_EXCHANGE_CENTER.md](DATA_EXCHANGE_CENTER.md) and its
 companion documents (`DATA_EXCHANGE_TEMPLATE_REGISTRY.md`,
 `DATA_EXCHANGE_IMPORTS.md`, `DATA_EXCHANGE_EXPORTS.md`,

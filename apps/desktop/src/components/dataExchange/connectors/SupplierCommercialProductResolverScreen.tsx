@@ -331,6 +331,7 @@ function SupplierProductCardMaterialComparison({ cards, acquisitions, materials,
   onOpenCitation: (source: ProductCitation) => void;
 }) {
   const { t } = useTranslation("session");
+  const [materialSearch, setMaterialSearch] = useState("");
   const card = cards.find((item) => item.latest.productCardId === selectedCardId);
   const acquisitionByCode = new Map(acquisitions.map((item) => [item.code, item]));
   const documentClaims = card?.documents.flatMap((evidence) => {
@@ -342,6 +343,9 @@ function SupplierProductCardMaterialComparison({ cards, acquisitions, materials,
   const matchableClaims = documentClaims.filter((item) => !item.acquisitionMismatch).map((item) => item.claim);
   const productMatches = card ? exactProductMaterialMatches(card.latest, matchableClaims, materials) : [];
   const componentMatches = card ? exactComponentMaterialMatches(matchableClaims, materials) : [];
+  const visibleMaterials = materials.filter((material) => `${material.code} ${material.displayName} ${material.tradeName ?? ""} ${material.inciName ?? ""}`.toLocaleLowerCase("en-US").includes(materialSearch.trim().toLocaleLowerCase("en-US")));
+  const selectedMaterialOption = materials.find((material) => material.code === selectedMaterialCode);
+  const materialOptions = selectedMaterialOption && !visibleMaterials.some((material) => material.code === selectedMaterialOption.code) ? [selectedMaterialOption, ...visibleMaterials] : visibleMaterials;
 
   return <section className="mb-4 rounded-input border border-border-faint p-3" aria-label={t("dataExchange.connectors.productResolver.productCardCompare.title")}>
     <h4 className="text-xs font-semibold text-text">{t("dataExchange.connectors.productResolver.productCardCompare.title")}</h4>
@@ -363,10 +367,14 @@ function SupplierProductCardMaterialComparison({ cards, acquisitions, materials,
             <Fact label={t("dataExchange.connectors.productResolver.productCardCompare.sources")} value={t("dataExchange.connectors.productResolver.productCardCompare.sourceCount", { documents: card.documents.length, versions: card.versions.length, conflicts: card.latest.conflicts.length })} />
           </dl>
           <label className="block text-[10px] text-muted">
+            <span className="mb-1 block">{t("dataExchange.connectors.productResolver.productCardCompare.materialSearch")}</span>
+            <input value={materialSearch} onChange={(event) => setMaterialSearch(event.target.value)} placeholder={t("dataExchange.connectors.productResolver.productCardCompare.materialSearchPlaceholder")} className="w-full rounded-input border border-border bg-surface-1 px-2 py-1.5 text-text" />
+          </label>
+          <label className="block text-[10px] text-muted">
             <span className="mb-1 block">{t("dataExchange.connectors.productResolver.productCardCompare.material")}</span>
             <select aria-label={t("dataExchange.connectors.productResolver.productCardCompare.material")} value={selectedMaterialCode} onChange={(event) => onSelectMaterial(event.target.value)} className="w-full rounded-input border border-border bg-surface-1 px-2 py-1.5 text-text">
               <option value="">{t("dataExchange.connectors.productResolver.productCardCompare.noMaterial")}</option>
-              {materials.map((material) => <option key={material.code} value={material.code}>{material.code} · {material.displayName}</option>)}
+              {materialOptions.map((material) => <option key={material.code} value={material.code}>{material.code} · {material.displayName}</option>)}
             </select>
           </label>
           <div className="grid gap-3 lg:grid-cols-2">

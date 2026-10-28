@@ -3524,6 +3524,8 @@
           "acquisitionHashMismatch": "kaynak edinim hash’i uyuşmuyor",
           "unknownSupplier": "Bilinmeyen tedarikçi",
           "material": "RawMaterial ile karşılaştır",
+          "materialSearch": "RawMaterial ara",
+          "materialSearchPlaceholder": "Kod, ad, ticari ad veya INCI ile ara",
           "noMaterial": "RawMaterial seçin",
           "exactProductCandidates": "Birebir ticari ürün adayları",
           "exactComponentCandidates": "Birebir açıklanmış bileşen adayları",

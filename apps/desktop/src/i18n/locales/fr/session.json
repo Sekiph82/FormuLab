@@ -3558,6 +3558,8 @@
           "acquisitionHashMismatch": "source acquisition hash mismatch",
           "unknownSupplier": "Unknown supplier",
           "material": "Compare with RawMaterial",
+          "materialSearch": "Rechercher une matière première",
+          "materialSearchPlaceholder": "Rechercher par code, nom, nom commercial ou INCI",
           "noMaterial": "Select a RawMaterial",
           "exactProductCandidates": "Exact commercial-product candidates",
           "exactComponentCandidates": "Exact disclosed-component candidates",

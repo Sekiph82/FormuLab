@@ -3558,6 +3558,8 @@
           "acquisitionHashMismatch": "source acquisition hash mismatch",
           "unknownSupplier": "Unknown supplier",
           "material": "Compare with RawMaterial",
+          "materialSearch": "원자재 검색",
+          "materialSearchPlaceholder": "코드, 이름, 상품명 또는 INCI로 검색",
           "noMaterial": "Select a RawMaterial",
           "exactProductCandidates": "Exact commercial-product candidates",
           "exactComponentCandidates": "Exact disclosed-component candidates",
