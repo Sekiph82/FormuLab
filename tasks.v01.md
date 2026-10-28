@@ -76,7 +76,7 @@ These fixtures deliberately cover different identities: near-pure substance, sol
 
 Codex must execute the tasks below in the exact order listed.
 
-- Total V01 tasks: 157
+- Total V01 tasks: 164
 - Initial current task: `V01-00.001`
 - Initial next task: `V01-00.002`
 - Every task starts as `[ ]`.
@@ -97,13 +97,13 @@ Codex must execute the tasks below in the exact order listed.
 
 ## V01 progress
 
-- Total tasks: 157
-- Completed: 157
-- Remaining: 0
-- Completion: 100%
-- Current task: None
-- Current status: COMPLETE
-- Next task: None
+- Total tasks: 164
+- Completed: 158
+- Remaining: 6
+- Completion: 96.34%
+- Current task: V01-11.002 — Extract and persist scoped SDS/TDS product claims
+- Current status: IN_PROGRESS
+- Next task: V01-11.003 — Build persistent product-card browser and version review
 - Acceptance note: V01 completion handoff. Provider surface matrix: CHT public document discovery and authenticated MyCHT; Croda public product/formulation search; Nouryon public SDS search and authenticated My Nouryon; Clariant public Document Finder and authenticated ClariHub; Dow SDS Finder and Technical Library; DyStar public product pages, registered Eliot portal and supplier-delivered files; Archroma public Home Care/I&I discovery and authenticated Safe Edge; BASF public document centers plus MyBASFworld/MyIndustryWorld/Catamold portals; Evonik public download centers/intoBeauty and authenticated My Evonik. These are capability-scoped manual-assisted adapters and acquisition records; no supplier login automation, unattended crawling, or credential bypass is claimed. Evaluation fixtures include the Croda HC/DW/22 document shape and Croda/Evonik/Clariant/Dow identity cases, but supplier PDFs are not committed as test fixtures; tests use synthetic structural/evidence inputs and conservative unresolved fallbacks. V01-10.015 full regression: shared Vitest 179 files/2,704 tests; desktop Vitest 194 files/1,897 tests; Python 445 tests; Rust 405 tests; TypeScript checks, desktop build, lint and locale parity passed. V01-10.016 follow-up focused checks: 47 Rust masterdata tests and 27 desktop tests passed, with typecheck, targeted lint, task validation and diff checks; the task-state validator's six tests pass against both completed and in-progress plan fixtures. Known limitations: no practicing chemist or laboratory was available or claimed; chemical plausibility, efficacy, manufacturing suitability and supplier-specific parsed values are not experimentally or independently validated. Current V01 implementation/publication SHA before this tracker-only closure commit: `133d64c` (full hash in the preceding publication record); exact final branch SHA is the commit containing this handoff and is reported in the Codex completion message. Remote `main` remains untouched.
 - Acceptance note: V01-10.017 published the validated task-owned state on `V01`: local HEAD, `origin/V01`, and GitHub `V01` all equal `b9deb6580884acd0c09dd4a4f5003c6e623509d2`. Remote `main` remained `3dce71b39dfbecd8df4905b9b6a5a77cef1cc1a4` before and after publication; no merge or main push occurred. All V01 task-owned paths match HEAD and no implementation remains stranded. Four unrelated owner-modified guide/engine files remain in the worktree intentionally untouched, so the overall checkout is not described as clean.
 - Acceptance note: V01-10.016 closure audit fixed two high-priority findings: source-retention permissions now use request-time UTC, and immutable supplier acquisition/reference-formula rows now require dedicated native append validation against the stored PDF hash/size and exact source lineage. Nested formula/evidence records are schema-validated; SDS and formula review writes recheck persisted acquisition bytes; identical retries remain idempotent and conflicting identities are rejected. Focused Rust masterdata tests (47), desktop tests (27), typecheck, targeted ESLint, V01 task validation and `git diff --check` passed. Independent read-only review confirmed the remediation and found no further material closure issues. Synthetic evidence remains structural only; no chemist, laboratory, chemical plausibility, or supplier-data validation is claimed.
@@ -408,6 +408,21 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-10.018 - V01 completion handoff**: Produce a concise evidence-backed V01 completion record with supported provider capability matrix, fixture results, test counts, known non-blocking limitations and exact final SHA. Do not merge to main. **Final branch SHA is reported with the publication of this completion commit.**
 - [x] **V01-10.019 - Owner-selected local formulation and supplier-document folder import**: Add a desktop folder picker and a reviewable PDF classification preview. Route formulation PDFs through the existing immutable reference-formulation bulk parser; store selected SDS/TDS PDFs through the existing content-addressed document store and manual-assisted acquisition receipts. Preserve source hashes, avoid persisting local paths, keep supplier product identities as candidates, never write RawMaterial or production formulas, and require a named-user internal-research rights attestation before formula records become eligible. Support interruption/retry without duplicate source records. Do not claim provider adapters fetch files from supplier portals when this local-file workflow is used. **Owner clarification:** reconstruct positioned PDF text into conservative, evidence-cited formulation rows and reprocess already-imported same-hash records without overwriting prior snapshots; show actual source-backed extracted fields for the supplied Croda HC/DW/22 PDF. Connect eligible owner-supplied field formulations to standard New Request generation as a distinct, strongly considered empirical-reference source: same-family reviewed appearance must materially influence candidate ranking, reviewed central dosage ranges may guide concentrations, and exact source-record IDs must persist in result-card/trace provenance. If guidance is absent or eligible references are not selected, disclose that on the generated result. Preserve source identity and citations; make clear supplier formulation precedent is not efficacy, safety, compatibility, or lab validation. Retain all existing safety/material/regulatory gates and human review; reference evidence cannot create or silently resolve RawMaterial identities, override user exclusions, or overwrite master records. If no eligible field-formulation evidence matches, report that limitation and use existing evidence/rules honestly.
 
+# V01-11 — Persistent SDS/TDS product cards in formulation workflows
+
+## Sprint V01-11-S01 — Extract, persist and review product evidence
+- [x] **V01-11.001 — Define versioned supplier product-card evidence contract**: Add append-only document snapshots and card versions, exact-source citation fields, provisional identity/review status, conflict links and a scoped field vocabulary. Permit SDS claims only from Sections 1, 3, 7, 9 and 15; exclude other SDS section data from extracted card claims. Keep TDS claims separate from SDS section numbering and never map either source directly into RawMaterial.
+- [~] **V01-11.002 — Extract and persist scoped SDS/TDS product claims**: Extract SDS product identity, disclosed composition, handling/storage, Section 9 physical properties and Section 15 regulatory facts with exact page citations. Extract TDS active matter and as-supplied basis, total solids/nonvolatile content, density, pH and test concentration, viscosity and test method/temperature, ionic character, appearance/color, solubility, dosage range, application/use guidance, addition order, process conditions, compatibility, stability, storage, shelf life, packaging and performance claims. Preserve original text, units, basis, qualifiers, test conditions, PDF hash and parser/OCR version; missing or ambiguous values remain unknown and every claim cites its source. Persist the extraction snapshot and a new product-card version atomically to the active workspace; reopening the app must recover them.
+- [ ] **V01-11.003 — Build persistent product-card browser and version review**: List products created from either one acquired SDS or one acquired TDS, show identity status, source documents/revisions, extracted fields, page-level citations, conflicts and version history. When the counterpart document arrives, add a new immutable evidence record and card version; retain prior versions and distinguish conflicting or context-different claims. Provide PDF citation navigation and clear unreviewed/partial states. Do not silently merge fuzzy product identities or imply that a source document exists when none was acquired.
+
+## Sprint V01-11-S02 — Resolve products and connect generation
+- [ ] **V01-11.004 — Resolve product cards against chemistry and RawMaterial candidates**: Reuse existing supplier product resolver and RawMaterial review authorities. Match exact supplier, grade, item code, CAS/EC and source evidence first; preserve commercial products separately from disclosed SDS components. Show evidence-backed candidates and field-level differences. Require an authorized human decision for identity or material-field application; keep SDS disclosed composition distinct from full commercial formula and from TDS active matter. Never auto-create, overwrite, approve or verify RawMaterial records.
+- [ ] **V01-11.005 — Use eligible product cards in New Request formulation generation**: Integrate exact, persisted product-card evidence into the existing deterministic New Request flow for ingredient identity, supplier-product alternatives and comparison with available RawMaterials. Use only explicitly eligible/reviewed claims for the corresponding decision; preserve card, document, revision, hash, claim and citation lineage in result evidence. Keep unknowns, conflicts, basis and conditions visible. Do not treat SDS composition as performance proof, infer active matter from concentration, make unsupported substitutions, or bypass safety, regulatory, compatibility, stock, exclusion or human-approval gates. If no card is eligible, disclose that and use the existing generation behavior.
+
+## Sprint V01-11-S03 — Persistence and closure
+- [ ] **V01-11.006 — Verify workspace persistence, backup/restore and portability**: Verify SDS-only and TDS-only cards, counterpart-document updates, immutable history, content hashes and citations survive app restart and the existing backup/restore lifecycle. Keep records inside the active workspace data root; do not depend on a Codex worktree, AppData task directory, or session memory. Do not delete or rewrite the source PDFs or `.FormuLab/runs.db`.
+- [ ] **V01-11.007 — Product-card and New Request closure acceptance**: Run focused acceptance for extraction, citation integrity, identity ambiguity, card revision/conflict handling, persistence, human review and New Request lineage; then run the project regression required by the existing V01 closure policy. Audit that only SDS sections 1/3/7/9/15 enter structured product claims, no auto-write reaches RawMaterial, both one-document and paired-document products work, and generation stays deterministic with no eligible product cards. Update V01 completion handoff with exact validation outcomes and limitations. Keep `main` untouched.
+
 ## Sequential transition rule
 
 After each task:
@@ -421,10 +436,10 @@ After each task:
 7. Push to `origin/V01`.
 8. Continue immediately.
 
-After the final task `V01-10.019` passes:
+After the final task `V01-11.007` passes:
 
-- all 157 V01 task rows are `[x]`
-- Completed = 157
+- all 164 V01 task rows are `[x]`
+- Completed = 164
 - Remaining = 0
 - Completion = 100%
 - Current task = V01 COMPLETE
@@ -458,3 +473,6 @@ V01 is complete only when all of the following are true:
 - V01 is pushed and clean
 - `main` remains unchanged by this development plan
 - a named user can select a local source folder, inspect detected formulation/SDS/TDS files, import the appropriate PDF categories, and see truthful per-category limitations and results
+- SDS/TDS source claims are retained in persistent, versioned supplier product cards with exact citations; SDS structured claims are limited to Sections 1, 3, 7, 9 and 15
+- a card can be created from either an SDS or a TDS and enriched by its counterpart without erasing prior source evidence
+- eligible product-card evidence is available to the existing RawMaterial comparison and New Request workflows with human review, immutable lineage and no automatic RawMaterial overwrite
