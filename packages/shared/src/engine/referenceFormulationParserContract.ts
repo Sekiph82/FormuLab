@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION = "formulab-reference-formulation-layout-v1";
+export const REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION = "formulab-reference-formulation-layout-v2-positioned-pdfjs";
 
 const sourceKind = z.enum(["digital", "ocr", "mixed", "unknown"]);
 const positionSchema = z.object({ x: z.number().finite().nonnegative(), y: z.number().finite().nonnegative() }).strict();

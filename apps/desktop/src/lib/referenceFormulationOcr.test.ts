@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { supplierDocumentAcquisitionSchema } from "@formulab/shared";
-import type { SupplierPdfTextExtractionResult } from "./supplierPdfTextExtraction";
+import { SUPPLIER_PDF_TEXT_PARSER_VERSION, type SupplierPdfTextExtractionResult } from "./supplierPdfTextExtraction";
 import { runConditionalReferenceFormulationOcr } from "./referenceFormulationOcr";
 
-const PARSER_VERSION = "formulab-pdf-text-v1+pdf-lib-1.17.1";
+const PARSER_VERSION = SUPPLIER_PDF_TEXT_PARSER_VERSION;
 const hash = (byte: string) => byte.repeat(64);
 const extraction = (documentHash: string, pageTexts: string[]): SupplierPdfTextExtractionResult => ({
   status: "extracted",

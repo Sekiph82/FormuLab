@@ -146,6 +146,7 @@ describe("Croda HC/DW/22 supplied-source acceptance", () => {
     expect(identity.candidates).toEqual(expect.arrayContaining([
       expect.objectContaining({ field: "formulation_title", rawValue: "Hand Dishwash Detergent Liquid" }),
       expect.objectContaining({ field: "formulation_code", rawValue: "HC/DW/22" }),
+      expect.objectContaining({ field: "product_family", rawValue: "Hand Dishwash Detergent Liquid" }),
     ]));
 
     const procedure = extractReferenceFormulationProcedure({ source, pages: formulaPages });

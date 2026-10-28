@@ -12,6 +12,7 @@ import {
   referenceFormulationImportJobSchema,
   summarizeReferenceFormulationImport,
   validateReferenceFormulationArithmetic,
+  REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION,
   type ReferenceFormulationImportFile,
   type ReferenceFormulationImportJob,
   type ReferenceFormulationRights,
@@ -175,20 +176,77 @@ export async function startReferenceFormulationBulkImport(
   return resumeReferenceFormulationBulkImport(job.id, selectedFiles, signal);
 }
 
-function pagesFromExtraction(
+export function pagesFromExtraction(
   extraction: Awaited<ReturnType<typeof extractSupplierPdfText>> & { status: "extracted" },
   ocrLines: Array<{ pageNumber: number; text: string; confidence: number; source: "ocr" }>,
 ) {
   return extraction.pages.map((page) => {
-    const blocks: Array<{
+    type TextBlock = {
       type: "text"; blockIndex: number; text: string; source: "digital" | "ocr"; confidence?: number;
       position?: { x: number; y: number };
-    }> = page.lines.map((line, blockIndex) => ({
-      type: "text", blockIndex, text: line.text, source: "digital",
-      ...(line.position && line.position.x >= 0 && line.position.y >= 0 ? { position: line.position } : {}),
-    }));
+    };
+    type TableBlock = { type: "table"; blockIndex: number; rows: string[][]; source: "digital"; position?: { x: number; y: number } };
+    const positioned = [...page.lines].sort((left, right) => (right.position?.y ?? 0) - (left.position?.y ?? 0));
+    const headerIndex = positioned.findIndex((line) => line.fragments?.some((fragment) => /ingredient\s*\/\s*inci\s*name/i.test(fragment.text))
+      && line.fragments.some((fragment) => /functionality|function/i.test(fragment.text))
+      && line.fragments.some((fragment) => /%\s*w\s*\/\s*w|weight\s*percent/i.test(fragment.text)));
+    let table: TableBlock | undefined;
+    if (headerIndex >= 0) {
+      const headerLine = positioned[headerIndex]!;
+      const columns = headerLine.fragments!.filter((fragment) => fragment.text.trim()).map((fragment) => ({
+        x: fragment.x,
+        header: fragment.text.trim(),
+      })).sort((left, right) => left.x - right.x);
+      if (columns.length >= 3) {
+        const rows: string[][] = [columns.map((column) => column.header)];
+        let previousY = headerLine.position?.y ?? 0;
+        for (const line of positioned.slice(headerIndex + 1)) {
+          const y = line.position?.y ?? previousY;
+          if (previousY - y > 24) break;
+          if (!line.fragments?.length) continue;
+          const cells = columns.map(() => "");
+          for (const fragment of line.fragments) {
+            const columnIndex = columns.reduce((best, column, index) => column.x <= fragment.x ? index : best, 0);
+            cells[columnIndex] = [cells[columnIndex], fragment.text.trim()].filter(Boolean).join(" ");
+          }
+          if (cells.some(Boolean)) rows.push(cells);
+          previousY = y;
+          if (/^viscosity\b/i.test(cells[0] ?? "")) break;
+        }
+        if (rows.length > 1) table = {
+          type: "table", blockIndex: 0, rows, source: "digital",
+          ...(headerLine.position ? { position: headerLine.position } : {}),
+        };
+      }
+    }
+    const blocks: Array<TextBlock | TableBlock> = [];
+    const consumedProcedureLines = new Set<number>();
+    let nextIndex = 0;
+    for (let index = 0; index < positioned.length; index += 1) {
+      if (index === headerIndex) {
+        if (table) { table.blockIndex = nextIndex; blocks.push(table); nextIndex += 1; }
+        continue;
+      }
+      const line = positioned[index]!;
+      if (consumedProcedureLines.has(line.lineNumber)) continue;
+      let combinedText = line.text;
+      if (/^procedure\s*:/i.test(line.text) && line.position) {
+        let previousY = line.position.y;
+        for (const continuation of positioned.slice(index + 1)) {
+          if (continuation === positioned[headerIndex] || !continuation.position || previousY - continuation.position.y > 24) break;
+          if (consumedProcedureLines.has(continuation.lineNumber)) continue;
+          combinedText += ` ${continuation.text}`;
+          consumedProcedureLines.add(continuation.lineNumber);
+          previousY = continuation.position.y;
+        }
+      }
+      blocks.push({
+        type: "text", blockIndex: nextIndex++, text: combinedText, source: "digital",
+        ...(line.position && line.position.x >= 0 && line.position.y >= 0 ? { position: line.position } : {}),
+      });
+    }
     for (const line of ocrLines.filter((candidate) => candidate.pageNumber === page.pageNumber)) {
-      blocks.push({ type: "text", blockIndex: blocks.length, text: line.text, source: "ocr", confidence: line.confidence });
+      blocks.push({ type: "text", blockIndex: nextIndex++, text: line.text, source: "ocr", confidence: line.confidence });
     }
     return { pageNumber: page.pageNumber, blocks };
   });
@@ -219,7 +277,7 @@ async function buildAndPersistReferenceRecord(input: {
   const publicationDate = identity.candidates.find((candidate) => candidate.field === "publication_date")?.rawValue;
   const formulationCode = identity.candidates.find((candidate) => candidate.field === "formulation_code")?.rawValue;
   const source = createReferenceFormulationSource({
-    id: `reference-source-${input.item.idempotencyKey.slice("sha256:".length)}`,
+    id: `reference-source-${input.acquisition.sha256}-${layout.parserVersion.replace(/[^a-z0-9-]/giu, "-").toLocaleLowerCase("en-US")}`,
     acquisition: input.acquisition,
     ...(publicationDate ? { publicationDate } : {}),
     ...(revisionDate ? { revisionDate } : {}),
@@ -246,7 +304,7 @@ async function buildAndPersistReferenceRecord(input: {
     products,
     supplierDocuments: acquisitions,
   });
-  const recordKey = input.item.idempotencyKey.slice("sha256:".length);
+  const recordKey = `${input.acquisition.sha256}-${layout.parserVersion.replace(/[^a-z0-9-]/giu, "-").toLocaleLowerCase("en-US")}`;
   const record = createReferenceFormulationRecord({
     id: `reference-formula-${recordKey}`,
     code: `reference-formula-${recordKey}`,
@@ -294,7 +352,8 @@ async function processOneFile(input: {
 
   const existingSources = await listRecords("reference_formulations");
   const duplicate = existingSources.find((source) => source.source.supplierId === input.job.supplierId
-    && source.sourceDocumentHash.toLowerCase() === digest);
+    && source.sourceDocumentHash.toLowerCase() === digest
+    && source.source.parserVersion === REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION);
   if (duplicate) return { status: "duplicate", duplicateRecordId: duplicate.id };
 
   const existingAcquisitions = await listRecords("supplier_document_acquisitions");

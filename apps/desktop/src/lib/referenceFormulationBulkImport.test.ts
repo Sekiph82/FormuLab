@@ -62,7 +62,8 @@ vi.mock("./referenceFormulationOcr", () => ({
   })),
 }));
 
-import { resumeReferenceFormulationBulkImport, startReferenceFormulationBulkImport } from "./referenceFormulationBulkImport";
+import { pagesFromExtraction, resumeReferenceFormulationBulkImport, startReferenceFormulationBulkImport } from "./referenceFormulationBulkImport";
+import { SUPPLIER_PDF_TEXT_PARSER_VERSION } from "./supplierPdfTextExtraction";
 import { rebuildReferenceFormulationCorpusIndex } from "./referenceFormulationNormalizations";
 
 const metadata = {
@@ -181,6 +182,49 @@ describe("reference formulation bulk import", () => {
     collections.clear();
     failUpsertOnce.length = 0;
     vi.clearAllMocks();
+  });
+
+  it("reconstructs positioned supplier PDF columns and wrapped procedure text as cited review blocks", () => {
+    const row = (lineNumber: number, y: number, cells: [string, string, string]) => ({
+      lineNumber, text: cells.join(" "), position: { x: 77.4, y },
+      fragments: cells.map((text, index) => ({ text, x: [77.4, 288.8, 472.7][index]!, width: 20 })),
+    });
+    const lines = [
+      { lineNumber: 1, text: "Hand Dishwash Detergent Liquid HC/DW/22", position: { x: 79.9, y: 663.6 }, fragments: [
+        { text: "Hand Dishwash Detergent Liquid", x: 79.9, width: 189 }, { text: "HC/DW/22", x: 471.9, width: 69 },
+      ] },
+      { lineNumber: 2, text: "Procedure: Add ingredients in order listed", position: { x: 72, y: 631 }, fragments: [{ text: "Procedure: Add ingredients in order listed", x: 72, width: 280 }] },
+      { lineNumber: 3, text: "Use citric acid to adjust pH to ~7", position: { x: 72, y: 618 }, fragments: [{ text: "Use citric acid to adjust pH to ~7", x: 72, width: 250 }] },
+      { lineNumber: 4, text: "EBC Crothix Liquid HC MBAL to thicken and stir until clear", position: { x: 72, y: 605 }, fragments: [{ text: "EBC Crothix Liquid HC MBAL to thicken and stir until clear", x: 72, width: 350 }] },
+      { lineNumber: 5, text: "Ingredient/INCI Name Functionality % w/w", position: { x: 77.4, y: 579.4 }, fragments: [
+        { text: "Ingredient/INCI Name", x: 77.4, width: 108 }, { text: "Functionality", x: 288.8, width: 63 }, { text: "% w/w", x: 472.7, width: 34 },
+      ] },
+      row(6, 564.4, ["DI Water", "Diluent", "80.7"]),
+      row(7, 549.5, ["SLE(3)S (30%, aq.)", "Anionic detergent", "3.0"]),
+      row(8, 534.6, ["Incromine Oxide C", "Nonionic detergent", "3.0"]),
+      row(9, 519.7, ["ECO Brij L6L", "Nonionic detergent", "4.0"]),
+      row(10, 504.8, ["NatraSense AG-810", "Alkylpolyglucoside detergent", "3.0"]),
+      row(11, 490, ["Crodateric CDA 38", "Hydrotrope/stabilizer", "3.0"]),
+      row(12, 475, ["Citric acid (25%, aq.)", "pH adjuster (to pH 7)", "0.3"]),
+      row(13, 460.1, ["EBC Crothix Liquid HC MBAL", "Thickening agent", "3.0"]),
+      row(14, 445.2, ["Total", "-", "100.0"]),
+      row(15, 430.3, ["Viscosity (cP)", "-", "~375"]),
+    ];
+    const extraction = {
+      status: "extracted" as const,
+      documentHash: "a".repeat(64), parserVersion: SUPPLIER_PDF_TEXT_PARSER_VERSION as typeof SUPPLIER_PDF_TEXT_PARSER_VERSION, pageCount: 1, warnings: [],
+      pages: [{ pageNumber: 1, lines }],
+    };
+    const pages = pagesFromExtraction(extraction, []);
+    const table = pages[0]?.blocks.find((block) => block.type === "table");
+    expect(table).toMatchObject({ type: "table", rows: expect.arrayContaining([
+      ["NatraSense AG-810", "Alkylpolyglucoside detergent", "3.0"],
+      ["Viscosity (cP)", "-", "~375"],
+    ]) });
+    const procedureText = pages[0]?.blocks.filter((block) => block.type === "text").map((block) => block.text)
+      .find((text) => text.startsWith("Procedure:"));
+    expect(procedureText)
+      .toContain("Use citric acid to adjust pH to ~7 EBC Crothix Liquid");
   });
 
   it("processes files independently, persists source-backed review records, and deduplicates repeated bytes", async () => {

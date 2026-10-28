@@ -98,6 +98,14 @@ function isSafeSemanticTitleValue(text: string): boolean {
   return value.length > 2 && !labeledField(value) && !/^\d+(?:\.\d+)*$/.test(value);
 }
 
+/** Preserve an explicit product type appearing in a printed formulation title as a review-required family candidate. */
+function explicitProductFamilyTitle(text: string): string | undefined {
+  const title = text.normalize("NFKC").trim();
+  return /\b(?:shampoo|conditioner|body\s*wash|hand\s*wash|hand\s*dishwash|dishwash(?:ing)?\s*detergent|laundry\s*detergent|surface\s*cleaner|facial\s*cleanser|face\s*wash|toothpaste|mouthwash)\b/iu.test(title)
+    ? title
+    : undefined;
+}
+
 function comparable(value: string): string {
   return normalizeLabel(value);
 }
@@ -146,6 +154,8 @@ export function extractReferenceFormulationIdentity(input: {
       if (embedded) {
         addCandidate("formulation_title", embedded.title, page.pageNumber, block, "embedded_formulation_code");
         addCandidate("formulation_code", embedded.code, page.pageNumber, block, "embedded_formulation_code");
+        const family = explicitProductFamilyTitle(embedded.title);
+        if (family) addCandidate("product_family", family, page.pageNumber, block, "embedded_formulation_code");
       }
       if (block.type === "heading" && semanticTitleHeading(block.text)) {
         const following = ordered[index + 1];

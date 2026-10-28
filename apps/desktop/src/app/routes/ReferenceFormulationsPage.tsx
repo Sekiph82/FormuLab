@@ -11,6 +11,7 @@ import { buildReferenceFormulationReviewItems, type ReferenceFormulationReviewIt
 import { getReferenceFormulationCorpusReviewData, type ReferenceFormulationCorpusReviewData } from "@/lib/referenceFormulationCorpusReview";
 import { readSupplierDocumentPdf } from "@/lib/masterdata";
 import { SupplierSdsPdfPagePreview } from "@/components/dataExchange/connectors/SupplierSdsPdfPagePreview";
+import { LocalFolderImport } from "@/components/referenceFormulations/LocalFolderImport";
 
 const DECISIONS = [
   { value: "accepted", labelKey: "decisionAccept", icon: Check },
@@ -167,6 +168,7 @@ export function ReferenceFormulationsPage() {
           <p className="mt-2 max-w-3xl text-sm text-muted">{t("referenceFormulations.intro")}</p>
         </header>
         {error && <div role="alert" className="mb-4 rounded-lg border border-error/30 bg-error/5 p-4 text-sm text-error"><p>{t("referenceFormulations.loadError", { message: error })}</p><button type="button" onClick={() => void refresh()} className="mt-2 underline">{t("referenceFormulations.retry")}</button></div>}
+        <LocalFolderImport actor={actor} onImported={() => void refresh()} />
         <div className="mb-4 grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-[minmax(0,1fr)_16rem]">
           <label className="block text-sm font-medium text-text">{t("referenceFormulations.searchLabel")}
             <input type="search" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder={t("referenceFormulations.searchPlaceholder")} className="mt-1 w-full rounded border border-border bg-surface-2 px-3 py-2 text-sm text-text" />

@@ -32,6 +32,7 @@ import fulltext
 import literature_cache
 import manufacturing
 import master_materials_adapter
+import reference_formulation_prior_adapter
 import provenance
 import scientific_formulation
 import strategy
@@ -432,6 +433,11 @@ def run(
     log: Callable[[str], None] = lambda m: None,
 ) -> Dict[str, Any]:
     """Run the full pipeline. Returns {status, cards:[{version, markdown, formula}], ...}."""
+    # A renderer may request a product family but cannot assert source
+    # records, review decisions, frequencies, or dosage evidence. Rebuild the
+    # prior from the canonical local master-data collections below.
+    brief = dict(brief)
+    brief.pop("referenceFormulationGuidance", None)
     target = str(brief.get("target", "")).strip()
     if not target:
         return {"status": "error", "message": "no target product given"}
@@ -507,6 +513,11 @@ def run(
             materials_list = master_materials_adapter.load_master_materials(materials_dir)
         except OSError:
             materials_list = []
+    reference_guidance = reference_formulation_prior_adapter.build_authoritative_guidance(
+        materials_dir, brief, materials_list,
+    )
+    if reference_guidance is not None:
+        brief["referenceFormulationGuidance"] = reference_guidance
     queries = build_queries(brief, constraints, scent_character=parsed_requirements.scent_character)
     log(f"planned {len(queries)} retrieval angles")
     # Anchor every retrieved paper to the product itself, so an angle query can
@@ -675,6 +686,7 @@ def run(
     generic_pool = engine.build_candidate_pool(
         brief, constraints, ranked_evidence, materials_list,
         scent_character=parsed_requirements.scent_character, scientific_formulations=[],
+        reference_formulation_guidance=reference_guidance,
     )
     required_roles_for_fallback = [r for r, level in role_requirements.items() if level == "required"]
     generic_covered = engine.covered_roles(generic_pool, required_roles_for_fallback)
@@ -761,6 +773,7 @@ def run(
             scent_character=parsed_requirements.scent_character,
             scientific_formulations=scientific_formulations,
             preferred_source_formulation_id=preferred_source_formulation_id,
+            reference_formulation_guidance=reference_guidance,
         )
         result = engine.build_formula_for_strategy(
             strat, group, role_requirements, pool, ranked_evidence, constraints, parsed_requirements,
@@ -899,11 +912,58 @@ def run(
             if qf.factor in ("critical_active_no_evidence", "unusual_concentration_no_evidence"):
                 evidence_gaps.append({"category": qf.factor, "gap": qf.message})
 
+        reference_guidance = brief.get("referenceFormulationGuidance")
+        guidance_eligible_count = (reference_guidance.get("eligibleFormulaCount", 0)
+                                   if isinstance(reference_guidance, dict)
+                                   and type(reference_guidance.get("eligibleFormulaCount", 0)) is int
+                                   and reference_guidance.get("eligibleFormulaCount", 0) >= 0 else 0)
+        guidance_supplier_count = (reference_guidance.get("supplierCount", 0)
+                                   if isinstance(reference_guidance, dict)
+                                   and type(reference_guidance.get("supplierCount", 0)) is int
+                                   and reference_guidance.get("supplierCount", 0) >= 0 else 0)
+        guidance_priors = (reference_guidance.get("ingredientPriors", [])
+                           if isinstance(reference_guidance, dict)
+                           and isinstance(reference_guidance.get("ingredientPriors"), list) else [])
+        selected_reference_ingredients = [s for s in result.ingredients if s.reference_formulation_evidence]
+        if selected_reference_ingredients:
+            reference_status = "applied"
+            reference_gap = ""
+        elif isinstance(reference_guidance, dict) and guidance_eligible_count > 0:
+            reference_status = "eligible_not_selected"
+            reference_gap = ("Reviewed field-formula examples were eligible for this family, but none of their "
+                             "mapped ingredients survived role selection and hard constraints for this version.")
+        elif isinstance(reference_guidance, dict):
+            reference_status = "no_eligible_reviewed_evidence"
+            reference_gap = ("No eligible reviewed field formulations are available for this product family; "
+                             "imported PDFs did not influence this version.")
+        else:
+            reference_status = "not_supplied"
+            reference_gap = ("Reviewed field-formula guidance was not supplied by this request; "
+                             "this version was generated without that source.")
+        if reference_gap:
+            evidence_gaps.append({"category": "field_formulation_reference_unavailable", "gap": reference_gap})
+        reference_source_ids = sorted({
+            source_id
+            for solved in selected_reference_ingredients
+            for source_id in (solved.reference_formulation_evidence or {}).get("source_record_ids", [])
+        })
+        reference_use = {
+            "status": reference_status,
+            "productFamilyKey": reference_guidance.get("productFamilyKey") if isinstance(reference_guidance, dict) else None,
+            "eligibleFormulaCount": guidance_eligible_count,
+            "supplierCount": guidance_supplier_count,
+            "mappedIngredientCount": len(guidance_priors),
+            "selectedIngredientCount": len(selected_reference_ingredients),
+            "sourceRecordIds": reference_source_ids,
+            "interpretation": "reviewed_field_formula_appearance_and_typical_dosage_precedent_not_suitability_safety_compatibility_efficacy_or_laboratory_validation",
+        }
+
         md = render_card(f, violations, strat.to_dict())
         with open(os.path.join(out_dir, card_filename(session_id, version)), "w", encoding="utf-8") as fh:
             fh.write(md)
         cards.append({
             "version": version, "status": "ok", "markdown": md, "formula": f, "violations": violations,
+            "reference_formulation_use": reference_use,
             "strategy": strat.to_dict(),
             "evidence_links": version_links,
             "concentration_alignment": alignment,

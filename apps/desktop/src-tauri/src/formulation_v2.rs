@@ -57,6 +57,8 @@ const F_ENGINE: &str = include_str!("../../../../runtime/pipeline/engine.py");
 const F_MATERIALS: &str = include_str!("../../../../runtime/pipeline/materials.py");
 const F_MASTER_MATERIALS_ADAPTER: &str =
     include_str!("../../../../runtime/pipeline/master_materials_adapter.py");
+const F_REFERENCE_FORMULATION_PRIOR_ADAPTER: &str =
+    include_str!("../../../../runtime/pipeline/reference_formulation_prior_adapter.py");
 // Phase 14 Session 5 (Phase 15 zero-LLM round): pipeline.py now imports
 // manufacturing.py directly (Manufacturing Procedure/Critical Parameters/
 // Equipment intelligence, zero LLM) — same requirement as every module
@@ -189,6 +191,7 @@ fn materialize_pipeline_to(pipe_dir: &std::path::Path, skills_dir: &std::path::P
         ("engine.py", F_ENGINE),
         ("materials.py", F_MATERIALS),
         ("master_materials_adapter.py", F_MASTER_MATERIALS_ADAPTER),
+        ("reference_formulation_prior_adapter.py", F_REFERENCE_FORMULATION_PRIOR_ADAPTER),
         ("manufacturing.py", F_MANUFACTURING),
         ("traceability.py", F_TRACEABILITY),
         ("validation_plan.py", F_VALIDATION_PLAN),
@@ -829,7 +832,7 @@ mod tests {
         materialize_pipeline_to(&pipe_dir, &skills_dir).expect("real materialization must succeed");
 
         // NR4A-NR4D
-        for name in ["artifact_naming.py", "run_cli.py", "pipeline.py", "literature_cache.py"] {
+        for name in ["artifact_naming.py", "run_cli.py", "pipeline.py", "literature_cache.py", "reference_formulation_prior_adapter.py"] {
             assert!(pipe_dir.join(name).is_file(), "{name} must exist after real materialization");
         }
         // NR4E — discover.py lands in the real expected sibling location.

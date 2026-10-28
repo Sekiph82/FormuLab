@@ -14,6 +14,8 @@ import {
   type ReferenceFormulationQueryRecord,
   type ReferenceFormulationSupportQuality,
   type ReferenceFormulationGenerationContext,
+  identityFieldReviewSchema,
+  rawMaterialSchema,
 } from "@formulab/shared";
 import { listRecords } from "./masterdata";
 import { rebuildReferenceFormulationCorpusIndex } from "./referenceFormulationNormalizations";
@@ -151,5 +153,78 @@ export async function loadReferenceFormulationGenerationContext(productFamilyCod
       context,
       productFamilyKey,
     }),
+  };
+}
+
+/** Build the small, source-cited prior payload used by standard New Request.
+ * Only reviewed family priors mapped through a named human's latest accepted
+ * RawMaterial canonical-identity review are eligible to influence selection. */
+export async function loadNewRequestReferenceFormulationPriors(productFamilyCode: string) {
+  const { context, supportQuality } = await loadReferenceFormulationGenerationContext(productFamilyCode);
+  const [materialRows, reviewRows] = await Promise.all([
+    listRecords("materials"),
+    listRecords("identity_field_reviews"),
+  ]);
+  const materials = materialRows.flatMap((row) => {
+    const parsed = rawMaterialSchema.safeParse(row);
+    return parsed.success && parsed.data.active ? [parsed.data] : [];
+  });
+  const reviews = reviewRows.flatMap((row) => {
+    const parsed = identityFieldReviewSchema.safeParse(row);
+    return parsed.success && parsed.data.field === "canonical_identity" ? [parsed.data] : [];
+  });
+  const latestReviewByMaterial = new Map<string, (typeof reviews)[number]>();
+  for (const review of reviews) {
+    const prior = latestReviewByMaterial.get(review.targetRecordId);
+    if (!prior || review.reviewedAt > prior.reviewedAt) latestReviewByMaterial.set(review.targetRecordId, review);
+  }
+  const materialsByChemistry = new Map<string, Array<{ code: string; displayName: string }>>();
+  for (const material of materials) {
+    const review = latestReviewByMaterial.get(material.code);
+    if (!review || (review.decision !== "accepted" && review.decision !== "edited")) continue;
+    try {
+      const snapshot = JSON.parse(review.decision === "edited" ? review.reviewedValueSnapshot! : review.proposedValueSnapshot) as { canonicalChemistryId?: unknown };
+      if (typeof snapshot.canonicalChemistryId !== "string" || !snapshot.canonicalChemistryId.trim()) continue;
+      const mapped = materialsByChemistry.get(snapshot.canonicalChemistryId) ?? [];
+      mapped.push({ code: material.code, displayName: material.displayName });
+      materialsByChemistry.set(snapshot.canonicalChemistryId, mapped);
+    } catch {
+      // A malformed prior cannot authorize a candidate mapping.
+    }
+  }
+  const ingredientPriors = context.ingredientPriors.flatMap((prior) => {
+    const matches = materialsByChemistry.get(prior.canonicalChemistryId) ?? [];
+    // Ambiguous canonical identity to multiple master materials is not used.
+    if (matches.length !== 1) return [];
+    return [{
+      materialCode: matches[0]!.code,
+      materialName: matches[0]!.displayName,
+      canonicalChemistryId: prior.canonicalChemistryId,
+      formulaCount: prior.formulaCount,
+      eligibleFormulaCount: prior.eligibleFormulaCount,
+      supplierCount: prior.supplierCount,
+      formulaWeightedFrequency: prior.formulaWeightedFrequency,
+      supplierNeutralFrequency: prior.supplierNeutralFrequency,
+      sourceRecordIds: prior.sourceRecordIds,
+      dosageGuidance: context.dosageGuidance
+        .filter((sample) => sample.canonicalChemistryId === prior.canonicalChemistryId
+          && sample.functionAssignment === "unassigned_or_unreviewed" && sample.canonicalFunctionId === undefined)
+        .map((sample) => ({
+          formulaCount: sample.formulaCount,
+          supplierCount: sample.supplierCount,
+          observedRangePercent: sample.observedRangePercent,
+          typicalRangePercent: sample.typicalRangePercent,
+          sourceRecordIds: sample.sourceRecordIds,
+        })),
+    }];
+  });
+  return {
+    schemaVersion: "formulab-new-request-reference-priors-v1" as const,
+    productFamilyKey: context.productFamilyKey,
+    eligibleFormulaCount: context.eligibleFormulaCount,
+    supplierCount: context.supplierCount,
+    ingredientPriors,
+    supportQuality,
+    interpretation: "reviewed_field_formula_appearance_is_advisory_not_suitability_safety_compatibility_or_efficacy" as const,
   };
 }

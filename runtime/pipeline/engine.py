@@ -82,6 +82,7 @@ own `ScientificFormulationRecord`), not merely an isolated mention. See
 own Tier 0 below for exactly how this outranks a bare mention."""
 ORIGIN_SUPPLIER_DATA = "supplier_data"
 ORIGIN_INTERNAL_FORMULAB_DATA = "internal_formulab_data"  # reserved — see module docstring
+ORIGIN_REFERENCE_FORMULATION = "reviewed_reference_formulation"
 ORIGIN_DETERMINISTIC_RULE = "deterministic_rule"
 ORIGIN_USER_REQUIRED = "user_required"
 
@@ -528,6 +529,7 @@ class IngredientCandidate:
     formulation's ingredients (§2/§3: the portfolio layer answers "which
     architecture gets priority for this slot", never "should this slot
     even see the generic/other-formulation candidate universe")."""
+    reference_formulation_evidence: Optional[Dict[str, Any]] = None
 
     def best_evidence_class(self) -> Optional[str]:
         if not self.evidence_records:
@@ -583,6 +585,7 @@ def build_candidate_pool(
     scent_character: str = "",
     scientific_formulations: Optional[List[Dict[str, Any]]] = None,
     preferred_source_formulation_id: Optional[Tuple[str, str]] = None,
+    reference_formulation_guidance: Optional[Dict[str, Any]] = None,
 ) -> CandidatePool:
     """`preferred_source_formulation_id` — FormuLab v1 (FVL-02):
     `(canonical_paper_id, source_formulation_id)` of THIS version's own
@@ -712,6 +715,92 @@ def build_candidate_pool(
         if not c.material_code:
             c.material_code = m.get("code") or m.get("material_code")
         mark_excluded_if_needed(c)
+
+    # Reviewed supplier field-formula appearance can rank only an existing,
+    # active Material Master candidate. It never creates a material or
+    # resolves an ambiguous supplier product identity.
+    # Only the pipeline's local-record adapter may supply this value. The
+    # user brief itself is untrusted and is never an evidence authority.
+    guidance = reference_formulation_guidance
+    requested_family = re.sub(r"\s+", " ", str(brief.get("targetProductType", "")).strip().lower())
+    if (isinstance(guidance, dict)
+            and guidance.get("schemaVersion") == "formulab-new-request-reference-priors-v1"
+            and guidance.get("interpretation") == "reviewed_field_formula_appearance_is_advisory_not_suitability_safety_compatibility_or_efficacy"
+            and guidance.get("productFamilyKey") == requested_family
+            and isinstance(guidance.get("eligibleFormulaCount"), int)
+            and guidance.get("eligibleFormulaCount", 0) > 0
+            and isinstance(guidance.get("ingredientPriors"), list)):
+        materials_by_code = {str(m.get("code") or m.get("material_code") or ""): m for m in materials}
+        accepted_codes = set()
+        for prior in guidance["ingredientPriors"]:
+            if not isinstance(prior, dict):
+                continue
+            code = str(prior.get("materialCode") or "")
+            material = materials_by_code.get(code)
+            source_ids = prior.get("sourceRecordIds")
+            formula_count = prior.get("formulaCount")
+            eligible_count = prior.get("eligibleFormulaCount")
+            supplier_count = prior.get("supplierCount")
+            formula_frequency = prior.get("formulaWeightedFrequency")
+            supplier_frequency = prior.get("supplierNeutralFrequency")
+            raw_dosage = prior.get("dosageGuidance", [])
+            if (not material or not material.get("active", True) or code in accepted_codes
+                    or not isinstance(source_ids, list) or not source_ids
+                    or any(not isinstance(source_id, str) or not source_id.strip() for source_id in source_ids)
+                    or len(set(source_ids)) != len(source_ids)
+                    or not isinstance(formula_count, int) or formula_count != len(source_ids)
+                    or not isinstance(eligible_count, int) or eligible_count != guidance["eligibleFormulaCount"]
+                    or formula_count > eligible_count
+                    or not isinstance(supplier_count, int) or supplier_count < 1
+                    or supplier_count > formula_count
+                    or any(not isinstance(value, (int, float)) or value < 0 or value > 1
+                           for value in (formula_frequency, supplier_frequency))
+                    or not isinstance(raw_dosage, list) or len(raw_dosage) > 1):
+                continue
+            key = normalize_ingredient_key(material.get("inci") or material.get("name") or "")
+            candidate = pool.get(key) if key else None
+            if not candidate or candidate.material_code != code or candidate.excluded:
+                continue
+            accepted_codes.add(code)
+            candidate.reference_formulation_evidence = {
+                "product_family_key": requested_family,
+                "canonical_chemistry_id": str(prior.get("canonicalChemistryId") or ""),
+                "formula_count": formula_count,
+                "eligible_formula_count": eligible_count,
+                "supplier_count": supplier_count,
+                "formula_weighted_frequency": float(formula_frequency),
+                "supplier_neutral_frequency": float(supplier_frequency),
+                "source_record_count": len(source_ids),
+                "source_record_ids": source_ids[:20],
+                "interpretation": "reviewed_formula_appearance_only_not_suitability_safety_compatibility_or_efficacy",
+            }
+            dosage = raw_dosage[0] if raw_dosage else None
+            if isinstance(dosage, dict):
+                dosage_ids = dosage.get("sourceRecordIds")
+                observed = dosage.get("observedRangePercent")
+                typical = dosage.get("typicalRangePercent")
+                dosage_count = dosage.get("formulaCount")
+                dosage_suppliers = dosage.get("supplierCount")
+                if (isinstance(dosage_ids, list) and dosage_ids
+                        and all(isinstance(source_id, str) and source_id.strip() for source_id in dosage_ids)
+                        and len(set(dosage_ids)) == len(dosage_ids)
+                        and isinstance(dosage_count, int) and dosage_count == len(dosage_ids)
+                        and isinstance(dosage_suppliers, int) and 1 <= dosage_suppliers <= dosage_count
+                        and isinstance(observed, dict) and isinstance(typical, dict)
+                        and all(isinstance(value, (int, float)) and 0 <= value <= 100
+                                for value in (observed.get("lower"), observed.get("upper"), typical.get("lower"), typical.get("upper")))
+                        and observed["lower"] <= typical["lower"] <= typical["upper"] <= observed["upper"]):
+                    candidate.reference_formulation_evidence["dosage_guidance"] = {
+                        "formula_count": dosage_count,
+                        "supplier_count": dosage_suppliers,
+                        "observed_range_percent": observed,
+                        "typical_range_percent": typical,
+                        "source_record_count": len(dosage_ids),
+                        "source_record_ids": dosage_ids[:20],
+                        "interpretation": "reviewed_empirical_dosage_advisory_not_validated_recommendation",
+                    }
+            if ORIGIN_REFERENCE_FORMULATION not in candidate.origins:
+                candidate.origins.append(ORIGIN_REFERENCE_FORMULATION)
 
     # 4. The universal aqueous base. Including water as the solvent for an
     #    aqueous personal-care/detergent product is a real, deterministic
@@ -887,6 +976,26 @@ def _resolve_concentration_tiers(
                      f"architecture, not an isolated evidence mention",
             )
 
+    # Reviewed field-formula dosage is family-specific empirical precedent.
+    # Use only the centrally observed range from exact-identity reviewed
+    # formulas, never as validation or a hard constraint.
+    field_ref = candidate.reference_formulation_evidence or {}
+    dosage = field_ref.get("dosage_guidance")
+    if isinstance(dosage, dict):
+        typical = dosage.get("typical_range_percent") or {}
+        low, high = typical.get("lower"), typical.get("upper")
+        if (isinstance(low, (int, float)) and isinstance(high, (int, float))
+                and low <= high and _is_plausible(role, low, "%") and _is_plausible(role, high, "%")):
+            value = _pick_within_range(float(low), float(high), strategy_type)
+            return ConcentrationResolution(
+                value=value, unit="%", basis="formulation", source_type="supplier_reference_formulation",
+                note=(f"within the reviewed typical range {low}-{high}% observed in "
+                      f"{dosage['formula_count']} {field_ref['product_family_key']} field formulas "
+                      f"from {dosage['supplier_count']} supplier(s); sources: "
+                      f"{', '.join(dosage['source_record_ids'])}. Appearance precedent only, "
+                      "not a validated recommendation"),
+            )
+
     # Tier 1-3: evidence. Strict comparable stats first (Session 4's own
     # multi-study statistic); a single real reported concentration next
     # (still a real fact, just not enough independent studies to average).
@@ -1038,6 +1147,13 @@ def _selection_score(candidate: IngredientCandidate) -> float:
         price = (candidate.supplier_material or {}).get("price")
         if isinstance(price, (int, float)):
             score += max(0.0, 10.0 - min(price, 10.0))  # cheaper material tips a supplier-only tie
+    if candidate.reference_formulation_evidence:
+        ref = candidate.reference_formulation_evidence
+        prevalence = (ref["formula_weighted_frequency"] + ref["supplier_neutral_frequency"]) / 2
+        # Strong, bounded architecture preference over generic supplier/rule
+        # ties. It remains below explicit user choice and reviewed scientific
+        # formulation architecture, and does not represent product suitability.
+        score += 700.0 + 200.0 * prevalence
     return score
 
 
@@ -1068,6 +1184,7 @@ class SolvedIngredient:
     best_evidence_record: Optional[EvidenceRecord] = None
     scientific_formulation_ref: Optional[Dict[str, Any]] = None
     material_code: Optional[str] = None
+    reference_formulation_evidence: Optional[Dict[str, Any]] = None
     """FVL-03.002 — carried through from `IngredientCandidate.material_code`
     when the winning candidate matched a canonical Material Master row."""
 
@@ -1261,6 +1378,7 @@ def build_formula_for_strategy(
                 evidence_class=c.best_evidence_class(), best_evidence_record=_best_record(c),
                 scientific_formulation_ref=c.scientific_formulation_ref,
                 material_code=c.material_code,
+                reference_formulation_evidence=c.reference_formulation_evidence,
             ))
             # FVL-03.002: `material_code` (the real, canonical identity) is
             # preferred over the legacy `material_id` string when present —
@@ -1273,9 +1391,14 @@ def build_formula_for_strategy(
             trace_events.append(traceability.selected_event(
                 version_id, role, c.display_name, list(c.origins),
                 source_ids=source_ids,
-                evidence_ids=[r.paper_doi for r in c.evidence_records if r.paper_doi][:5],
+                evidence_ids=([r.paper_doi for r in c.evidence_records if r.paper_doi][:5]
+                              + (c.reference_formulation_evidence or {}).get("source_record_ids", [])),
                 rationale=f"highest-ranked non-excluded candidate for {role} "
-                          f"(origins: {', '.join(c.origins)})",
+                          f"(origins: {', '.join(c.origins)})"
+                          + (f"; present in {c.reference_formulation_evidence['formula_count']}/"
+                             f"{c.reference_formulation_evidence['eligible_formula_count']} reviewed "
+                             f"{c.reference_formulation_evidence['product_family_key']} field formulas"
+                             if c.reference_formulation_evidence else ""),
                 input_values={"role": role, "level": level},
                 output_values={"concentration": resolution.value, "unit": resolution.unit,
                                 "source_type": resolution.source_type,
@@ -1349,6 +1472,14 @@ def build_formula_for_strategy(
         )
     for m in missing_roles:
         warnings.append(f"{m['role'].replace('_', ' ').title()}: {m['reason']}")
+    reference_sources = [s.reference_formulation_evidence for s in solved if s.reference_formulation_evidence]
+    if reference_sources:
+        source_ids = sorted({source_id for ref in reference_sources for source_id in ref["source_record_ids"]})
+        warnings.append(
+            "Reviewed field-formula appearance influenced candidate selection for "
+            f"{len(reference_sources)} ingredient(s); source records: {', '.join(source_ids)}. "
+            "This is precedent evidence only, not suitability, safety, compatibility, efficacy or laboratory validation."
+        )
 
     from rules import validate as rules_validate
     rule_violations = rules_validate(violations_ingredients, constraints)
@@ -1386,6 +1517,8 @@ def build_formula_for_strategy(
         "ingredients": ingredients_json,
         "warnings": warnings,
         "references": references,
+        "reference_formulation_evidence": [s.reference_formulation_evidence for s in solved
+                                            if s.reference_formulation_evidence],
     }
 
     return FormulaResult(

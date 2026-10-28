@@ -8,7 +8,7 @@ import {
 } from "pdf-lib";
 import { admitSupplierPdf } from "./supplierDocumentAdmission";
 
-export const SUPPLIER_PDF_TEXT_PARSER_VERSION = "formulab-pdf-text-v1+pdf-lib-1.17.1";
+export const SUPPLIER_PDF_TEXT_PARSER_VERSION = "formulab-pdf-text-v2+pdfjs-legacy-positioned";
 export const SUPPLIER_PDF_TEXT_MAX_CHARS = 500_000;
 
 export type SupplierPdfTextWarningCode =
@@ -23,6 +23,8 @@ export interface SupplierPdfTextLine {
   text: string;
   /** PDF text-space origin when the source stream includes a text matrix. */
   position?: { x: number; y: number };
+  /** Original PDF.js text fragments retained when the lightweight decoder cannot decode the embedded font. */
+  fragments?: Array<{ text: string; x: number; width: number }>;
 }
 
 export interface SupplierPdfTextPage {
@@ -218,6 +220,54 @@ function hasLikelyCorruptText(pages: SupplierPdfTextPage[]): boolean {
   return controls / text.length > 0.01;
 }
 
+/** Recover Unicode-mapped text and fragment geometry with the already-bundled PDF.js runtime. */
+async function extractPdfJsPages(bytes: Uint8Array, maxPages: number): Promise<SupplierPdfTextPage[]> {
+  // The standard entrypoint selects the non-legacy build under some runtimes,
+  // which fails when the bundled desktop WebView/browser needs its worker. Use
+  // the same legacy entrypoint that ships with PDF.js's browser-compatible
+  // worker, and let Node's PDF.js fake-worker path handle direct local checks.
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  if (typeof window !== "undefined" && typeof Worker !== "undefined") {
+    const workerUrl = (await import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url")).default;
+    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  }
+  const loadingTask = pdfjs.getDocument({ data: Uint8Array.from(bytes).buffer });
+  try {
+    const document = await loadingTask.promise;
+    const pages: SupplierPdfTextPage[] = [];
+    for (let pageNumber = 1; pageNumber <= Math.min(document.numPages, maxPages); pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const raw = content.items as Array<{ str?: string; transform?: number[]; width?: number }>;
+      const fragments = raw.flatMap((item) => {
+        const text = item.str?.trim();
+        const transform = item.transform;
+        if (!text || !transform || transform.length < 6 || !Number.isFinite(transform[4]) || !Number.isFinite(transform[5])) return [];
+        return [{ text, x: transform[4]!, y: transform[5]!, width: Number.isFinite(item.width) ? item.width! : 0 }];
+      }).sort((left, right) => right.y - left.y || left.x - right.x);
+      const rows: Array<{ y: number; fragments: typeof fragments }> = [];
+      for (const fragment of fragments) {
+        let row = rows.find((candidate) => Math.abs(candidate.y - fragment.y) <= 1.5);
+        if (!row) { row = { y: fragment.y, fragments: [] }; rows.push(row); }
+        row.fragments.push(fragment);
+      }
+      rows.sort((left, right) => right.y - left.y);
+      pages.push({ pageNumber, lines: rows.map((row, index) => {
+        const ordered = row.fragments.sort((left, right) => left.x - right.x);
+        return {
+          lineNumber: index + 1,
+          text: ordered.map((fragment) => fragment.text).join(" ").replace(/\s+/gu, " ").trim(),
+          position: { x: ordered[0]!.x, y: row.y },
+          fragments: ordered.map(({ text, x, width }) => ({ text, x, width })),
+        };
+      }) });
+    }
+    return pages;
+  } finally {
+    await loadingTask.destroy();
+  }
+}
+
 async function sha256(bytes: Uint8Array): Promise<string> {
   const ownedBytes = new Uint8Array(bytes.byteLength);
   ownedBytes.set(bytes);
@@ -253,6 +303,17 @@ export async function extractSupplierPdfText(input: {
     }
   }
   if (hasLikelyCorruptText(pages)) warnings.add("unsupported_character_encoding");
+  if (warnings.has("unsupported_character_encoding")) {
+    try {
+      const recovered = await extractPdfJsPages(input.bytes, admission.pageCount);
+      if (recovered.some((page) => page.lines.length > 0)) {
+        pages.splice(0, pages.length, ...recovered);
+        warnings.delete("unsupported_character_encoding");
+      }
+    } catch {
+      // Keep the original decoder output and its warning; extraction remains review-required.
+    }
+  }
   if (pages.every(({ lines }) => lines.length === 0)) warnings.add("no_text_layer");
   return {
     status: "extracted",

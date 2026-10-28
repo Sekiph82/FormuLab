@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import type { SupplierPdfTextExtractionResult } from "./supplierPdfTextExtraction";
+import { SUPPLIER_PDF_TEXT_PARSER_VERSION, type SupplierPdfTextExtractionResult } from "./supplierPdfTextExtraction";
 import { createSupplierPdfOcrBackend } from "./supplierPdfOcrBackend";
 import { runConditionalSupplierPdfOcr } from "./supplierPdfOcr";
 
 const extraction = (pageTexts: string[]): SupplierPdfTextExtractionResult => ({
   status: "extracted",
   documentHash: "a".repeat(64),
-  parserVersion: "formulab-pdf-text-v1+pdf-lib-1.17.1",
+  parserVersion: SUPPLIER_PDF_TEXT_PARSER_VERSION,
   pageCount: pageTexts.length,
   pages: pageTexts.map((text, index) => ({ pageNumber: index + 1, lines: text ? [{ lineNumber: 1, text }] : [] })),
   warnings: [],
