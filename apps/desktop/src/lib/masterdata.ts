@@ -109,6 +109,9 @@ import type {
   SupplierAcquisitionJobItem,
   SupplierDocumentAcquisition,
   SupplierSdsProductEvidenceRecord,
+  SupplierProductDocumentEvidence,
+  SupplierProductCardVersion,
+  SupplierProductEvidenceRecord,
   TestDefinition,
   TestResult,
   TrialComparison,
@@ -117,7 +120,7 @@ import type {
 import { isTauri } from "./tauri";
 import { currentSessionToken } from "./sessionToken";
 import type { MasterdataCollection } from "@formulab/shared";
-import { supplierSdsProductEvidenceRecordSchema } from "@formulab/shared";
+import { supplierProductEvidenceRecordSchema, supplierSdsProductEvidenceRecordSchema } from "@formulab/shared";
 
 /** Phase 13 Session 4A: now derived from `@formulab/shared`'s
  *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 103-name
@@ -204,6 +207,7 @@ interface CollectionTypes {
   material_documents: MaterialDocument;
   supplier_document_acquisitions: SupplierDocumentAcquisition;
   supplier_sds_product_evidence: SupplierSdsProductEvidenceRecord;
+  supplier_product_evidence: SupplierProductEvidenceRecord;
   identity_field_reviews: IdentityFieldReview;
   reference_formulations: ReferenceFormulationRecord;
   reference_formulation_reviews: ReferenceFormulationReview;
@@ -259,6 +263,19 @@ export async function appendSupplierSdsProductEvidenceRecord(
 ): Promise<SupplierSdsProductEvidenceRecord> {
   const parsed = supplierSdsProductEvidenceRecordSchema.parse(evidence);
   return call<SupplierSdsProductEvidenceRecord>("append_supplier_sds_product_evidence", { evidence: parsed });
+}
+
+/** Persist one immutable SDS/TDS product claim or product-card version. */
+export async function appendSupplierProductEvidenceUpdate(
+  evidence: SupplierProductDocumentEvidence,
+  cardVersion: SupplierProductCardVersion,
+): Promise<{ evidence: SupplierProductDocumentEvidence; cardVersion: SupplierProductCardVersion }> {
+  const parsedEvidence = supplierProductEvidenceRecordSchema.parse(evidence);
+  const parsedCardVersion = supplierProductEvidenceRecordSchema.parse(cardVersion);
+  if (parsedEvidence.recordType !== "document" || parsedCardVersion.recordType !== "card_version") {
+    throw new Error("A product evidence update requires a document snapshot and card version.");
+  }
+  return call("append_supplier_product_evidence", { evidence: parsedEvidence, cardVersion: parsedCardVersion });
 }
 
 /** Persist a named human's immutable, field-level supplier identity decision. */

@@ -2,14 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   supplierDocumentAcquisitionSchema,
+  supplierProductEvidenceRecordSchema,
   supplierSdsProductEvidenceRecordSchema,
   normalizeCasIdentifier,
   normalizeEcIdentifier,
   type SupplierDocumentAcquisition,
   type SupplierSdsProductEvidenceRecord,
+  type SupplierProductDocumentEvidence,
+  type SupplierProductEvidenceRecord,
 } from "@formulab/shared";
-import { listRecords, readSupplierDocumentPdf } from "@/lib/masterdata";
+import { appendSupplierProductEvidenceUpdate, listRecords, readSupplierDocumentPdf } from "@/lib/masterdata";
 import { extractSupplierSdsReview } from "@/lib/supplierSdsReview";
+import { extractSupplierProductDocumentEvidence } from "@/lib/supplierProductExtraction";
+import { createSupplierProductCardVersion, deriveSupplierProductCardId } from "@/lib/supplierProductCards";
 import { SupplierSdsPdfPagePreview } from "./SupplierSdsPdfPagePreview";
 import { Badge, Card } from "./ui";
 
@@ -37,6 +42,8 @@ export function SupplierSdsExtractionReviewScreen() {
   const { t } = useTranslation("session");
   const [documents, setDocuments] = useState<SupplierDocumentAcquisition[]>([]);
   const [evidence, setEvidence] = useState<SupplierSdsProductEvidenceRecord[]>([]);
+  const [productEvidence, setProductEvidence] = useState<SupplierProductEvidenceRecord[]>([]);
+  const [candidateEvidence, setCandidateEvidence] = useState<SupplierProductDocumentEvidence | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [selectedCode, setSelectedCode] = useState("");
@@ -44,22 +51,27 @@ export function SupplierSdsExtractionReviewScreen() {
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   const [running, setRunning] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedCardVersion, setSavedCardVersion] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setLoadFailed(false);
     try {
-      const [documentRows, evidenceRows] = await Promise.all([
+      const [documentRows, evidenceRows, productEvidenceRows] = await Promise.all([
         listRecords("supplier_document_acquisitions"),
         listRecords("supplier_sds_product_evidence"),
+        listRecords("supplier_product_evidence"),
       ]);
       const sdsDocuments = documentRows.map((row) => supplierDocumentAcquisitionSchema.parse(row))
-        .filter((row) => row.documentType === "SDS")
+        .filter((row) => row.documentType === "SDS" || row.documentType === "TDS")
         .sort((a, b) => b.acquiredAt.localeCompare(a.acquiredAt));
       const sdsEvidence = evidenceRows.map((row) => supplierSdsProductEvidenceRecordSchema.parse(row));
+      const productRecords = productEvidenceRows.map((row) => supplierProductEvidenceRecordSchema.parse(row));
       setDocuments(sdsDocuments);
       setEvidence(sdsEvidence);
+      setProductEvidence(productRecords);
       setSelectedCode((current) => sdsDocuments.some((row) => row.code === current) ? current : sdsDocuments[0]?.code ?? "");
     } catch {
       setLoadFailed(true);
@@ -80,15 +92,40 @@ export function SupplierSdsExtractionReviewScreen() {
     setSelectedCitation(null);
     setPdfBytes(null);
     setReview(null);
+    setCandidateEvidence(null);
+    setSavedCardVersion(null);
     try {
       const bytes = await readSupplierDocumentPdf(selected.sha256);
-      const result = await extractSupplierSdsReview(selected, bytes);
       setPdfBytes(bytes);
-      setReview(result);
+      const productCardId = await deriveSupplierProductCardId(selected);
+      if (selected.documentType === "SDS") {
+        const result = await extractSupplierSdsReview(selected, bytes);
+        setReview(result);
+        if (result.status === "extracted") setCandidateEvidence(await extractSupplierProductDocumentEvidence(selected, bytes, productCardId, result));
+      } else {
+        setReview(null);
+        setCandidateEvidence(await extractSupplierProductDocumentEvidence(selected, bytes, productCardId));
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("dataExchange.connectors.sdsReview.extractionError"));
     } finally {
       setRunning(false);
+    }
+  };
+
+  const saveProductCard = async () => {
+    if (!selected || !candidateEvidence) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const cardVersion = createSupplierProductCardVersion({ acquisition: selected, evidence: candidateEvidence, existingRecords: productEvidence });
+      const saved = await appendSupplierProductEvidenceUpdate(candidateEvidence, cardVersion);
+      setSavedCardVersion(saved.cardVersion.version);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save the product evidence.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -97,11 +134,19 @@ export function SupplierSdsExtractionReviewScreen() {
   };
 
   const data = review?.status === "extracted" ? review : null;
-  const section2Candidates = data?.section2.candidates as Candidate[] | undefined;
+  const section1Candidates = data?.section1.candidates as Candidate[] | undefined;
+  const section3Candidates: Candidate[] = data ? [
+    ...(data.section3.declaration ? [{ field: "substance_or_mixture", rawValue: data.section3.declaration.rawValue, evidence: data.section3.declaration.evidence }] : []),
+    ...data.section3.components.flatMap((component) => {
+    const row = component as unknown as Record<string, { rawValue?: string; evidence?: Citation[] } | undefined>;
+    return [["component_name", row.originalName], ["cas_number", row.casNumber], ["ec_number", row.ecNumber], ["concentration", row.concentration]]
+      .filter((entry): entry is [string, { rawValue?: string; evidence?: Citation[] }] => Boolean(entry[1]))
+      .map(([field, fact]) => ({ field, rawValue: fact.rawValue ?? "", evidence: fact.evidence ?? [] }));
+    }),
+  ] : [];
   const section7Candidates = data?.section7.candidates as Candidate[] | undefined;
-  const section8Candidates = data?.section8.candidates as Candidate[] | undefined;
   const section9Candidates = data?.section9.candidates as Candidate[] | undefined;
-  const sections10To15Candidates = data?.sections10To15.candidates as (Candidate & { sectionNumber: number })[] | undefined;
+  const section15Candidates = data?.sections10To15.candidates.filter((candidate) => candidate.sectionNumber === 15) as Candidate[] | undefined;
 
   return (
     <Card title={t("dataExchange.connectors.sdsReview.title")} actions={
@@ -117,7 +162,7 @@ export function SupplierSdsExtractionReviewScreen() {
         <div className="mb-3 flex flex-wrap items-end gap-2">
           <label className="min-w-64 flex-1 text-[10px] text-muted">
             <span className="mb-1 block">{t("dataExchange.connectors.sdsReview.select")}</span>
-            <select value={selectedCode} onChange={(event) => { setSelectedCode(event.target.value); setReview(null); setPdfBytes(null); setSelectedCitation(null); setError(null); }} className="w-full rounded-input border border-border bg-surface-1 px-2 py-1.5 text-text">
+            <select value={selectedCode} onChange={(event) => { setSelectedCode(event.target.value); setReview(null); setCandidateEvidence(null); setPdfBytes(null); setSelectedCitation(null); setSavedCardVersion(null); setError(null); }} className="w-full rounded-input border border-border bg-surface-1 px-2 py-1.5 text-text">
               {documents.map((document) => <option key={document.code} value={document.code}>{document.sourceProduct.tradeName ?? document.sourceProduct.supplierItemCode ?? document.code} · {document.sourceRevision ?? document.revisionDate ?? document.sha256.slice(0, 10)} · {document.market}/{document.language}</option>)}
             </select>
           </label>
@@ -131,20 +176,31 @@ export function SupplierSdsExtractionReviewScreen() {
       {review?.status === "quarantined" && <p role="alert" className="mb-3 text-[11px] text-error">{t("dataExchange.connectors.sdsReview.quarantined", { reason: review.reason })}</p>}
       {data && (
         <div className="space-y-3">
-          {selectedCitation && pdfBytes && <SupplierSdsPdfPagePreview bytes={pdfBytes} pageNumber={selectedCitation.pageNumber} lineNumber={selectedCitation.lineNumber} />}
           <div className="rounded-input border border-border-faint bg-surface-1 p-2 text-[10px] text-muted">
             {t("dataExchange.connectors.sdsReview.reviewOnly")} · {t("dataExchange.connectors.sdsReview.coverage", { detected: data.sections.sections.length, missing: data.sections.unobservedSectionNumbers.length })}
             <div className="mt-1 flex flex-wrap gap-1">{data.sections.warnings.map((warning) => <Badge key={warning}>{humanize(warning)}</Badge>)}{data.ocr.warnings.map((warning) => <Badge key={warning}>{humanize(warning)}</Badge>)}</div>
           </div>
+          <CandidateSection number={1} candidates={section1Candidates ?? []} onOpenCitation={openPage} />
+          <CandidateSection number={3} candidates={section3Candidates} onOpenCitation={openPage} />
           {savedEvidence && <StoredSdsEvidence record={savedEvidence} onOpenCitation={openPage} />}
           {!savedEvidence && <p className="text-[10px] text-muted">{t("dataExchange.connectors.sdsReview.noStoredFacts")}</p>}
-          <CandidateSection number={2} candidates={section2Candidates ?? []} onOpenCitation={openPage} />
           <CandidateSection number={7} candidates={section7Candidates ?? []} onOpenCitation={openPage} />
-          <CandidateSection number={8} candidates={section8Candidates ?? []} onOpenCitation={openPage} />
           <CandidateSection number={9} candidates={section9Candidates ?? []} onOpenCitation={openPage} />
-          {[10, 11, 12, 13, 14, 15].map((number) => <CandidateSection key={number} number={number} candidates={(sections10To15Candidates ?? []).filter((candidate) => candidate.sectionNumber === number)} onOpenCitation={openPage} />)}
+          <CandidateSection number={15} candidates={section15Candidates ?? []} onOpenCitation={openPage} />
         </div>
       )}
+      {candidateEvidence && (
+        <section className="mt-3 rounded-input border border-border-faint p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div><h4 className="text-xs font-semibold text-text">{t("dataExchange.connectors.sdsReview.productEvidencePreview")}</h4><p className="mt-1 text-[10px] text-muted">{t("dataExchange.connectors.sdsReview.extractedClaims", { documentType: candidateEvidence.documentType, count: candidateEvidence.claims.length })} {candidateEvidence.documentHash.slice(0, 12)}…</p></div>
+            <button type="button" onClick={() => void saveProductCard()} disabled={saving} className="rounded-input border border-accent px-3 py-1.5 text-[10px] font-medium text-accent disabled:opacity-50">{saving ? t("dataExchange.connectors.sdsReview.savingProductCard") : t("dataExchange.connectors.sdsReview.saveProductCard")}</button>
+          </div>
+          {savedCardVersion !== null && <p role="status" className="mt-2 text-[10px] text-success">{t("dataExchange.connectors.sdsReview.savedProductCard", { version: savedCardVersion })}</p>}
+          {candidateEvidence.documentType === "TDS" && <div className="mt-2 space-y-2">{candidateEvidence.claims.map((claim) => <article key={claim.id} className="rounded border border-border-faint px-2 py-1.5 text-[10px]"><p className="font-medium text-text">{humanize(claim.fieldCode)}</p><p className="text-muted">{claim.rawValue}</p>{claim.evidence.map((source, index) => <button key={`${source.pageNumber}-${index}`} type="button" onClick={() => void openPage({ pageNumber: source.pageNumber, lineNumber: source.lineNumber ?? 1, excerpt: source.excerpt, source: source.source, confidence: source.confidence })} className="mr-2 text-accent underline">Page {source.pageNumber}</button>)}</article>)}</div>}
+          <p className="mt-2 text-[10px] text-muted">{t("dataExchange.connectors.sdsReview.extractionDoesNotOverwrite")}</p>
+        </section>
+      )}
+      {selectedCitation && pdfBytes && <SupplierSdsPdfPagePreview bytes={pdfBytes} pageNumber={selectedCitation.pageNumber} lineNumber={selectedCitation.lineNumber} />}
     </Card>
   );
 }

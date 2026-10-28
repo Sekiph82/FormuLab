@@ -9,7 +9,7 @@ export const supplierProductClaimEvidenceSchema = z.object({
   id: z.string().trim().min(1),
   fieldCode: z.string().regex(/^[a-z][a-z0-9_]*$/u),
   sectionNumber: z.number().int().min(1).max(16).optional(),
-  subject: z.enum(["product", "disclosed_component", "hazard", "transport", "regulatory"]),
+  subject: z.enum(["product", "disclosed_component", "regulatory"]),
   rawValue: z.string().trim().min(1),
   normalizedValue: z.string().trim().min(1).optional(),
   originalUnit: z.string().trim().min(1).optional(),
@@ -33,7 +33,7 @@ export const supplierProductClaimEvidenceSchema = z.object({
     pageNumber: z.number().int().positive(),
     lineNumber: z.number().int().positive().optional(),
     excerpt: z.string().trim().min(1),
-    source: z.enum(["digital", "ocr", "manual"]),
+    source: z.enum(["digital", "ocr", "mixed", "unknown", "manual"]),
     confidence: z.number().min(0).max(1).optional(),
     position: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict().optional(),
   }).strict()).min(1),
@@ -44,10 +44,11 @@ export const supplierProductClaimEvidenceSchema = z.object({
 });
 
 export const supplierProductDocumentEvidenceSchema = z.object({
+  recordType: z.literal("document"),
   schemaVersion: z.literal("1.0"),
   id: z.string().trim().min(1),
   acquisitionCode: z.string().trim().min(1),
-  commercialProductId: z.string().trim().min(1),
+  productCardId: z.string().trim().min(1),
   documentType: z.enum(["SDS", "TDS"]),
   documentHash: z.string().regex(/^[a-f0-9]{64}$/iu),
   parserVersion: z.string().trim().min(1),
@@ -75,22 +76,65 @@ export const supplierProductDocumentEvidenceSchema = z.object({
       }
     }
   }
-}).describe("Immutable, unreviewed, citation-rich SDS/TDS product evidence; never a RawMaterial update.");
+}).describe("Immutable, unreviewed, citation-rich SDS/TDS product evidence linked to a durable product card; never a RawMaterial update.");
+
+/** Current product-card projection. Each refresh appends a new version so prior
+ *  extracted values and the document set that produced them remain auditable. */
+export const supplierProductCardVersionSchema = z.object({
+  recordType: z.literal("card_version"),
+  schemaVersion: z.literal("1.0"),
+  id: z.string().trim().min(1),
+  productCardId: z.string().trim().min(1),
+  version: z.number().int().positive(),
+  supplierId: z.string().trim().min(1).optional(),
+  supplierName: z.string().trim().min(1).optional(),
+  supplierItemCode: z.string().trim().min(1).optional(),
+  tradeName: z.string().trim().min(1).optional(),
+  grade: z.string().trim().min(1).optional(),
+  market: z.string().trim().min(1).default("unknown"),
+  language: z.string().trim().min(1).default("unknown"),
+  identityStatus: z.enum(["provisional", "review_required", "verified"]).default("provisional"),
+  evidenceRecordIds: z.array(z.string().trim().min(1)),
+  claimIds: z.array(z.string().trim().min(1)),
+  conflicts: z.array(z.object({
+    fieldCode: z.string().trim().min(1),
+    claimIds: z.array(z.string().trim().min(1)).min(2),
+    status: z.literal("review_required"),
+  }).strict()),
+  createdAt: z.string().datetime({ offset: true }),
+}).strict().superRefine((card, context) => {
+  if (!card.supplierItemCode && !card.tradeName) {
+    context.addIssue({ code: "custom", path: ["tradeName"], message: "A product card requires a supplier item code or a trade name." });
+  }
+  if (new Set(card.evidenceRecordIds).size !== card.evidenceRecordIds.length) {
+    context.addIssue({ code: "custom", path: ["evidenceRecordIds"], message: "A product card cannot link the same evidence record twice." });
+  }
+  if (new Set(card.claimIds).size !== card.claimIds.length) {
+    context.addIssue({ code: "custom", path: ["claimIds"], message: "A product card cannot link the same claim twice." });
+  }
+});
+
+export const supplierProductEvidenceRecordSchema = z.discriminatedUnion("recordType", [
+  supplierProductDocumentEvidenceSchema,
+  supplierProductCardVersionSchema,
+]);
 
 export type SupplierProductClaimEvidence = z.infer<typeof supplierProductClaimEvidenceSchema>;
 export type SupplierProductDocumentEvidence = z.infer<typeof supplierProductDocumentEvidenceSchema>;
+export type SupplierProductCardVersion = z.infer<typeof supplierProductCardVersionSchema>;
+export type SupplierProductEvidenceRecord = z.infer<typeof supplierProductEvidenceRecordSchema>;
 
 /** Stable field vocabulary for extraction and resolver mapping. */
 export const SDS_PRODUCT_EVIDENCE_FIELDS = [
-  "product_identifier", "supplier_identity", "recommended_use", "use_restrictions", "emergency_contact",
-  "ghs_classification", "signal_word", "hazard_statement", "precautionary_statement", "pictogram", "other_hazards",
+  "product_identifier", "product_chemical_nature", "product_cas", "product_ec", "supplier_material_number", "product_description",
+  "recommended_use", "use_restrictions", "industry_sector", "emergency_contact",
   "substance_or_mixture", "disclosed_component_name", "disclosed_component_cas", "disclosed_component_ec", "disclosed_component_concentration",
-  "first_aid", "firefighting", "accidental_release", "handling", "storage", "exposure_limit", "engineering_control",
-  "personal_protective_equipment", "physical_state", "appearance", "color", "odor", "ph", "density", "relative_density",
-  "viscosity", "solubility", "flash_point", "boiling_point", "melting_point", "vapor_pressure", "reactivity",
-  "stability", "incompatible_materials", "hazardous_decomposition", "toxicology", "ecotoxicology", "biodegradability",
-  "bioaccumulation", "mobility", "waste_disposal", "un_number", "proper_shipping_name", "transport_hazard_class",
-  "packing_group", "environmental_transport_hazard", "regulatory_status", "chemical_safety_assessment", "revision_history",
+  "component_m_factor", "component_specific_concentration_limit", "component_acute_toxicity_estimate", "composition_disclosure", "undisclosed_remainder",
+  "handling", "handling_constraints", "storage", "storage_temperature", "storage_conditions", "storage_stability",
+  "container_material_compatibility", "sds_shelf_life", "physical_state", "appearance", "color", "odor", "odor_threshold", "ph",
+  "density", "relative_density", "viscosity", "solubility", "flash_point", "boiling_point", "melting_point", "freezing_point",
+  "melting_freezing_point", "vapor_pressure", "vapor_density", "partition_coefficient", "molecular_weight", "other_physical_property",
+  "regulatory_status", "chemical_safety_assessment", "other_regulatory_information",
 ] as const;
 
 export const TDS_PRODUCT_EVIDENCE_FIELDS = [
@@ -102,15 +146,13 @@ export const TDS_PRODUCT_EVIDENCE_FIELDS = [
 ] as const;
 
 const SDS_FIELD_SECTION: Record<string, number> = {
-  product_identifier: 1, supplier_identity: 1, recommended_use: 1, use_restrictions: 1, emergency_contact: 1,
-  ghs_classification: 2, signal_word: 2, hazard_statement: 2, precautionary_statement: 2, pictogram: 2, other_hazards: 2,
+  product_identifier: 1, product_chemical_nature: 1, product_cas: 1, product_ec: 1, supplier_material_number: 1, product_description: 1,
+  recommended_use: 1, use_restrictions: 1, industry_sector: 1, emergency_contact: 1,
   substance_or_mixture: 3, disclosed_component_name: 3, disclosed_component_cas: 3, disclosed_component_ec: 3, disclosed_component_concentration: 3,
-  first_aid: 4, firefighting: 5, accidental_release: 6, handling: 7, storage: 7, exposure_limit: 8,
-  engineering_control: 8, personal_protective_equipment: 8, physical_state: 9, appearance: 9, color: 9, odor: 9,
+  component_m_factor: 3, component_specific_concentration_limit: 3, component_acute_toxicity_estimate: 3, composition_disclosure: 3, undisclosed_remainder: 3,
+  handling: 7, handling_constraints: 7, storage: 7, storage_temperature: 7, storage_conditions: 7, storage_stability: 7,
+  container_material_compatibility: 7, sds_shelf_life: 7, physical_state: 9, appearance: 9, color: 9, odor: 9, odor_threshold: 9,
   ph: 9, density: 9, relative_density: 9, viscosity: 9, solubility: 9, flash_point: 9, boiling_point: 9,
-  melting_point: 9, vapor_pressure: 9, reactivity: 10, stability: 10, incompatible_materials: 10,
-  hazardous_decomposition: 10, toxicology: 11, ecotoxicology: 12, biodegradability: 12, bioaccumulation: 12,
-  mobility: 12, waste_disposal: 13, un_number: 14, proper_shipping_name: 14, transport_hazard_class: 14,
-  packing_group: 14, environmental_transport_hazard: 14, regulatory_status: 15, chemical_safety_assessment: 15,
-  revision_history: 16,
+  melting_point: 9, freezing_point: 9, melting_freezing_point: 9, vapor_pressure: 9, vapor_density: 9, partition_coefficient: 9,
+  molecular_weight: 9, other_physical_property: 9, regulatory_status: 15, chemical_safety_assessment: 15, other_regulatory_information: 15,
 };

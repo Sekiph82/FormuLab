@@ -1,5 +1,7 @@
 import { supplierDocumentAcquisitionSchema, type SupplierDocumentAcquisition } from "@formulab/shared";
 import {
+  extractSupplierSdsSection1,
+  extractSupplierSdsSection3Composition,
   detectSupplierSdsSections,
   extractSupplierSdsSection2Hazards,
   extractSupplierSdsSection7StorageHandling,
@@ -44,6 +46,8 @@ export async function extractSupplierSdsReview(acquisitionInput: SupplierDocumen
     ocr,
     lines,
     sections,
+    section1: extractSupplierSdsSection1(parserInput),
+    section3: extractSupplierSdsSection3Composition(parserInput),
     section2: extractSupplierSdsSection2Hazards(parserInput),
     section7: extractSupplierSdsSection7StorageHandling(parserInput),
     section8: extractSupplierSdsSection8Exposure(parserInput),
