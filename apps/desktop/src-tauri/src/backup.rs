@@ -1685,7 +1685,13 @@ mod tests {
         let digest = sha256_bytes(pdf_bytes);
         let sds_pdf_bytes = b"%PDF-1.7\nsupplier safety data fixture\n%%EOF\n";
         let sds_digest = sha256_bytes(sds_pdf_bytes);
-        for (blob_digest, bytes) in [(digest.clone(), pdf_bytes), (sds_digest.clone(), sds_pdf_bytes)] {
+        let tds_pdf_bytes = b"%PDF-1.7\nsupplier technical data fixture\n%%EOF\n";
+        let tds_digest = sha256_bytes(tds_pdf_bytes);
+        for (blob_digest, bytes) in [
+            (digest.clone(), &pdf_bytes[..]),
+            (sds_digest.clone(), &sds_pdf_bytes[..]),
+            (tds_digest.clone(), &tds_pdf_bytes[..]),
+        ] {
             let blob_path = source_root.join(format!(
                 "data/supplier-documents/sha256/{}/{}.pdf",
                 &blob_digest[..2], blob_digest
@@ -1694,11 +1700,47 @@ mod tests {
             std::fs::write(&blob_path, bytes).unwrap();
         }
         let metadata = format!(
-            r#"[{{"schemaVersion":"1.0","code":"supplierdoc-formula","documentType":"FORMULATION","sha256":"{digest}","supplierId":"supplier-1"}},{{"schemaVersion":"1.0","code":"supplierdoc-sds","documentType":"SDS","sha256":"{sds_digest}","supplierId":"supplier-1"}}]"#
+            r#"[{{"schemaVersion":"1.0","code":"supplierdoc-formula","documentType":"FORMULATION","sha256":"{digest}","supplierId":"supplier-1"}},{{"schemaVersion":"1.0","code":"supplierdoc-sds","documentType":"SDS","sha256":"{sds_digest}","supplierId":"supplier-1"}},{{"schemaVersion":"1.0","code":"supplierdoc-tds","documentType":"TDS","sha256":"{tds_digest}","supplierId":"supplier-1"}}]"#
         ).into_bytes();
         std::fs::create_dir_all(source_root.join("data/master")).unwrap();
         let metadata_path = source_root.join("data/master/supplier_document_acquisitions.json");
         std::fs::write(&metadata_path, &metadata).unwrap();
+        let sds_only_claim = serde_json::json!({
+            "id":"sds-only-claim", "fieldCode":"product_identifier", "sectionNumber":1, "subject":"product",
+            "rawValue":"SDS Only Product", "qualifier":"specified", "basis":"unknown", "context":{},
+            "extraction":{"method":"explicit_label","parserVersion":"test-v1"},
+            "evidence":[{"documentHash":sds_digest,"pageNumber":1,"excerpt":"SDS Only Product","source":"digital"}]
+        });
+        let tds_only_claim = serde_json::json!({
+            "id":"tds-only-claim", "fieldCode":"active_matter", "subject":"product", "rawValue":"38% as supplied",
+            "qualifier":"specified", "basis":"as_supplied", "context":{},
+            "extraction":{"method":"table_cell","parserVersion":"test-v1"},
+            "evidence":[{"documentHash":tds_digest,"pageNumber":2,"excerpt":"Active matter: 38%","source":"digital"}]
+        });
+        let paired_active_claim = serde_json::json!({
+            "id":"paired-active-claim", "fieldCode":"active_matter", "subject":"product", "rawValue":"40% as supplied",
+            "qualifier":"specified", "basis":"as_supplied", "context":{},
+            "extraction":{"method":"table_cell","parserVersion":"test-v1"},
+            "evidence":[{"documentHash":tds_digest,"pageNumber":3,"excerpt":"Active matter: 40%","source":"digital"}]
+        });
+        let paired_id_claim = serde_json::json!({
+            "id":"paired-id-claim", "fieldCode":"product_identifier", "sectionNumber":1, "subject":"product",
+            "rawValue":"Paired Product", "qualifier":"specified", "basis":"unknown", "context":{},
+            "extraction":{"method":"explicit_label","parserVersion":"test-v1"},
+            "evidence":[{"documentHash":sds_digest,"pageNumber":1,"excerpt":"Paired Product","source":"digital"}]
+        });
+        let product_evidence = serde_json::json!([
+            {"recordType":"document","schemaVersion":"1.0","id":"sds-only-evidence","productCardId":"sds-only-card","acquisitionCode":"supplierdoc-sds","documentType":"SDS","documentHash":sds_digest,"parserVersion":"test-v1","claims":[sds_only_claim.clone()],"reviewStatus":"unreviewed","createdAt":"2026-10-28T08:00:00Z"},
+            {"recordType":"card_version","schemaVersion":"1.0","id":"sds-only-v1","productCardId":"sds-only-card","version":1,"supplierId":"supplier-1","tradeName":"SDS Only Product","market":"US","language":"en","identityStatus":"provisional","evidenceRecordIds":["sds-only-evidence"],"claimIds":["sds-only-claim"],"conflicts":[],"createdAt":"2026-10-28T08:00:00Z"},
+            {"recordType":"document","schemaVersion":"1.0","id":"tds-only-evidence","productCardId":"tds-only-card","acquisitionCode":"supplierdoc-tds","documentType":"TDS","documentHash":tds_digest,"parserVersion":"test-v1","claims":[tds_only_claim.clone()],"reviewStatus":"unreviewed","createdAt":"2026-10-28T08:00:00Z"},
+            {"recordType":"card_version","schemaVersion":"1.0","id":"tds-only-v1","productCardId":"tds-only-card","version":1,"supplierId":"supplier-1","tradeName":"TDS Only Product","market":"US","language":"en","identityStatus":"provisional","evidenceRecordIds":["tds-only-evidence"],"claimIds":["tds-only-claim"],"conflicts":[],"createdAt":"2026-10-28T08:00:00Z"},
+            {"recordType":"document","schemaVersion":"1.0","id":"paired-tds-evidence","productCardId":"paired-card","acquisitionCode":"supplierdoc-tds","documentType":"TDS","documentHash":tds_digest,"parserVersion":"test-v1","claims":[paired_active_claim.clone()],"reviewStatus":"unreviewed","createdAt":"2026-10-28T08:00:00Z"},
+            {"recordType":"card_version","schemaVersion":"1.0","id":"paired-v1","productCardId":"paired-card","version":1,"supplierId":"supplier-1","tradeName":"Paired Product","market":"US","language":"en","identityStatus":"provisional","evidenceRecordIds":["paired-tds-evidence"],"claimIds":["paired-active-claim"],"conflicts":[],"createdAt":"2026-10-28T08:00:00Z"},
+            {"recordType":"document","schemaVersion":"1.0","id":"paired-sds-evidence","productCardId":"paired-card","acquisitionCode":"supplierdoc-sds","documentType":"SDS","documentHash":sds_digest,"parserVersion":"test-v1","claims":[paired_id_claim.clone()],"reviewStatus":"unreviewed","createdAt":"2026-10-28T08:00:00Z"},
+            {"recordType":"card_version","schemaVersion":"1.0","id":"paired-v2","productCardId":"paired-card","version":2,"supplierId":"supplier-1","tradeName":"Paired Product","market":"US","language":"en","identityStatus":"provisional","evidenceRecordIds":["paired-tds-evidence","paired-sds-evidence"],"claimIds":["paired-active-claim","paired-id-claim"],"conflicts":[],"createdAt":"2026-10-28T08:01:00Z"},
+            {"recordType":"claim_review","schemaVersion":"1.0","id":"paired-active-review","productCardId":"paired-card","sourceEvidenceId":"paired-tds-evidence","claimId":"paired-active-claim","claimSnapshot":paired_active_claim,"decision":"accepted","reviewedBy":"reviewer-1","reviewerRole":"owner","reviewedAt":"2026-10-28T08:02:00Z","evidenceRefs":[format!("{tds_digest}:p3")]},
+            {"recordType":"claim_review","schemaVersion":"1.0","id":"paired-id-review","productCardId":"paired-card","sourceEvidenceId":"paired-sds-evidence","claimId":"paired-id-claim","claimSnapshot":paired_id_claim,"decision":"accepted","reviewedBy":"reviewer-1","reviewerRole":"owner","reviewedAt":"2026-10-28T08:03:00Z","evidenceRefs":[format!("{sds_digest}:p1")]}
+        ]);
         let corpus_metadata: Vec<(&str, Vec<u8>)> = vec![
             ("reference_formulations.json", serde_json::to_vec(&serde_json::json!([{
                 "id": "reference-formula-1", "sourceDocumentHash": digest,
@@ -1713,6 +1755,7 @@ mod tests {
             ("supplier_sds_product_evidence.json", serde_json::to_vec(&serde_json::json!([{
                 "id": "sds-evidence-1", "acquisitionCode": "supplierdoc-sds", "sourceDocumentHash": sds_digest
             }])).unwrap()),
+            ("supplier_product_evidence.json", serde_json::to_vec(&product_evidence).unwrap()),
             ("external_id_crosswalks.json", serde_json::to_vec(&serde_json::json!([{
                 "code": "mapping-profile-1::supplier_products::supplier-product-1::CommercialProduct",
                 "sourceSystemId": "mapping-profile-1", "sourceRecordId": "supplier-product-1", "mappingProfileCode": "mapping-profile-1::v1"
@@ -1744,7 +1787,7 @@ mod tests {
             base_root: source_root.clone(),
         };
         let (files, warnings) = collect_included(&source_roots).unwrap();
-        assert_eq!(files.len(), 13);
+        assert_eq!(files.len(), 15);
         let mut manifest = base_manifest();
         manifest.warnings = warnings;
         let mut package_contents = Vec::<(String, Vec<u8>)>::new();
@@ -1792,13 +1835,16 @@ mod tests {
             staged.push((entry.path.clone(), live));
         }
         let restored_paths = activate_staged_files(&staged, &staging).unwrap();
-        assert_eq!(restored_paths.len(), 13);
+        assert_eq!(restored_paths.len(), 15);
         assert_eq!(std::fs::read(restore_root.join(format!(
             "data/supplier-documents/sha256/{}/{}.pdf", &digest[..2], digest
         ))).unwrap(), pdf_bytes);
         assert_eq!(std::fs::read(restore_root.join(format!(
             "data/supplier-documents/sha256/{}/{}.pdf", &sds_digest[..2], sds_digest
         ))).unwrap(), sds_pdf_bytes);
+        assert_eq!(std::fs::read(restore_root.join(format!(
+            "data/supplier-documents/sha256/{}/{}.pdf", &tds_digest[..2], tds_digest
+        ))).unwrap(), tds_pdf_bytes);
         assert_eq!(
             std::fs::read(restore_root.join("data/master/supplier_document_acquisitions.json")).unwrap(),
             metadata
@@ -1818,6 +1864,9 @@ mod tests {
         let restored_sds_evidence: serde_json::Value = serde_json::from_slice(
             &std::fs::read(restore_root.join("data/master/supplier_sds_product_evidence.json")).unwrap(),
         ).unwrap();
+        let restored_product_evidence: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/supplier_product_evidence.json")).unwrap(),
+        ).unwrap();
         let restored_import_file: serde_json::Value = serde_json::from_slice(
             &std::fs::read(restore_root.join("data/master/reference_formulation_import_files.json")).unwrap(),
         ).unwrap();
@@ -1833,6 +1882,12 @@ mod tests {
         assert_eq!(restored_review[0]["sourceDocumentHash"], digest);
         assert_eq!(restored_sds_evidence[0]["acquisitionCode"], "supplierdoc-sds");
         assert_eq!(restored_sds_evidence[0]["sourceDocumentHash"], sds_digest);
+        assert_eq!(restored_product_evidence, product_evidence);
+        assert!(restored_product_evidence.as_array().unwrap().iter().any(|record| record["id"] == "sds-only-v1"));
+        assert!(restored_product_evidence.as_array().unwrap().iter().any(|record| record["id"] == "tds-only-v1"));
+        assert!(restored_product_evidence.as_array().unwrap().iter().any(|record| record["id"] == "paired-v1"));
+        assert_eq!(restored_product_evidence.as_array().unwrap().iter().find(|record| record["id"] == "paired-v2").unwrap()["evidenceRecordIds"].as_array().unwrap().len(), 2);
+        assert_eq!(restored_product_evidence.as_array().unwrap().iter().find(|record| record["id"] == "paired-active-review").unwrap()["evidenceRefs"][0], format!("{tds_digest}:p3"));
         assert_eq!(restored_import_file[0]["jobId"], "formula-import-1");
         assert_eq!(restored_import_file[0]["sourceDocumentHash"], digest);
         assert_eq!(restored_acquisition_item[0]["jobId"], "supplier-scan-1");

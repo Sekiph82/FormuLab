@@ -4088,7 +4088,8 @@ mod tests {
     /// for the write-then-rename path the new dossier collections share with
     /// every other master-data collection.
     #[test]
-    fn write_then_read_survives_a_simulated_restart() {
+    fn supplier_product_cards_and_versions_survive_a_simulated_restart() {
+        assert_eq!(collection_spec("supplier_product_evidence").unwrap(), ("supplier_product_evidence", true));
         let dir = std::env::temp_dir().join(format!(
             "formulab-masterdata-test-{}",
             std::time::SystemTime::now()
@@ -4097,12 +4098,23 @@ mod tests {
                 .as_nanos()
         ));
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("regulatory_dossiers.json");
+        let path = dir.join("supplier_product_evidence.json");
 
         let rows = vec![serde_json::json!({
-            "id": "dossier-1",
-            "dossierCode": "DOS-1",
-            "status": "draft",
+            "recordType": "document",
+            "id": "sds-evidence-1",
+            "productCardId": "product-1",
+            "documentType": "SDS",
+            "documentHash": "a".repeat(64),
+            "claims": [{"id": "claim-cas", "fieldCode": "product_cas", "evidence": [{"documentHash": "a".repeat(64), "pageNumber": 1, "excerpt": "CAS 123", "source": "digital"}]}]
+        }), serde_json::json!({
+            "recordType": "card_version",
+            "id": "product-1-v1",
+            "productCardId": "product-1",
+            "version": 1,
+            "evidenceRecordIds": ["sds-evidence-1"],
+            "claimIds": ["claim-cas"],
+            "createdAt": "2026-10-28T08:00:00Z"
         })];
         write_array(&path, &rows).unwrap();
 
@@ -4113,12 +4125,37 @@ mod tests {
         // A second write-then-read (as an upsert would do) still round-trips.
         let mut rows2 = reloaded.clone();
         rows2.push(serde_json::json!({
-            "id": "dossier-2",
-            "dossierCode": "DOS-2",
-            "status": "in_preparation",
+            "recordType": "document",
+            "id": "tds-evidence-1",
+            "productCardId": "product-1",
+            "documentType": "TDS",
+            "documentHash": "b".repeat(64),
+            "claims": [{"id": "claim-active", "fieldCode": "active_matter", "basis": "as_supplied", "rawValue": "38%", "evidence": [{"documentHash": "b".repeat(64), "pageNumber": 2, "excerpt": "Active 38%", "source": "digital"}]}]
+        }));
+        rows2.push(serde_json::json!({
+            "recordType": "card_version",
+            "id": "product-1-v2",
+            "productCardId": "product-1",
+            "version": 2,
+            "evidenceRecordIds": ["sds-evidence-1", "tds-evidence-1"],
+            "claimIds": ["claim-cas", "claim-active"],
+            "createdAt": "2026-10-28T08:01:00Z"
+        }));
+        rows2.push(serde_json::json!({
+            "recordType": "claim_review",
+            "id": "claim-active-review-1",
+            "productCardId": "product-1",
+            "sourceEvidenceId": "tds-evidence-1",
+            "claimId": "claim-active",
+            "reviewedBy": "reviewer-1",
+            "evidenceRefs": [format!("{}:p2", "b".repeat(64))]
         }));
         write_array(&path, &rows2).unwrap();
-        assert_eq!(read_array(&path), rows2);
+        let after_second_restart = read_array(&path);
+        assert_eq!(after_second_restart, rows2);
+        assert_eq!(after_second_restart[1]["version"], 1);
+        assert_eq!(after_second_restart[3]["evidenceRecordIds"].as_array().unwrap().len(), 2);
+        assert_eq!(after_second_restart[4]["evidenceRefs"][0], format!("{}:p2", "b".repeat(64)));
 
         std::fs::remove_dir_all(&dir).ok();
     }
