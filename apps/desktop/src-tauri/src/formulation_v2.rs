@@ -14,9 +14,10 @@
 // Sessions: only runs that SUCCESSFULLY produce cards are kept. A failed or
 // refused run has its (partial) session directory removed so the sessions/ list
 // only ever contains real results.
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use tauri::{AppHandle, Manager};
@@ -224,6 +225,20 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
 /// calls this SAME function against its own real production paths — one
 /// authoritative runtime-launch implementation, never a second pipeline.
 fn run_pipeline_cli(python: &str, cli: &std::path::Path, payload: &serde_json::Value) -> Result<serde_json::Value, String> {
+    run_pipeline_cli_with_deadline(python, cli, payload, PIPELINE_DEADLINE)
+}
+
+/// Backstop for a wedged interpreter, not a performance budget: every network
+/// call inside the pipeline already carries its own 15-60 s request timeout.
+// ponytail: fixed wall clock; make it a setting if real research runs approach it.
+const PIPELINE_DEADLINE: Duration = Duration::from_secs(45 * 60);
+
+fn run_pipeline_cli_with_deadline(
+    python: &str,
+    cli: &std::path::Path,
+    payload: &serde_json::Value,
+    deadline: Duration,
+) -> Result<serde_json::Value, String> {
     let input_json = serde_json::to_string(payload).map_err(|e| e.to_string())?;
 
     let mut cmd = crate::workspace::quiet_command(python);
@@ -251,18 +266,46 @@ fn run_pipeline_cli(python: &str, cli: &std::path::Path, payload: &serde_json::V
         .write_all(input_json.as_bytes())
         .map_err(|e| format!("failed to send request: {e}"))?;
 
-    let out = child
-        .wait_with_output()
-        .map_err(|e| format!("pipeline process error: {e}"))?;
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let stderr = String::from_utf8_lossy(&out.stderr);
+    // Drain both pipes on their own threads so a chatty child can never block
+    // on a full pipe while this thread polls for exit.
+    let drain = |pipe: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            if let Some(mut p) = pipe {
+                let _ = p.read_to_end(&mut buf);
+            }
+            buf
+        })
+    };
+    let out_reader = drain(child.stdout.take().map(|p| Box::new(p) as Box<dyn Read + Send>));
+    let err_reader = drain(child.stderr.take().map(|p| Box::new(p) as Box<dyn Read + Send>));
+
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().map_err(|e| format!("pipeline process error: {e}"))? {
+            break status;
+        }
+        if started.elapsed() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!(
+                "The formulation pipeline did not finish within {} minutes and was stopped.",
+                deadline.as_secs().div_ceil(60)
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    };
+    let out_bytes = out_reader.join().unwrap_or_default();
+    let err_bytes = err_reader.join().unwrap_or_default();
+    let stdout = String::from_utf8_lossy(&out_bytes);
+    let stderr = String::from_utf8_lossy(&err_bytes);
 
     match serde_json::from_str(stdout.trim()) {
         Ok(v) => Ok(v),
         Err(_) => {
             let msg = stderr.trim();
             Err(if msg.is_empty() {
-                format!("pipeline produced no result (exit {:?})", out.status.code())
+                format!("pipeline produced no result (exit {:?})", status.code())
             } else {
                 msg.to_string()
             })
@@ -951,6 +994,21 @@ mod tests {
     /// fact from Rust SOURCE TEXT on the Python side) — this Rust
     /// materialization/launch refactor introduces no alternate model-call
     /// path.
+    #[test]
+    fn pipeline_cli_is_killed_when_it_exceeds_its_deadline() {
+        let Some(python) = find_test_python() else { return };
+        let tmp = nr_tempdir("deadline");
+        let cli = tmp.join("hang.py");
+        std::fs::write(&cli, "import sys, time\nsys.stdin.read()\ntime.sleep(60)\n").unwrap();
+
+        let started = Instant::now();
+        let err = run_pipeline_cli_with_deadline(&python, &cli, &serde_json::json!({}), Duration::from_secs(1))
+            .expect_err("a hung pipeline must be stopped, not awaited");
+        assert!(err.contains("was stopped"), "unexpected error: {err}");
+        assert!(started.elapsed() < Duration::from_secs(20), "deadline was not enforced");
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
     #[test]
     fn nr8_materialized_runtime_never_includes_llm_py() {
         let tmp = nr_tempdir("zero-llm");

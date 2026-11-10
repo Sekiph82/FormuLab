@@ -9,13 +9,13 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Current Milestone: HARD-01
 - Current Sprint: HARD-01-S01
 - Current Task: HARD-01.001 — Bound the formulation pipeline subprocess with a wall-clock deadline and kill it on expiry
-- Current Task Status: IN_PROGRESS
+- Current Task Status: BLOCKED
 - Next Task: HARD-01.002 — Enforce a Content Security Policy for the desktop webview without breaking previews, OCR, exports or IPC
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: V01
 - Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/V01/TASKS.md
-- Blockers/Waits: None
+- Blockers/Waits: Q-HARD-01.001-1 — no MSVC C++ build tools on the build machine; Rust tests, `tauri dev` and installers cannot link. All HARD-01 tasks wait on it.
 
 ## Progress
 
@@ -63,6 +63,7 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 ## Questions for Şekip
 
 <!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
+- Q-HARD-01.001-1 | The build machine no longer has Visual Studio C++ Build Tools (C:\Program Files\Microsoft Visual Studio\2022 is empty since 2026-11-09; only VC++ runtimes remain), so Rust cannot link: no cargo test, no tauri dev, no installer. May Claude install "Visual Studio 2022 Build Tools" with the "Desktop development with C++" workload (~6 GB, via winget), or will you reinstall it? HARD-01.002 and HARD-01.003 depend on the same toolchain. | TASK: HARD-01.001
 
 
 ## Owner Decisions
@@ -339,9 +340,9 @@ Sprint grouping below is a management-only organization of the existing frozen t
 
 ## Sprint HARD-01-S01 — V01 review hardening
 Scope: defects confirmed in code by the 2026-11-10 read-only V01 review. Reported items verified as non-defects (Windows Python discovery, ja/ko/zh-Hans plural keys, findpapers lazy import, simple-optimizer LP cancel, per-platform uv fetch, region_profiles fallback) are excluded.
-- [~] HARD-01.001 — Bound the formulation pipeline subprocess with a wall-clock deadline and kill it on expiry
-- [ ] HARD-01.002 — Enforce a Content Security Policy for the desktop webview without breaking previews, OCR, exports or IPC
-- [ ] HARD-01.003 — HARD-01 closure: targeted regression, desktop verification and push
+- [!] HARD-01.001 — Bound the formulation pipeline subprocess with a wall-clock deadline and kill it on expiry
+- [!] HARD-01.002 — Enforce a Content Security Policy for the desktop webview without breaking previews, OCR, exports or IPC
+- [!] HARD-01.003 — HARD-01 closure: targeted regression, desktop verification and push
 
 ## Historical Detail & Evidence
 
