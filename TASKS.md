@@ -11,10 +11,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Current Task: None
 - Current Task Status: COMPLETE
 - Next Task: None
-- Required Actor: CODEX
+- Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
-- Tracking Branch: main
-- Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
+- Tracking Branch: V01
+- Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/V01/TASKS.md
 - Blockers/Waits: None
 
 ## Progress
@@ -25,6 +25,15 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Completion: 100%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
+
+## Claude Ownership
+
+- Claude is the primary and default executor for all future FormuLab implementation work on branch `V01`.
+- Current canonical backlog is empty: this ledger has 178/178 completed tasks and no open task.
+- The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
+- New implementation tasks must be added to this root `TASKS.md` on branch `V01`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
+- Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
+- `main` remains the stable completed release branch until the owner explicitly requests a merge or release transition.
 
 ## Tracking Rules
 
