@@ -6,10 +6,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: HARD-01
-- Current Sprint: HARD-01-S01
-- Current Task: HARD-01.003 — HARD-01 closure: targeted regression, desktop verification and push
-- Current Task Status: IN_PROGRESS
+- Current Milestone: None
+- Current Sprint: None
+- Current Task: None
+- Current Task Status: COMPLETE
 - Next Task: None
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -20,16 +20,16 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 181
-- Completed Tasks: 180
-- Remaining Tasks: 1
-- Completion: 99.4%
+- Completed Tasks: 181
+- Remaining Tasks: 0
+- Completion: 100%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
 ## Claude Ownership
 
 - Claude is the primary and default executor for all future FormuLab implementation work on branch `V01`.
-- Active backlog: milestone HARD-01 (V01 read-only review hardening, 2026-11-10).
+- Current canonical backlog is empty: this ledger has 181/181 completed tasks and no open task (HARD-01 closed 2026-11-10).
 - The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
 - New implementation tasks must be added to this root `TASKS.md` on branch `V01`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
 - Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
@@ -342,7 +342,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 Scope: defects confirmed in code by the 2026-11-10 read-only V01 review. Reported items verified as non-defects (Windows Python discovery, ja/ko/zh-Hans plural keys, findpapers lazy import, simple-optimizer LP cancel, per-platform uv fetch, region_profiles fallback) are excluded.
 - [x] HARD-01.001 — Bound the formulation pipeline subprocess with a wall-clock deadline and kill it on expiry
 - [x] HARD-01.002 — Enforce a Content Security Policy for the desktop webview without breaking previews, OCR, exports or IPC
-- [~] HARD-01.003 — HARD-01 closure: targeted regression, desktop verification and push
+- [x] HARD-01.003 — HARD-01 closure: targeted regression, desktop verification and push
 
 ## Historical Detail & Evidence
 

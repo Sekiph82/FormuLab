@@ -81,8 +81,8 @@ export function validateV01TaskState(source) {
     }
   }
 
-  if (singleField(source, "Required actor") !== "CODEX" || singleField(source, "Branch") !== "V01") {
-    throw new Error("V01 task authority must remain assigned to CODEX on branch V01.");
+  if (!["CODEX", "CLAUDE"].includes(singleField(source, "Required actor")) || singleField(source, "Branch") !== "V01") {
+    throw new Error("V01 task authority must remain assigned to CODEX or CLAUDE on branch V01.");
   }
   return { total, completed, remaining, completion, current: currentValue };
 }

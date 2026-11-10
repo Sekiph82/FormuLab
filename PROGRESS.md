@@ -1,5 +1,7 @@
 # Progress
 
+2026-11-10 20:10 · HARD-01 closed on V01: formulation pipeline now stops after a 45-minute deadline and the webview ships a verified CSP; 6 of 9 review findings were confirmed non-defects; Rust 409/409, typecheck, ledger tools green.
+
 2026-10-22 22:03 · Rebuilt the release EXE from the current desktop source; verified `FormuLab.lnk` still targets it (SHA-256 `0B076D384D30569D037FE21ACF50566BF703468CA56178EB3D015F0324642E91`).
 
 2026-10-22 21:48 · Aligned autonomous queue guidance with chat-based owner questions and local-only claims; removed remote fetch/push behavior; canonical task validation remains 178/178 complete.
