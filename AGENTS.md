@@ -10,16 +10,16 @@ Project rules and working context for AI agents.
 **Primary implementation/execution agent: Claude.** Claude owns all active FormuLab implementation work, testing, task-state transitions, code review, commits, and pushes unless the owner explicitly assigns a different actor for a specific task. Codex artifacts are historical/compatibility evidence only and must not override this rule.
 
 Canonical repository: https://github.com/Sekiph82/FormuLab
-Canonical task ledger: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
+Canonical task ledger: https://github.com/Sekiph82/FormuLab/blob/V01/TASKS.md
 
 `CLAUDE.md` is the Claude execution entry point and must remain consistent with this governance file.
 
 ## H!veAI GitHub tracking
 
-- The repository root `TASKS.md` is the **only current project-status tracker**: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
+- The repository root `TASKS.md` is the **only current project-status tracker**: https://github.com/Sekiph82/FormuLab/blob/V01/TASKS.md
 - Claude is the default and sole required actor for active implementation unless the owner explicitly names another actor in the active task ledger.
 - H!veAI project truth is GitHub repository metadata plus root `TASKS.md` on the configured tracked branch.
-- Current H!veAI tracked branch for FormuLab is `main`.
+- Current active development/tracking branch for FormuLab is `V01`. `main` is the stable completed release branch and is not the active implementation branch.
 - `PROGRESS.md`, `project-control/**`, handoffs, audits, prompts, logs, roadmap/spec documents, GitHub issues, and `docs/migration/legacy-task-trackers/**` are evidence/history or scope context only. They must not override task state in root `TASKS.md`.
 - Do not create or revive `.hiveai/PROJECT*`, `.hiveai/TASKS*`, `.hiveai/STATE*`, `.hiveai/HANDOFF*`, `.hiveai/EVENTS*`, `.hiveai/RULES*`, dashboard manifests, or any other competing task ledger.
 - When a task starts, update both its checkbox row and the `Project Status` section in `TASKS.md` in the same logical change.
