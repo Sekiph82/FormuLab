@@ -7,10 +7,18 @@ This file is the execution plan for development on branch `V01` only.
 - Repository: https://github.com/Sekiph82/FormuLab
 - Development branch: `V01`
 - Stable release branch: `main`
-- V01 execution actor: CODEX
+- V01 execution actor: CLAUDE
 - V01 task file: `tasks.v01.md`
 - Root `TASKS.md` on `main` remains the completed v1 release ledger and must not be changed by V01 work unless the owner explicitly requests a future merge/transition.
-- When the owner explicitly instructs Codex to execute V01, this file is the ordered V01 implementation queue.
+- V01 implementation is now owned by Claude. This file is a completed execution-history/evidence plan; any future tasks belong in root `TASKS.md` on branch `V01` with Claude as the required actor.
+
+## Claude ownership handoff
+
+- Ownership transferred to Claude after this V01 plan reached 164/164 complete.
+- Open tasks: 0. Active tasks: 0. Blocked tasks: 0.
+- Historical Codex completion notes remain unchanged where they describe past execution evidence.
+- Future FormuLab work must be created in root `TASKS.md` on branch `V01` and assigned to Claude unless the owner explicitly overrides the actor.
+- `AGENTS.md` and `CLAUDE.md` define the current execution authority.
 
 ## Objective
 
@@ -72,16 +80,16 @@ V01 must use the supplied examples as real parser/resolver acceptance fixtures w
 
 These fixtures deliberately cover different identities: near-pure substance, solution, polymer, complex multicomponent blend, partially disclosed/trade-secret product, condition-bound physical properties, and supplier-specific layouts.
 
-## Autonomous Codex execution contract
+## Autonomous Claude execution contract
 
-Codex must execute the tasks below in the exact order listed.
+Claude owns execution of this plan and any maintenance/remediation derived from it. The completed task sequence below remains the authoritative historical V01 execution order.
 
 - Total V01 tasks: 164
 - Initial current task: `V01-00.001`
 - Initial next task: `V01-00.002`
 - Every task starts as `[ ]`.
-- When starting the current task, Codex changes only that task to `[~]`.
-- After implementation and task-level acceptance pass, Codex changes it to `[x]`, immediately starts the next task by changing that next row to `[~]`, and continues without asking the owner for routine confirmation.
+- When starting an active task, Claude changes only that task to `[~]`.
+- After implementation and task-level acceptance pass, Claude changes it to `[x]`, immediately starts the next ordered task by changing that row to `[~]`, and continues without asking the owner for routine confirmation.
 - Exactly one task may be `[~]` at a time.
 - Task order is strict. Every task depends on the immediately preceding task.
 - Do not skip ahead.
@@ -218,7 +226,7 @@ Codex must execute the tasks below in the exact order listed.
 - Acceptance note: V01-05.004 extracts supplier, application, product family, formulation title/code, revision/date, document version and source ID as cited candidates tied to the exact acquisition/hash and page/block. Conflicting values and acquisition metadata differences remain warnings for review; no candidate is accepted automatically. A semantic-title false-positive edge was fixed and retested. Focused tests (4), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-05.005 extracts semantic ingredient rows with original name/code/INCI/function/phase/amount/unit/basis, deterministic row order, explicit q.s. semantics and per-cell page/table/row evidence. Raw values are unchanged, missing-name rows remain visible, and OCR rows require review. Competing header rows or duplicate ingredient columns produce warnings and no extracted rows. Focused tests (7), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-05.006 calculates exact or interval totals only for explicit, compatible % w/w values, preserves the source-declared total and citations, and flags mismatches, overlaps, duplicate lines, q.s., missing values and unsupported units without deduplicating or repairing inputs. Line and total evidence must match the same PDF hash; OCR-derived totals require review. Focused tests (5), shared typecheck and independent read-only review passed.
-- Required actor: CODEX
+- Required actor: CLAUDE
 - Branch: V01
 
 ## Milestone V01-00 - Baseline audit and reuse map
@@ -423,7 +431,7 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-11.005 — Use eligible product cards in New Request formulation generation**: Add a durable, append-only, named-human field-level review decision for supplier product claims, separate from immutable extraction/card history. Validate each decision against the exact persisted claim and citation; only accepted, review-eligible fields may enter generation. Integrate exact, persisted product-card evidence into the existing deterministic New Request flow for ingredient identity, supplier-product alternatives and comparison with available RawMaterials. Preserve card, document, revision, hash, claim, reviewer decision and citation lineage in result evidence. Keep unknowns, conflicts, basis and conditions visible. Do not treat SDS composition as performance proof, infer active matter from concentration, make unsupported substitutions, or bypass safety, regulatory, compatibility, stock, exclusion or human-approval gates. Do not write RawMaterial. If no card claim is eligible, disclose that and use the existing generation behavior. **Acceptance:** Field decisions are append-only and server-attributed to the authenticated actor; each decision must match the exact stored claim and ordered page citations. Generation attaches only the latest accepted claim after an accepted identity claim exactly matches one active RawMaterial with a supplier link for the same supplier. Cards for multiple linked suppliers are shown on the selected ingredient with claim comparisons, document/hash/revision/reviewer/page lineage. Cards do not create candidates, modify selection or concentration, substitute materials, or write RawMaterial; unsupported alternatives remain unresolved. Focused checks passed: Python adapter/engine 60 tests, shared claim schema 4 tests, desktop UI and locale parity 26 tests, targeted Rust citation test, cargo check, desktop typecheck, targeted ESLint, V01 task-state validation and `git diff --check`.
 
 ## Sprint V01-11-S03 — Persistence and closure
-- [x] **V01-11.006 — Verify workspace persistence, backup/restore and portability**: Verify SDS-only and TDS-only cards, counterpart-document updates, immutable history, content hashes and citations survive app restart and the existing backup/restore lifecycle. Keep records inside the active workspace data root; do not depend on a Codex worktree, AppData task directory, or session memory. Do not delete or rewrite the source PDFs or `.FormuLab/runs.db`.
+- [x] **V01-11.006 — Verify workspace persistence, backup/restore and portability**: Verify SDS-only and TDS-only cards, counterpart-document updates, immutable history, content hashes and citations survive app restart and the existing backup/restore lifecycle. Keep records inside the active workspace data root; do not depend on an agent worktree, AppData task directory, or session memory. Do not delete or rewrite the source PDFs or `.FormuLab/runs.db`.
 - [x] **V01-11.007 — Product-card and New Request closure acceptance**: Run focused acceptance for extraction, citation integrity, identity ambiguity, card revision/conflict handling, persistence, human review and New Request lineage; then run the project regression required by the existing V01 closure policy. Audit that only SDS sections 1/3/7/9/15 enter structured product claims, no auto-write reaches RawMaterial, both one-document and paired-document products work, and generation stays deterministic with no eligible product cards. Update V01 completion handoff with exact validation outcomes and limitations. Keep `main` untouched.
 
 ## Sequential transition rule
