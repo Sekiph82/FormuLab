@@ -7,17 +7,17 @@ workbench for macOS, Windows & Linux." Bundle identifier:
 
 Project rules and working context for AI agents.
 
-**Primary implementation/execution agent: Codex.** Codex owns active FormuLab implementation work, testing, TASKS.md state transitions, commits, and pushes unless the owner explicitly assigns a different actor for a specific task. Other agent-specific files are compatibility/history surfaces only and must not override this rule.
+**Primary implementation/execution agent: Claude.** Claude owns all active FormuLab implementation work, testing, task-state transitions, code review, commits, and pushes unless the owner explicitly assigns a different actor for a specific task. Codex artifacts are historical/compatibility evidence only and must not override this rule.
 
 Canonical repository: https://github.com/Sekiph82/FormuLab
 Canonical task ledger: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
 
-`CLAUDE.md` is retained only as a compatibility pointer back to this governance file; edit project-wide rules here.
+`CLAUDE.md` is the Claude execution entry point and must remain consistent with this governance file.
 
 ## H!veAI GitHub tracking
 
 - The repository root `TASKS.md` is the **only current project-status tracker**: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
-- Codex is the default required actor for active implementation unless `TASKS.md` explicitly names another actor.
+- Claude is the default and sole required actor for active implementation unless the owner explicitly names another actor in the active task ledger.
 - H!veAI project truth is GitHub repository metadata plus root `TASKS.md` on the configured tracked branch.
 - Current H!veAI tracked branch for FormuLab is `main`.
 - `PROGRESS.md`, `project-control/**`, handoffs, audits, prompts, logs, roadmap/spec documents, GitHub issues, and `docs/migration/legacy-task-trackers/**` are evidence/history or scope context only. They must not override task state in root `TASKS.md`.
@@ -97,17 +97,28 @@ SQLite + JSONL provenance.
   prompts, logs, or handoffs, but none of it is task-state authority.
 - Keep implementation sessions bounded to one related subsystem and one logical commit.
 - Provider-specific contexts or handoffs may be used only when explicitly requested, without duplicating the canonical task state already present in `TASKS.md`.
-- Do not route active implementation to Claude by default; Codex is the primary executor.
+- Do not route active implementation to Codex by default; Claude is the primary executor. Existing `project-control/codex/**` content is historical evidence only.
 - Reserve full regression, release builds, installers, and native verification for closure sessions.
 
-## Codex milestone automation
+## Claude ownership and autonomous execution
+
+- Claude is authorized to inspect and modify any repository file required to complete owner-approved FormuLab work on branch `V01`, including source, tests, schemas, migrations, docs, build scripts, task ledgers, and project-control evidence.
+- Claude may create task-owned worktrees/branches when useful, but validated work must be integrated back into `V01` and pushed there unless the owner explicitly instructs otherwise.
+- Claude may run local build/test/lint/typecheck/package/install commands required by the repository and may update dependencies when necessary for the approved task. Do not weaken safety/security checks merely to make tests pass.
+- Claude may use subagents/reviewers for code, tests, security, scientific-integrity, UI, and data-integrity review. Claude remains responsible for final integration and evidence.
+- Claude must continue autonomously through the ordered queue. Routine implementation choices, test fixes, refactors, documentation updates, and task transitions do not require owner confirmation.
+- Human approval is still mandatory for regulated/scientific approval decisions, credentials/MFA/CAPTCHA, destructive user-data operations, publication outside the repository, legal/terms acceptance, or genuinely ambiguous owner-product decisions.
+- A missing provider credential, unavailable external service, or unsupported automation surface is not a reason to stop unrelated work. Implement the safe fallback/unresolved state, record the limitation, and continue with independent tasks.
+- Never claim completion from logs alone. Inspect production paths and negative paths, execute the required acceptance tests, then update task state and push.
+
+## Claude milestone automation
 
 - The explicit `Current Task` in root `TASKS.md` is the only task an automated run may start. Never select the first unchecked row or cross a milestone boundary implicitly.
 - Run one implementation worker at a time. Use one independent read-only reviewer; add a specialist only for a security, data-integrity, or UI-specific acceptance need.
 - Update the selected task and `Project Status` together when work starts, then update `TASKS.md` at every task transition. Do not create another task ledger.
 - Do not run the full project suite for each task. Record task-level review evidence and run the milestone's complete acceptance suite at its explicit closure task. If fixes change code after a failing suite, rerun affected checks and validate the final state before closing.
 - Use one task-owned worktree/branch for a milestone. Keep it isolated from owner work, merge only after milestone acceptance, and remove only exact worktrees, branches, and temporary paths created by that run.
-- Record free space before and after on the same volume. Never sweep shared TEMP, Codex/AppData, package caches, or other user data. Report unavoidable OS/application writes; do not promise an exact free-space match.
+- Record free space before and after on the same volume when a task materially changes local artifacts. Never sweep shared TEMP, agent/AppData, package caches, or other user data. Report unavoidable OS/application writes; do not promise an exact free-space match.
 - When a task reaches a human approval, authentication, regulated decision, ambiguous acceptance, external-publication, owner-data, or genuine blocker gate, record the exact question in `TASKS.md`, block only the task that depends on it, and continue with the next READY task that is independent of all open questions. Use an isolated task-owned worktree to keep unrelated owner changes untouched. Do not stop the overall queue while any independent READY task remains; wait only when no READY task can safely proceed or the queue is complete. Never bypass a human gate or fabricate approval/verification.
 - For app-initialized local session workspaces, do not add a remote or push. For the canonical FormuLab repository, follow the publication step explicitly required by root `TASKS.md`; these are different workspace types.
 
