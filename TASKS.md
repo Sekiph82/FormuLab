@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: None
-- Current Sprint: None
-- Current Task: None
-- Current Task Status: COMPLETE
-- Next Task: None
+- Current Milestone: HARD-01
+- Current Sprint: HARD-01-S01
+- Current Task: HARD-01.001 — Bound the formulation pipeline subprocess with a wall-clock deadline and kill it on expiry
+- Current Task Status: IN_PROGRESS
+- Next Task: HARD-01.002 — Enforce a Content Security Policy for the desktop webview without breaking previews, OCR, exports or IPC
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: V01
@@ -19,17 +19,17 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 178
+- Total Tasks: 181
 - Completed Tasks: 178
-- Remaining Tasks: 0
-- Completion: 100%
+- Remaining Tasks: 3
+- Completion: 98.3%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
 ## Claude Ownership
 
 - Claude is the primary and default executor for all future FormuLab implementation work on branch `V01`.
-- Current canonical backlog is empty: this ledger has 178/178 completed tasks and no open task.
+- Active backlog: milestone HARD-01 (V01 read-only review hardening, 2026-11-10).
 - The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
 - New implementation tasks must be added to this root `TASKS.md` on branch `V01`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
 - Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
@@ -334,6 +334,14 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] DEVX-01.005 — Recover dashboard data after transient Codex App Server disconnects
 - [x] DEVX-01.006 — Curate the dashboard project list and link selected GitHub repositories
 - [x] DEVX-01.007 — Add persistent light and dark dashboard themes
+
+# HARD-01
+
+## Sprint HARD-01-S01 — V01 review hardening
+Scope: defects confirmed in code by the 2026-11-10 read-only V01 review. Reported items verified as non-defects (Windows Python discovery, ja/ko/zh-Hans plural keys, findpapers lazy import, simple-optimizer LP cancel, per-platform uv fetch, region_profiles fallback) are excluded.
+- [~] HARD-01.001 — Bound the formulation pipeline subprocess with a wall-clock deadline and kill it on expiry
+- [ ] HARD-01.002 — Enforce a Content Security Policy for the desktop webview without breaking previews, OCR, exports or IPC
+- [ ] HARD-01.003 — HARD-01 closure: targeted regression, desktop verification and push
 
 ## Historical Detail & Evidence
 
