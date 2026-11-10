@@ -238,3 +238,17 @@ pub fn run() {
             }
         });
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn webview_csp_stays_enforced() {
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let csp = &conf["app"]["security"]["csp"];
+        assert!(csp.is_object(), "the webview must ship with a Content Security Policy");
+        for directive in ["script-src", "connect-src"] {
+            let value = csp[directive].as_str().unwrap_or_default();
+            assert!(!value.contains("'unsafe-eval'") && !value.contains('*'), "{directive} was widened: {value}");
+        }
+    }
+}
