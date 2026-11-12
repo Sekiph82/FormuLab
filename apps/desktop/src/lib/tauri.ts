@@ -146,7 +146,8 @@ export async function watchSetupProgress(
 /** One raw material row in a formulation problem. */
 export interface FormulationMaterial {
   name: string;
-  unit_price: number;
+  /** null = not entered; the optimizer refuses rather than treating it as free. */
+  unit_price: number | null;
   stock: number;
   active_matter_pct: number;
   max_usage_pct: number;

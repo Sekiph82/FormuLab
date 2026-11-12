@@ -23,7 +23,7 @@ let nextId = 100;
 const row = (m: Partial<FormulationMaterial>): Row => ({
   id: nextId++,
   name: m.name ?? "",
-  unit_price: m.unit_price ?? 0,
+  unit_price: m.unit_price ?? null,
   stock: m.stock ?? 0,
   active_matter_pct: m.active_matter_pct ?? 0,
   max_usage_pct: m.max_usage_pct ?? 100,
@@ -54,7 +54,8 @@ export function OptimizerPage() {
   const numberField =
     (id: number, key: keyof FormulationMaterial) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = key === "name" ? e.target.value : Number(e.target.value);
+      const raw = e.target.value;
+      const value = key === "name" ? raw : key === "unit_price" && raw.trim() === "" ? null : Number(raw);
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
     };
 
@@ -138,7 +139,7 @@ export function OptimizerPage() {
                         <td key={key} className="px-2 py-1.5">
                           <input
                             type="number"
-                            value={r[key]}
+                            value={r[key] ?? ""}
                             onChange={numberField(r.id, key)}
                             className="w-24 rounded-input border border-transparent bg-transparent px-2 py-1 text-right tabular-nums text-text outline-none hover:border-border focus:border-accent"
                           />

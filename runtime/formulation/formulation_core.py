@@ -58,11 +58,12 @@ def _normalize_material(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
                 return raw[key]
         return default
 
-    unit_price = _as_float(
-        pick("unit_price", "Unit_Price_USD_per_kg", default=0.0),
-        "unit_price",
-        material=name,
-    )
+    # A blank price is unknown, never free: defaulting it to 0 made the
+    # cheapest-mix answer pick unpriced materials and under-report cost.
+    raw_price = pick("unit_price", "Unit_Price_USD_per_kg")
+    if raw_price is None or (isinstance(raw_price, str) and not raw_price.strip()):
+        raise FormulationError(f"unit_price for '{name}' is missing; enter the price before optimizing cost")
+    unit_price = _as_float(raw_price, "unit_price", material=name)
     stock = _as_float(
         pick("stock", "Stock_Available_kg", default=0.0),
         "stock",
