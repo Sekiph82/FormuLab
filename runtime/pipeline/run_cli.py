@@ -45,7 +45,7 @@ def main() -> None:
         return _err(f"invalid request JSON: {e}")
 
     brief = req.get("brief") or {}
-    # `provider`/`model`/`api_key` are read but never used — see this
+    # `provider`/`model` are read but never used — see this
     # module's own docstring. Kept out of the required-field check below on
     # purpose: the absence of a model credential must never be an error for
     # formulation generation (Phase 15 zero-LLM round, requirement §17).

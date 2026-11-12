@@ -685,37 +685,41 @@ export const PROVIDERS: ProviderDef[] = [
 const LS = {
   provider: "formulab.v2.provider",
   model: "formulab.v2.model",
-  key: (provider: string) => `formulab.v2.key.${provider}`,
+  legacyKeyPrefix: "formulab.v2.key.",
 };
 
 export interface ProviderConfig {
   provider: string;
   model: string;
-  apiKey: string;
+}
+
+/** Generation is zero-LLM, so no provider key is needed. Earlier builds kept
+ *  keys here in plain text; API keys may only live in the OS keychain
+ *  (AGENTS.md), so any left over are removed. */
+function purgeStoredProviderKeys(): void {
+  const stale: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const k = window.localStorage.key(i);
+    if (k?.startsWith(LS.legacyKeyPrefix)) stale.push(k);
+  }
+  stale.forEach((k) => window.localStorage.removeItem(k));
 }
 
 export function loadProviderConfig(): ProviderConfig {
   if (typeof window === "undefined") {
-    return { provider: "gemini", model: "gemini-3.1-flash-lite", apiKey: "" };
+    return { provider: "gemini", model: "gemini-3.1-flash-lite" };
   }
+  purgeStoredProviderKeys();
   const provider = window.localStorage.getItem(LS.provider) || "gemini";
   const def = PROVIDERS.find((p) => p.id === provider) ?? PROVIDERS[0];
   const model = window.localStorage.getItem(LS.model) || def.models[0];
-  const apiKey = window.localStorage.getItem(LS.key(provider)) || "";
-  return { provider, model, apiKey };
+  return { provider, model };
 }
 
 export function saveProviderConfig(cfg: ProviderConfig): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(LS.provider, cfg.provider);
   window.localStorage.setItem(LS.model, cfg.model);
-  // Key is stored per-provider so switching providers keeps each key.
-  window.localStorage.setItem(LS.key(cfg.provider), cfg.apiKey);
-}
-
-export function loadKeyFor(provider: string): string {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(LS.key(provider)) || "";
 }
 
 // ------------------------------------------------------------------ invoke ----
@@ -740,7 +744,6 @@ export async function generateFormulation(
       brief,
       provider: cfg.provider,
       model: cfg.model,
-      api_key: cfg.apiKey,
       n,
     },
   });

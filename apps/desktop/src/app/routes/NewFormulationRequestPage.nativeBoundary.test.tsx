@@ -94,11 +94,12 @@ describe("NR3: the real New Request submit handler reaches the real generate_for
           brief: expect.objectContaining({ target: "A gentle sulfate-free shampoo for an oily scalp." }),
           provider: expect.any(String),
           model: expect.any(String),
-          api_key: expect.any(String),
           n: 5,
         }),
       }),
     );
+    // No provider credential crosses the IPC boundary: generation is zero-LLM.
+    expect(invokeMock.mock.calls[0]![1]?.request).not.toHaveProperty("api_key");
   });
 
   it("navigates to the real /formulation-result/:sessionId route on a real ok response — the real result contract, not a fabricated one", async () => {
