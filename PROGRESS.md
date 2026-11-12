@@ -1,5 +1,19 @@
 # Progress
 
+2026-11-12 15:00 · PORT-01: the 13 REV-01 fixes were ported to `main` (`3dce71b..ee4cf68`, fast-forward); on main cargo 375/375, pytest 454, shared vitest 2297/2297, desktop vitest 1799/1799, tsc and eslint clean. HARD-01 stays V01-only.
+
+2026-11-12 13:10 · REV-01 closed: 13 review-confirmed defects fixed on V01 (path ids, master-data overwrite, aqua crash, query heads, multilingual review gate, forced password change, reset revocation, blank prices, non-ASCII names, dropped fields, load errors, plain-text keys, hardening); cargo 413/413, pytest 467, shared vitest 2710/2710, desktop vitest 1920/1920; release EXE rebuilt (SHA-256 `9409C2F4D0264994EA4E720E39CC5502CB4F66AA73D8626D99E8186B3415BD9B`) and opened via `FormuLab.lnk`.
+
+2026-11-12 07:40 · Rebuilt the release EXE from V01 `ab5b845`; `FormuLab.lnk` launches it (SHA-256 `D5AD114844B6E909D18E8A506B507685EE2B54D1F1875254C16635C540BA6720`), HARD-01 CSP confirmed active in it.
+
+2026-11-10 20:10 · HARD-01 closed on V01: formulation pipeline now stops after a 45-minute deadline and the webview ships a verified CSP; 6 of 9 review findings were confirmed non-defects; Rust 409/409, typecheck, ledger tools green.
+
+2026-10-22 22:03 · Rebuilt the release EXE from the current desktop source; verified `FormuLab.lnk` still targets it (SHA-256 `0B076D384D30569D037FE21ACF50566BF703468CA56178EB3D015F0324642E91`).
+
+2026-10-22 21:48 · Aligned autonomous queue guidance with chat-based owner questions and local-only claims; removed remote fetch/push behavior; canonical task validation remains 178/178 complete.
+
+2026-10-22 21:39 · Made the new formulation request/result flow the root landing experience; kept `/live` routes as a compatibility bridge and routed new-session entry points to the new flow.
+
 2026-10-22 14:07 · DEVX-01.007 added an accessible light/dark theme toggle with system-theme default and persisted user preference; browser verified both themes and dark preference after reload; FVL-11.001 remains READY.
 
 2026-10-22 14:03 · DEVX-01 dashboard now shows the seven retained Codex workspaces and five selected GitHub repositories; removed the five excluded Codex groups, linked repository cards, and kept FVL-11.001 READY; dashboard checks 5/5.

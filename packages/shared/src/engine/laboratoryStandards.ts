@@ -26,7 +26,7 @@ import type { TestDefinition } from "../schemas/testDefinitions";
  * the `requireHumanActor`/`requireAuthorizedRegulatoryActor` two-tier split
  * `regulatoryAuthorization.ts` already established. No second role system.
  */
-export const LABORATORY_METHOD_MANAGER_ROLES = ["research_manager", "quality_manager", "administrator"] as const;
+export const LABORATORY_METHOD_MANAGER_ROLES = ["research_manager", "quality_manager", "administrator", "owner"] as const;
 export type LaboratoryMethodManagerRole = (typeof LABORATORY_METHOD_MANAGER_ROLES)[number];
 
 export function isAuthorizedLaboratoryMethodActor(
@@ -40,7 +40,7 @@ export function requireAuthorizedLaboratoryMethodActor(
   action: string,
 ): asserts actor is Extract<Actor, { kind: "human" }> & { role: LaboratoryMethodManagerRole } {
   if (!isAuthorizedLaboratoryMethodActor(actor)) {
-    throw new Error(`Only an authorized research manager, quality manager, or administrator role may ${action}.`);
+    throw new Error(`Only an authorized research manager, quality manager, administrator or owner role may ${action}.`);
   }
 }
 

@@ -1,5 +1,7 @@
 import {
   type AlternativeRankingCandidate,
+  rankingReferenceSupportSchema,
+  type RankingReferenceSupport,
   type CostSnapshot,
   type PredictionResult,
 } from "@formulab/shared";
@@ -23,6 +25,9 @@ export interface BuildAlternativeRankingInput {
   predictions?: ReadonlyMap<string, PredictionResult>;
   predictionFailures?: ReadonlyMap<string, { status: RankingPredictionFailureStatus; reason: string }>;
   sourceFormulationVersionIds?: ReadonlyMap<string, string>;
+  /** Exact reviewed-corpus support metrics keyed by generated card version.
+   *  No support is inferred from literature links or model output. */
+  referenceSupportByVersion?: ReadonlyMap<string, RankingReferenceSupport>;
 }
 
 function gateStatus(value: string | undefined): "PASS" | "WARNING" | "FAIL" | "UNKNOWN" {
@@ -120,6 +125,9 @@ export async function buildAlternativeRankingCandidates(input: BuildAlternativeR
         ...(card.manufacturing ? { sourceSnapshot: { plan: card.manufacturing, formulaState: card.formula_state } } : {}),
       },
       evidence: evidenceDimension(card, formula),
+      referenceSupport: rankingReferenceSupportSchema.parse(input.referenceSupportByVersion?.get(card.version) ?? {
+        status: "UNKNOWN", formulaCount: 0, supplierCount: 0, sourceRecordIds: [],
+      }),
     };
     const formulaFingerprint = hasFormula
       ? await fingerprintGeneratedFormula(card.formula)

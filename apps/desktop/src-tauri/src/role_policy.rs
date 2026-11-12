@@ -159,7 +159,7 @@ mod tests {
         // manage users" rests on: no other role has ANY capability in
         // either administration area.
         for role in roles() {
-            let expected_admin_only = role == "administrator";
+            let expected_admin_only = matches!(role.as_str(), "administrator" | "owner");
             for capability in ["view", "create", "edit", "administer"] {
                 assert_eq!(
                     can(role, "administrationUsers", capability),
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn only_administrator_has_any_capability_on_system_administration() {
         for role in roles() {
-            let expected_admin_only = role == "administrator";
+            let expected_admin_only = matches!(role.as_str(), "administrator" | "owner");
             assert_eq!(
                 can(role, "systemAdministration", "administer"),
                 expected_admin_only,
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn approval_pilot_approve_matches_the_known_manager_tier_plus_administrator() {
-        for role in ["research_manager", "quality_manager", "administrator"] {
+        for role in ["research_manager", "quality_manager", "administrator", "owner"] {
             assert!(can(role, "approvalPilot", "approve"), "{role} should approve pilot_approved");
         }
         for role in ["researcher", "quality", "regulatory", "raw_material", "procurement", "production_engineering", "production", "production_manager", "document_control"] {
@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn approval_production_approve_matches_the_known_authority_set() {
-        for role in ["quality_manager", "regulatory", "production_manager", "administrator"] {
+        for role in ["quality_manager", "regulatory", "production_manager", "administrator", "owner"] {
             assert!(can(role, "approvalProduction", "approve"), "{role} should approve production_approved");
         }
         for role in ["researcher", "research_manager", "quality", "raw_material", "procurement", "production_engineering", "production", "document_control"] {
@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn regulatory_verify_extends_to_quality_and_administrator() {
         // architecture doc §8 — AUTHORIZED_REGULATORY_ROLES-derived addition.
-        for role in ["regulatory", "quality", "administrator"] {
+        for role in ["regulatory", "quality", "administrator", "owner"] {
             assert!(can(role, "regulatory", "verify"), "{role} should verify regulatory evidence");
         }
         assert!(!can("researcher", "regulatory", "verify"));
@@ -295,7 +295,7 @@ mod tests {
 
     #[test]
     fn fixture_vocabularies_have_the_expected_shape() {
-        assert_eq!(roles().len(), 12);
+        assert_eq!(roles().len(), 13);
         assert!(areas().contains(&"systemAdministration".to_string()));
         assert!(areas().contains(&"formulation".to_string()));
     }
@@ -303,8 +303,8 @@ mod tests {
     // -------------------------------------------- masterdata_area_for ---
 
     #[test]
-    fn masterdata_area_for_has_all_96_collections_mapped() {
-        assert_eq!(masterdata_areas().collections.len(), 96);
+    fn masterdata_area_for_has_all_107_collections_mapped() {
+        assert_eq!(masterdata_areas().collections.len(), 107);
         for collection in &masterdata_areas().collections {
             assert!(
                 masterdata_area_for(collection).is_some(),
@@ -328,6 +328,8 @@ mod tests {
         assert_eq!(masterdata_area_for("regulatory_rules"), Some("regulatory"));
         assert_eq!(masterdata_area_for("doe_studies"), Some("optimization"));
         assert_eq!(masterdata_area_for("data_exchange_import_jobs"), Some("dataExchange"));
+        assert_eq!(masterdata_area_for("supplier_acquisition_jobs"), Some("dataExchange"));
+        assert_eq!(masterdata_area_for("supplier_acquisition_job_items"), Some("dataExchange"));
         assert_eq!(masterdata_area_for("generated_document_records"), Some("documentControl"));
     }
 

@@ -2,7 +2,7 @@
  * FVL-04.017 — External ID Crosswalk Registry acceptance (XW1-XW9).
  */
 import { describe, expect, it } from "vitest";
-import { resolveCrosswalk, upsertCrosswalk } from "./crosswalk";
+import { crosswalkCode, resolveCrosswalk, upsertCrosswalk } from "./crosswalk";
 import type { ExternalIdCrosswalk } from "../schemas/connector";
 
 const NOW = "2026-01-01T00:00:00.000Z";
@@ -91,5 +91,18 @@ describe("XW9: no canonical record is auto-deleted when a source record disappea
     const mod = await import("./crosswalk");
     const exportNames = Object.keys(mod);
     expect(exportNames.some((n) => /delete|remove/i.test(n))).toBe(false);
+  });
+});
+
+describe("XW10: stored crosswalk fields must agree with the composite key", () => {
+  it("refuses a forged row whose code matches but whose tuple fields point elsewhere", () => {
+    const code = crosswalkCode("croda-public", "supplier_products", "CRODA-42", "CommercialProduct");
+    const forged: ExternalIdCrosswalk = {
+      schemaVersion: "1.0", code,
+      sourceSystemId: "other-provider", sourceEntity: "supplier_products", sourceRecordId: "CRODA-42",
+      canonicalEntity: "CommercialProduct", canonicalRecordId: "wrong-product",
+      firstSeenAt: NOW, lastSeenAt: NOW, status: "active",
+    };
+    expect(resolveCrosswalk([forged], "croda-public", "supplier_products", "CRODA-42", "CommercialProduct")).toBeUndefined();
   });
 });

@@ -111,6 +111,7 @@ describe("FVL-04.023 Part E — classifyReimport() (RI1-RI9)", () => {
     const prior: PriorCommittedRow = { naturalKey: "k", jobId: "job-1", rawRecordFingerprint: "fp-1", mappingProfileCode: "profile::v1", targetRecordId: "REC-1" };
     const state = classifyReimport(base({ prior, canonicalStillExists: true, mappingProfileCode: "profile::v2" }));
     expect(state).toBe("MAPPING_PROFILE_CHANGED");
+    expect(prior.mappingProfileCode).toBe("profile::v1");
   });
 
   it("precedence: CANONICAL_MISSING is checked before profile-changed and source-changed", () => {

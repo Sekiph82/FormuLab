@@ -67,6 +67,9 @@ pub(crate) fn create_administered_user_logic(
     identity::validate_username(username)?;
     let display_name = trimmed_display_name(display_name)?;
     let role = Role::parse(role)?;
+    if role == Role::Owner && actor.role != Role::Owner.as_str() {
+        return Err("only an Owner may create another Owner account".into());
+    }
     let password_hash = identity::hash_password(password)?;
 
     let user = identity::create_user(
@@ -132,6 +135,9 @@ pub(crate) fn update_user_profile_logic(
 ) -> Result<SafeUser, String> {
     let display_name = trimmed_display_name(display_name)?;
     let existing = identity::find_user_by_id(conn, user_id)?.ok_or("no such user")?;
+    if existing.role == Role::Owner && actor.role != Role::Owner.as_str() {
+        return Err("only an Owner may manage an Owner account".into());
+    }
     identity::update_user_profile(conn, user_id, &display_name, optional_field(department).as_deref(), optional_field(employee_reference).as_deref())?;
     let _ = identity::record_security_audit_event(
         conn,
@@ -161,11 +167,9 @@ pub async fn update_administered_user_profile(
 
 // --------------------------------------------------------- role change ---
 
-/// Every one of the 12 fixed roles is a valid target — including
-/// `administrator` (ordinary admin-created/edited users may hold it;
-/// bootstrap's "only the very first administrator" restriction is a
-/// bootstrap-specific rule, §5, not a general one). No custom role, no
-/// per-user permission, is accepted — `Role::parse` rejects anything else.
+/// Every one of the 13 fixed roles is a valid target. The first Owner
+/// assignment is limited to an administrator promoting their own account;
+/// afterward only an Owner may grant or manage Owner accounts.
 ///
 /// Phase 13 closure session: routes through `identity::update_role_guarded`
 /// (an `IMMEDIATE` transaction, not a plain `UPDATE`) so this can never
@@ -182,6 +186,18 @@ pub(crate) fn change_user_role_logic(
 ) -> Result<SafeUser, String> {
     let new_role = Role::parse(role)?;
     let existing = identity::find_user_by_id(conn, user_id)?.ok_or("no such user")?;
+    let actor_is_owner = actor.role == Role::Owner.as_str();
+    if existing.role == Role::Owner && !actor_is_owner {
+        return Err("only an Owner may manage an Owner account".into());
+    }
+    if new_role == Role::Owner && !actor_is_owner {
+        let is_first_self_promotion = actor.role == Role::Administrator.as_str()
+            && actor.user_id == user_id
+            && !identity::any_owner_exists(conn)?;
+        if !is_first_self_promotion {
+            return Err("only an Owner may grant the Owner role".into());
+        }
+    }
     let previous_role = existing.role.as_str().to_string();
     if let Err(e) = identity::update_role_guarded(conn, user_id, new_role) {
         let _ = identity::record_security_audit_event(
@@ -235,6 +251,9 @@ pub(crate) fn set_user_account_status_logic(
     active: bool,
 ) -> Result<SafeUser, String> {
     let existing = identity::find_user_by_id(conn, user_id)?.ok_or("no such user")?;
+    if existing.role == Role::Owner && actor.role != Role::Owner.as_str() {
+        return Err("only an Owner may manage an Owner account".into());
+    }
     if let Err(e) = identity::update_account_status_guarded(conn, user_id, active) {
         let _ = identity::record_security_audit_event(
             conn,
@@ -291,6 +310,9 @@ pub(crate) fn reset_user_password_logic(
     }
     auth::validate_new_password(new_password)?;
     let existing = identity::find_user_by_id(conn, user_id)?.ok_or("no such user")?;
+    if existing.role == Role::Owner && actor.role != Role::Owner.as_str() {
+        return Err("only an Owner may manage an Owner account".into());
+    }
     let new_hash = identity::hash_password(new_password)?;
     identity::update_password_hash(conn, user_id, &new_hash)?;
     let _ = identity::record_security_audit_event(
@@ -398,7 +420,7 @@ mod tests {
             None,
         )
         .unwrap_err();
-        assert!(err.contains("not one of the 12 fixed"));
+        assert!(err.contains("not one of the 13 fixed"));
     }
 
     #[test]

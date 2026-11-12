@@ -420,7 +420,7 @@ describe("RegulatoryPanel — authorization", () => {
         },
         { kind: "human", role: "researcher", userId: "bob" },
       ),
-    ).toThrow(/authorized regulatory, quality or administrator/);
+    ).toThrow(/authorized regulatory, quality, administrator or owner/);
   });
 });
 

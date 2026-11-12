@@ -26,7 +26,12 @@ export function resolveCrosswalk(
   canonicalEntity: string,
 ): string | undefined {
   const code = crosswalkCode(sourceSystemId, sourceEntity, sourceRecordId, canonicalEntity);
-  return crosswalks.find((c) => c.code === code && c.status === "active")?.canonicalRecordId;
+  return crosswalks.find((c) => c.code === code
+    && c.sourceSystemId === sourceSystemId
+    && c.sourceEntity === sourceEntity
+    && c.sourceRecordId === sourceRecordId
+    && c.canonicalEntity === canonicalEntity
+    && c.status === "active")?.canonicalRecordId;
 }
 
 /**

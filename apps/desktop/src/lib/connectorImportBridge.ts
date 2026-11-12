@@ -25,6 +25,11 @@
  * path exists anywhere in this file — every canonical write still goes
  * through the one real commit authority.
  *
+ * V01 extension boundary: supplier catalog/document adapters must feed
+ * this same prepare/review/confirm path. They must not write materials or
+ * other canonical business records directly, create a parallel import
+ * history/crosswalk store, or replace Data Exchange validation/commit.
+ *
  * Session 12 hardening — `crosswalkTargets` is now decided ONLY at
  * `prepareConnectorImport()` time and carried inside the returned
  * `PreparedConnectorImport` itself; `confirmConnectorImport()` no

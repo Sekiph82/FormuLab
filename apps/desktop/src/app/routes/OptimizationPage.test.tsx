@@ -105,6 +105,7 @@ function rankedSource(safety: "PASS" | "FAIL" = "PASS") {
       performance: { status: "UNAVAILABLE_MODEL" }, uncertainty: { status: "UNKNOWN" }, cost: { status: "MISSING" }, availability: { status: "UNKNOWN" },
       compatibility: { status: "PASS" }, safety: { status: safety }, regulatory: { status: "PASS" }, manufacturing: { status: "READY" },
       evidence: { status: "NO_LINKED_EVIDENCE", ingredientCount: 0, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+      referenceSupport: { status: "UNKNOWN", formulaCount: 0, supplierCount: 0, sourceRecordIds: [] },
     },
   };
   return createAlternativeRankingRecord({ code: "ranking-1", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00.000Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });

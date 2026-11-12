@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFileConnector, crosswalkCode, discoverSourceSchema, mappingProfileCode, type MappingProfile } from "@formulab/shared";
 import { ConnectorManagementShell } from "./ConnectorManagementShell";
+import { SupplierConnectionsScreen } from "./SupplierConnectionsScreen";
 
 // The REAL schema fingerprint for the "MaterialID,MaterialName" header
 // shape every fixture CSV below uses — computed once, through the same
@@ -157,6 +158,41 @@ describe("CFUI3: Add Connection offers only FILE/DATABASE/REST API", () => {
     expect(screen.getByText("DATABASE")).toBeInTheDocument();
     expect(screen.getByText("REST API")).toBeInTheDocument();
     expect(screen.queryByText(/GRAPHQL|SOAP|FTP/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("supplier access surfaces", () => {
+  it("lists declared supplier surfaces and only shows authentication when an exact surface connection exists", async () => {
+    store.set("connector_connections", [{
+      schemaVersion: "1.0", code: "cht-portal-connection", name: "myCHT",
+      connectorType: "FILE", sourceSystemId: "cht-mycht-manual", status: "ready",
+      lifecycleState: "authenticated", mappingProfileCount: 0, archived: false,
+      lastTestedAt: "2026-10-27T08:00:00.000Z", createdAt: "2026-10-27T08:00:00.000Z",
+      updatedAt: "2026-10-27T08:00:00.000Z", createdBy: "local",
+    }]);
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(screen.getByRole("button", { name: "Supplier Surfaces" }));
+
+    expect(await screen.findAllByText("CHT Group")).toHaveLength(3);
+    expect(screen.getByText("myCHT (authenticated, user attended)")).toBeInTheDocument();
+    expect(screen.getByText("Provider: cht · Surface: cht-mycht-manual")).toBeInTheDocument();
+    expect(screen.getByText("Authenticated (saved state)")).toBeInTheDocument();
+    expect(screen.getAllByText("Sign-in required · manual-assisted").length).toBeGreaterThan(0);
+    for (const supplier of ["Croda", "Nouryon", "Clariant", "Dow", "BASF", "DyStar", "Archroma", "Evonik"]) {
+      expect(screen.getAllByText(supplier).length).toBeGreaterThan(0);
+    }
+    expect(screen.getAllByText("Supplier-delivered documents · manual-assisted").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("No saved connection linked to this surface").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Last check").length).toBeGreaterThan(0);
+  });
+
+  it("does not present a storage failure as a missing connection", async () => {
+    bridge.listRecords.mockRejectedValueOnce(new Error("local store unavailable"));
+    render(<SupplierConnectionsScreen />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load saved supplier connection state");
+    expect(screen.getAllByText("Connection state unavailable").length).toBeGreaterThan(0);
+    expect(screen.queryByText("No saved connection linked to this surface")).not.toBeInTheDocument();
   });
 });
 

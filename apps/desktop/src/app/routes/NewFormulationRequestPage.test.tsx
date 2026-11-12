@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -9,6 +9,10 @@ vi.mock("@/lib/formulationV2", () => ({
   notifySessionsChanged: vi.fn(),
   DEFAULT_FORMULA_ALTERNATIVES: 3,
   FORMULA_ALTERNATIVE_COUNTS: [3, 4, 5, 6, 7],
+}));
+
+vi.mock("@/lib/referenceFormulationGeneration", () => ({
+  loadNewRequestReferenceFormulationPriors: vi.fn(),
 }));
 
 import { NewFormulationRequestPage } from "./NewFormulationRequestPage";
@@ -102,5 +106,31 @@ describe("NewFormulationRequestPage", () => {
       expect.objectContaining({ provider: "gemini" }),
       5,
     );
+  });
+
+  it("never forwards renderer-built field-formula provenance to generation", async () => {
+    const { generateFormulation } = await import("@/lib/formulationV2");
+    const { loadNewRequestReferenceFormulationPriors } = await import("@/lib/referenceFormulationGeneration");
+    vi.mocked(loadNewRequestReferenceFormulationPriors).mockResolvedValue({
+      schemaVersion: "formulab-new-request-reference-priors-v1",
+      productFamilyKey: "hand dishwash",
+      eligibleFormulaCount: 3,
+      supplierCount: 2,
+      ingredientPriors: [{
+        materialCode: "MAT-001", materialName: "Reviewed surfactant", canonicalChemistryId: "chem-1",
+        formulaCount: 2, eligibleFormulaCount: 3, supplierCount: 2, formulaWeightedFrequency: 2 / 3,
+        supplierNeutralFrequency: 0.6, sourceRecordIds: ["reference-1", "reference-2"], dosageGuidance: [],
+      }],
+      supportQuality: {} as never,
+      interpretation: "reviewed_field_formula_appearance_is_advisory_not_suitability_safety_compatibility_or_efficacy",
+    });
+    vi.mocked(generateFormulation).mockResolvedValue({ status: "ok", session_id: "s1" } as never);
+    renderPage();
+    await userEvent.type(screen.getByPlaceholderText(/sulfate-free anti-dandruff shampoo/i), "A hand dishwash detergent.");
+    await userEvent.type(screen.getAllByRole("textbox")[1]!, "Hand Dishwash");
+    await userEvent.click(screen.getByRole("button", { name: "Start Formulation Request" }));
+    await waitFor(() => expect(generateFormulation).toHaveBeenCalled());
+    const lastGenerationCall = vi.mocked(generateFormulation).mock.calls[vi.mocked(generateFormulation).mock.calls.length - 1];
+    expect(lastGenerationCall?.[0]).not.toHaveProperty("referenceFormulationGuidance");
   });
 });

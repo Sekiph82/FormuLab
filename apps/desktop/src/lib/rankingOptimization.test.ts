@@ -18,6 +18,7 @@ function candidate(id: string, safety: "PASS" | "FAIL" = "PASS", regulatory: "PA
       cost: { status: "AVAILABLE", costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" } },
       availability: { status: "FEASIBLE" }, compatibility: { status: "PASS" }, safety: { status: safety }, regulatory: { status: regulatory },
       manufacturing: { status: "READY" }, evidence: { status: "NO_LINKED_EVIDENCE", ingredientCount: 1, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+      referenceSupport: { status: "UNKNOWN", formulaCount: 0, supplierCount: 0, sourceRecordIds: [] },
     },
   };
 }

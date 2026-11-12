@@ -71,7 +71,7 @@ describe("Sidebar — top-level structure", () => {
     expect(screen.getByText("Sessions")).toBeInTheDocument();
   });
 
-  it("every previous route remains reachable from the sidebar", async () => {
+  it("keeps project formulation and adjacent workspace routes in the Formulation group", async () => {
     renderAt("/files");
     const nav = await screen.findByRole("navigation", { name: "Workspaces" });
 
@@ -81,7 +81,9 @@ describe("Sidebar — top-level structure", () => {
 
     const user = userEvent.setup();
     await user.click(within(nav).getByRole("button", { name: "Formulation" }));
-    for (const name of ["Formulation", "Optimization", "Design of Experiments", "Reverse Formulation"]) {
+    const formulationLink = within(nav).getByRole("link", { name: "Formulation" });
+    expect(formulationLink).toHaveAttribute("href", "/formulation");
+    for (const name of ["Optimization", "Design of Experiments", "Reverse Formulation"]) {
       expect(within(nav).getByRole("link", { name })).toBeInTheDocument();
     }
 

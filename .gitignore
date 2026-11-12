@@ -23,6 +23,8 @@ coverage/
 target/
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
+# Generated from pinned OCR dependencies at Vite startup/build time.
+/apps/desktop/public/formulab-ocr/
 
 # Python
 __pycache__/

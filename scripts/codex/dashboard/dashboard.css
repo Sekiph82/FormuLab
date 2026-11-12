@@ -89,6 +89,9 @@ h2 { margin: 0; font-size: 18px; letter-spacing: -.025em; }
 .board-column { min-width: 0; min-height: 245px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-muted); }
 .column-title { margin: 0 0 10px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
 .column-empty { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.more-jobs { display: block; margin: 2px 0 0; padding: 2px 0; color: var(--accent); background: transparent; border: 0; cursor: pointer; font: inherit; font-size: 10px; text-align: left; }
+.more-jobs:hover { text-decoration: underline; }
+.more-jobs:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 .job-card { margin-bottom: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: var(--shadow); animation: card-arrive 180ms ease-out; }
 .job-card.escalated { border-color: var(--red); }
 .job-title { margin: 0; font-size: 11px; font-weight: 700; }

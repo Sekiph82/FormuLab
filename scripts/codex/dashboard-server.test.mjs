@@ -28,9 +28,9 @@ function rootPath() {
   return root;
 }
 
-async function startServer({ projectRoot = root, projectList = { rows: [], truncated: false }, threads = [] } = {}) {
+async function startServer({ projectRoot = root, projectList, threads = [] } = {}) {
+  projectList ??= { rows: [{ id: "formulab-project", name: "FormuLab", roots: [{ path: projectRoot }] }], truncated: false };
   const app = createDashboardServer({
-    root: projectRoot,
     host: "127.0.0.1",
     port: 0,
     clientFactory: () => ({
@@ -51,33 +51,51 @@ async function startServer({ projectRoot = root, projectList = { rows: [], trunc
 }
 
 test("serves a read-only overview grouped by saved Codex project", async () => {
+  const match3Root = await mkdtemp(join(rootPath(), "scripts/codex/.dashboard-match3-test-"));
+  fixtureRoots.add(match3Root);
+  await mkdir(join(match3Root, "project-control/codex/jobs/active"), { recursive: true });
+  await writeFile(join(match3Root, "TASKS.md"), "# Match3\n\n## Project Status\n- Current Milestone: M14\n- Current Sprint: M14-S01\n- Current Task: LFX-M14-004 — Synthetic test task\n- Current Task Status: IN_PROGRESS\n- Next Task: LFX-M14-005 — Next test task\n", "utf8");
+  await writeFile(join(match3Root, "project-control/codex/jobs/active/job.json"), JSON.stringify({
+    id: "LFX-M14-004", task: "Synthetic test task", stage: "BUILD", round: 1, reviews: { rules: "pending", code: "pending", tests: "pending" },
+  }), "utf8");
   const { baseUrl } = await startServer({
+    projectRoot: root,
     projectList: {
-      rows: [{ id: "project-1", name: "FormuLab", roots: [{ path: "C:\\work\\FormuLab" }] }],
+      rows: [
+        { id: "project-1", name: "Project Alpha", roots: [{ path: root }] },
+        { id: "project-2", name: "Project Beta", roots: [{ path: match3Root }] },
+      ],
       truncated: false,
     },
     threads: [{
       id: "thread-1",
       preview: "FVL-11 acceptance",
-      cwd: "C:\\work\\FormuLab",
+      cwd: root,
       status: { type: "idle" },
       updatedAt: 1_800_000_000,
+      projectId: "project-1",
     }],
   });
 
   const response = await fetch(`${baseUrl}/api/overview`);
   assert.equal(response.status, 200);
   const payload = await response.json();
-  assert.equal(payload.projectCount, 12);
+  assert.equal(payload.projectCount, 2);
   assert.equal(payload.activeThreadCount, 1);
   const formulab = payload.projects.find((project) => project.id === "project-1");
-  assert.equal(formulab.name, "Formulab");
+  assert.equal(formulab.name, "Project Alpha");
   assert.equal(formulab.threads[0].title, "FVL-11 acceptance");
-  assert.equal(payload.projects.some((project) => ["deneme scrubbots piksel art uretimi", "Beach Cocktails - Merge", "H!veAI", "OUTPUTS", "ScrubBots"].includes(project.name)), false);
-  assert.deepEqual(payload.projects.filter((project) => project.kind === "GitHub").map((project) => project.name), ["Wonder_Pop", "The_Fractured_Realms", "Dino_Islands", "Garage_Legends", "Coral_Rescue"]);
-  assert.match(payload.task.currentTask.id, /^[A-Z][A-Z0-9]*-\d+\.\d+$/);
-  assert.equal(payload.jobs.some((job) => job.id === "DEVX-01.003" && job.stage === "MERGED"), true);
-  assert.equal(payload.jobs.find((job) => job.id === "DEVX-01.003").reviews.rules, "pass");
+  const trackerSource = await readFile(join(root, "TASKS.md"), "utf8");
+  const currentTask = trackerSource.match(/^- Current Task: ([A-Z0-9-]+(?:\.\d+)?) — (.+)$/m);
+  assert.deepEqual(formulab.task.currentTask, currentTask ? { id: currentTask[1], title: currentTask[2] } : null);
+  assert.equal(formulab.task.currentTaskStatus, trackerSource.match(/^- Current Task Status: (.+)$/m)?.[1] ?? null);
+  assert.equal(formulab.task.completion, trackerSource.match(/^- Completion: (.+)$/m)?.[1] ?? null);
+  assert.equal(formulab.jobs.some((job) => job.id === "DEVX-01.003" && job.stage === "MERGED"), true);
+  assert.equal(formulab.jobs.find((job) => job.id === "DEVX-01.003").reviews.rules, "pending");
+  const match3 = payload.projects.find((project) => project.id === "project-2");
+  assert.equal(match3.workflowState, "available");
+  assert.equal(match3.task.currentTask.id, "LFX-M14-004");
+  assert.equal(match3.jobs.some((job) => job.id === "LFX-M14-004"), true);
 });
 
 test("returns a safe unsupported notice without reading Codex storage directly", async () => {
@@ -92,15 +110,16 @@ test("returns a safe unsupported notice without reading Codex storage directly",
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.equal(payload.projectListState, "unsupported");
-  assert.equal(payload.projectCount, 12);
-  assert.equal(payload.projects.some((project) => project.id === "unassigned"), false);
+  assert.equal(payload.projectCount, 1);
+  assert.equal(payload.projects[0].name, "other");
+  assert.equal(payload.projects[0].workflowState, "unavailable");
+  assert.equal(payload.projects[0].threads[0].id, "thread-2");
 });
 
 test("recreates the App Server client after a transient listing failure", async () => {
   let clientCount = 0;
   let firstClientClosed = false;
   const app = createDashboardServer({
-    root,
     host: "127.0.0.1",
     port: 0,
     clientFactory: () => {
@@ -173,33 +192,182 @@ test("dashboard collects owner answers without changing TASKS.md", async () => {
 
   const before = await fetch(`${baseUrl}/api/overview`);
   const overview = await before.json();
-  assert.equal(overview.questions[0].id, "Q-DEVX-01.004-1");
-  assert.equal(overview.questions[0].answer, null);
+  const formulab = overview.projects.find((project) => project.name.toLowerCase() === "formulab");
+  assert.equal(formulab.questions[0].id, "Q-DEVX-01.004-1");
+  assert.equal(formulab.questions[0].answer, null);
 
   const submitted = await fetch(`${baseUrl}/api/owner-answers`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ questionId: "Q-DEVX-01.004-1", answer: "Use the existing acceptance matrix." }),
+    body: JSON.stringify({ projectId: formulab.id, questionId: "Q-DEVX-01.004-1", answer: "Use the existing acceptance matrix." }),
   });
   assert.equal(submitted.status, 201);
   const after = await (await fetch(`${baseUrl}/api/overview`)).json();
-  assert.equal(after.questions[0].answer.answer, "Use the existing acceptance matrix.");
+  assert.equal(after.projects.find((project) => project.name.toLowerCase() === "formulab").questions[0].answer.answer, "Use the existing acceptance matrix.");
   assert.equal(await readFile(join(projectRoot, "TASKS.md"), "utf8"), tracker);
   assert.match(await readFile(join(projectRoot, "project-control/codex/owner-answers.jsonl"), "utf8"), /Use the existing acceptance matrix/);
 
   const duplicate = await fetch(`${baseUrl}/api/owner-answers`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ questionId: "Q-DEVX-01.004-1", answer: "A different answer." }),
+    body: JSON.stringify({ projectId: formulab.id, questionId: "Q-DEVX-01.004-1", answer: "A different answer." }),
   });
   assert.equal(duplicate.status, 409);
 
   const unknown = await fetch(`${baseUrl}/api/owner-answers`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ questionId: "Q-UNKNOWN-1", answer: "Not applicable." }),
+    body: JSON.stringify({ projectId: formulab.id, questionId: "Q-UNKNOWN-1", answer: "Not applicable." }),
   });
   assert.equal(unknown.status, 404);
+});
+
+test("creates an owner answer inbox only for the selected project's open question", async () => {
+  const projectRoot = await mkdtemp(join(rootPath(), "scripts/codex/.dashboard-new-inbox-test-"));
+  fixtureRoots.add(projectRoot);
+  const tracker = "## Questions for Owner\n- Q-TEST-01-1 | Which option? | TASK: TEST-01\n";
+  await writeFile(join(projectRoot, "TASKS.md"), tracker, "utf8");
+  const { baseUrl } = await startServer({
+    projectList: { rows: [{ id: "new-project", name: "New Project", roots: [{ path: projectRoot }] }], truncated: false },
+  });
+
+  const submitted = await fetch(baseUrl + "/api/owner-answers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId: "new-project", questionId: "Q-TEST-01-1", answer: "Use option A." }),
+  });
+  assert.equal(submitted.status, 201);
+  const answer = JSON.parse((await readFile(join(projectRoot, "project-control/codex/owner-answers.jsonl"), "utf8")).trim());
+  assert.equal(answer.questionId, "Q-TEST-01-1");
+  assert.equal(answer.taskId, "TEST-01");
+  assert.equal(answer.answer, "Use option A.");
+  assert.equal(await readFile(join(projectRoot, "TASKS.md"), "utf8"), tracker);
+});
+
+test("isolates task state, jobs, questions, and owner answers by saved project root", async () => {
+  const alphaRoot = await mkdtemp(join(rootPath(), "scripts/codex/.dashboard-alpha-test-"));
+  const betaRoot = await mkdtemp(join(rootPath(), "scripts/codex/.dashboard-beta-test-"));
+  const gammaRoot = await mkdtemp(join(rootPath(), "scripts/codex/.dashboard-gamma-test-"));
+  fixtureRoots.add(alphaRoot);
+  fixtureRoots.add(betaRoot);
+  fixtureRoots.add(gammaRoot);
+  for (const projectRoot of [alphaRoot, betaRoot, gammaRoot]) {
+    await mkdir(join(projectRoot, "project-control/codex/jobs/active"), { recursive: true });
+    await mkdir(join(projectRoot, "evidence"), { recursive: true });
+  }
+  await writeFile(join(alphaRoot, "evidence/PL-0438-rules.md"), "rules review", "utf8");
+  await writeFile(join(betaRoot, "evidence/FVL-11.008-rules.md"), "rules review", "utf8");
+  await writeFile(join(betaRoot, "evidence/FVL-11.008-code.md"), "code review", "utf8");
+  const alphaTracker = `# Project Alpha\n\n## Project Status\n- Current Milestone: M16\n- Current Sprint: M16-C002\n- Current Task: PL-0438 — Alpha queue work\n- Current Task Status: IN_PROGRESS\n- Next Task/Action: Keep working on PL-0438 only.\n- Required Actor: CODEX\n- Tracking Repository: local/alpha\n- Tracking Branch: main\n\n## Tasks\n- [~] **PL-0438** Alpha queue work\n\n## Questions for Şekip\n- Q-PL-0438-1 | Which alpha option? | TASK: PL-0438\n`;
+  const betaTracker = `# Project Beta\n\n## Project Status\n- Current Milestone: FVL-11\n- Current Sprint: FVL-11-S01\n- Current Task: FVL-11.008 — Beta task\n- Current Task Status: IN_PROGRESS\n- Next Task: FVL-11.009 — Beta next task\n- Required Actor: CODEX\n- Tracking Repository: local/beta\n- Tracking Branch: main\n\n## Tasks\n- [~] FVL-11.008 — Beta task\n\n## Questions for Şekip\n- Q-FVL-11.008-1 | Which beta option? | TASK: FVL-11.008\n`;
+  const gammaTracker = `# Project Gamma\n\n## Project Status\n- Current Milestone: M43\n- Current Sprint: M43-C005\n- Current Task: M43-C005-C003 — Gamma task\n- Current Task Status: IN_PROGRESS\n- Next Task: M43-C005-C004 — Next gamma task\n- Required Actor: CODEX\n\n## Owner Questions\n- Q-M43-C005-C003-1 | Which gamma option? | TASK: M43-C005-C003\n`;
+  await writeFile(join(alphaRoot, "TASKS.md"), alphaTracker, "utf8");
+  await writeFile(join(betaRoot, "TASKS.md"), betaTracker, "utf8");
+  await writeFile(join(gammaRoot, "TASKS.md"), gammaTracker, "utf8");
+  await writeFile(join(alphaRoot, "project-control/codex/jobs/active/job.json"), JSON.stringify({
+    id: "PL-0438", task: "PackLab task", stage: "BUILD", round: 1, reviews: { rules: "pass", code: "pending", tests: "pending" }, reviewEvidence: { rules: "evidence/PL-0438-rules.md" },
+  }), "utf8");
+  await writeFile(join(betaRoot, "project-control/codex/jobs/active/job.json"), JSON.stringify({
+    id: "FVL-11.008", task: "FormuLab task", stage: "REVIEW", round: 1, reviews: { rules: "pass", code: "pass", tests: "pending" }, reviewEvidence: { rules: "evidence/FVL-11.008-rules.md", code: "evidence/FVL-11.008-code.md" },
+  }), "utf8");
+  await writeFile(join(gammaRoot, "project-control/codex/jobs/active/job.json"), JSON.stringify({
+    id: "M43-C005-C003", task: "Gamma task", stage: "BUILD", round: 1, reviews: { rules: "pass", code: "pending", tests: "pending" },
+  }), "utf8");
+
+  const { baseUrl } = await startServer({
+    projectRoot: betaRoot,
+    projectList: { rows: [
+      { id: "alpha-project", name: "Project Alpha", roots: [{ path: alphaRoot }] },
+      { id: "beta-project", name: "Project Beta", roots: [{ path: betaRoot }] },
+      { id: "gamma-project", name: "Project Gamma", roots: [{ path: gammaRoot }] },
+    ], truncated: false },
+  });
+  const overview = await (await fetch(`${baseUrl}/api/overview`)).json();
+  const alpha = overview.projects.find((project) => project.id === "alpha-project");
+  const beta = overview.projects.find((project) => project.id === "beta-project");
+  const gamma = overview.projects.find((project) => project.id === "gamma-project");
+  assert.equal(alpha.task.currentTask.id, "PL-0438");
+  assert.deepEqual(alpha.jobs.map((job) => job.id), ["PL-0438"]);
+  assert.equal(alpha.questions[0].id, "Q-PL-0438-1");
+  assert.equal(alpha.jobs[0].reviews.rules, "pass");
+  assert.equal(beta.jobs[0].reviews.code, "pass");
+  assert.equal(beta.jobs[0].reviews.tests, "pending");
+  assert.equal(beta.task.currentTask.id, "FVL-11.008");
+  assert.deepEqual(beta.jobs.map((job) => job.id), ["FVL-11.008"]);
+  assert.equal(beta.questions[0].id, "Q-FVL-11.008-1");
+  assert.equal(gamma.workflowState, "available");
+  assert.equal(gamma.task.currentTask.id, "M43-C005-C003");
+  assert.deepEqual(gamma.jobs.map((job) => job.id), ["M43-C005-C003"]);
+  assert.equal(gamma.questions[0].id, "Q-M43-C005-C003-1");
+
+  const submitted = await fetch(`${baseUrl}/api/owner-answers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId: alpha.id, questionId: "Q-PL-0438-1", answer: "Alpha answer." }),
+  });
+  assert.equal(submitted.status, 201);
+  assert.match(await readFile(join(alphaRoot, "project-control/codex/owner-answers.jsonl"), "utf8"), /Alpha answer/);
+  await assert.rejects(readFile(join(betaRoot, "project-control/codex/owner-answers.jsonl"), "utf8"), { code: "ENOENT" });
+  assert.equal(await readFile(join(alphaRoot, "TASKS.md"), "utf8"), alphaTracker);
+
+  const unknownProject = await fetch(`${baseUrl}/api/owner-answers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId: "C:\\arbitrary", questionId: "Q-PL-0438-1", answer: "No path injection." }),
+  });
+  assert.equal(unknownProject.status, 404);
+});
+
+test("splits a saved project's multiple roots into independently routed project views", async () => {
+  const firstRoot = await mkdtemp(join(rootPath(), "scripts/codex/.dashboard-multi-root-a-"));
+  const secondRoot = await mkdtemp(join(rootPath(), "scripts/codex/.dashboard-multi-root-b-"));
+  fixtureRoots.add(firstRoot);
+  fixtureRoots.add(secondRoot);
+  for (const [projectRoot, taskId, questionId] of [
+    [firstRoot, "ROOT-A-01", "Q-ROOT-A-01-1"],
+    [secondRoot, "ROOT-B-01", "Q-ROOT-B-01-1"],
+  ]) {
+    await mkdir(join(projectRoot, "project-control/codex/jobs/active"), { recursive: true });
+    await writeFile(join(projectRoot, "TASKS.md"), `## Project Status\n- Current Task: ${taskId} — Root task\n- Current Task Status: IN_PROGRESS\n\n## Questions for Owner\n- ${questionId} | Choose a root-specific option? | TASK: ${taskId}\n`, "utf8");
+    await writeFile(join(projectRoot, "project-control/codex/jobs/active/job.json"), JSON.stringify({
+      id: taskId, task: `Task from ${taskId}`, stage: "BUILD", round: 1, reviews: { rules: "pending", code: "pending", tests: "pending" },
+    }), "utf8");
+  }
+  const { baseUrl } = await startServer({
+    projectList: { rows: [{
+      id: "multi-project", name: "One saved project", roots: [{ path: firstRoot }, { path: secondRoot }],
+    }], truncated: false },
+    threads: [
+      { id: "root-a-thread", title: "Root A work", cwd: firstRoot, status: "idle", projectId: "multi-project" },
+      { id: "root-b-thread", title: "Root B work", cwd: secondRoot, status: "idle", projectId: "multi-project" },
+    ],
+  });
+
+  const overview = await (await fetch(`${baseUrl}/api/overview`)).json();
+  assert.equal(overview.projectCount, 2);
+  const rootA = overview.projects.find((project) => project.roots[0] === firstRoot);
+  const rootB = overview.projects.find((project) => project.roots[0] === secondRoot);
+  assert.ok(rootA);
+  assert.ok(rootB);
+  assert.notEqual(rootA.id, rootB.id);
+  assert.match(rootA.name, /Root A|dashboard-multi-root-a/i);
+  assert.equal(rootA.task.currentTask.id, "ROOT-A-01");
+  assert.deepEqual(rootA.jobs.map((job) => job.id), ["ROOT-A-01"]);
+  assert.deepEqual(rootA.questions.map((question) => question.id), ["Q-ROOT-A-01-1"]);
+  assert.deepEqual(rootA.threads.map((thread) => thread.id), ["root-a-thread"]);
+  assert.equal(rootB.task.currentTask.id, "ROOT-B-01");
+  assert.deepEqual(rootB.jobs.map((job) => job.id), ["ROOT-B-01"]);
+  assert.deepEqual(rootB.questions.map((question) => question.id), ["Q-ROOT-B-01-1"]);
+  assert.deepEqual(rootB.threads.map((thread) => thread.id), ["root-b-thread"]);
+
+  const submitted = await fetch(`${baseUrl}/api/owner-answers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId: rootB.id, questionId: "Q-ROOT-B-01-1", answer: "Answer for root B." }),
+  });
+  assert.equal(submitted.status, 201);
+  assert.match(await readFile(join(secondRoot, "project-control/codex/owner-answers.jsonl"), "utf8"), /Answer for root B/);
+  await assert.rejects(readFile(join(firstRoot, "project-control/codex/owner-answers.jsonl"), "utf8"), { code: "ENOENT" });
 });
 
 test("answer submission rejects cross-origin requests", async () => {

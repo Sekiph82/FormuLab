@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { HUMAN_REVIEW_CLASSIFICATIONS, classifyProductSafety, evaluateSafety, summarizeSafetyFindings } from "./safety";
+import { HUMAN_REVIEW_CLASSIFICATIONS, classifyProductSafety, evaluateSafety, recordSafetyResolution, summarizeSafetyFindings } from "./safety";
 import { SEED_SAFETY_RULES } from "../catalog/safetyRules";
 import type { SafetyRule } from "../schemas/safety";
 import type { FormulationLine } from "../schemas/formulation";
+import type { Actor } from "../schemas/status";
 
 function line(over: Partial<FormulationLine> & { displayName: string; percent: string }): FormulationLine {
   return {
@@ -24,6 +25,37 @@ const ruleFor = (id: string): SafetyRule => {
   if (!r) throw new Error(`no seed rule ${id}`);
   return r;
 };
+
+describe("recordSafetyResolution", () => {
+  const input = {
+    schemaVersion: "1.0" as const,
+    id: "safety-resolution-1",
+    formulationId: "formula-1",
+    versionId: "version-1",
+    findingId: "finding-1",
+    resolvedAt: "2026-10-27T08:00:00.000Z",
+    resolutionReason: "Named quality review accepted the documented risk.",
+    resolutionKind: "accepted_risk" as const,
+  };
+
+  it("binds the safety resolution to the trusted human identity", () => {
+    const result = recordSafetyResolution({ ...input, reviewerName: "spoofed", reviewerRole: "administrator" } as never, { kind: "human", role: "researcher", userId: " researcher-1 " });
+    expect(result.reviewerName).toBe("researcher-1");
+    expect(result.reviewerRole).toBe("researcher");
+  });
+
+  it("rejects agent, system, and import actors", () => {
+    const automatedActors: Actor[] = [
+      { kind: "agent", runId: "run-1" },
+      { kind: "system", reason: "scheduled safety scan" },
+      { kind: "import", source: "supplier-safety.json" },
+    ];
+    for (const actor of automatedActors) {
+      expect(() => recordSafetyResolution(input, actor)).toThrow(/Only an authenticated human/);
+    }
+    expect(() => recordSafetyResolution(input, { kind: "human", role: "quality", userId: "quality-1" })).toThrow(/formulation edit access/);
+  });
+});
 
 describe("classifyProductSafety", () => {
   it("classifies an ordinary family as an ordinary consumer product", () => {

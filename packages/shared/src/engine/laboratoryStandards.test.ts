@@ -65,7 +65,7 @@ describe("authorization", () => {
   });
 
   it("requireAuthorizedLaboratoryMethodActor throws with a stated reason", () => {
-    expect(() => requireAuthorizedLaboratoryMethodActor(RESEARCHER, "supersede a standard")).toThrow(/research manager, quality manager, or administrator/);
+    expect(() => requireAuthorizedLaboratoryMethodActor(RESEARCHER, "supersede a standard")).toThrow(/research manager, quality manager, administrator or owner/);
     expect(() => requireAuthorizedLaboratoryMethodActor(AGENT, "supersede a standard")).toThrow();
   });
 });

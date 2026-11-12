@@ -6,25 +6,34 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: None
-- Current Sprint: None
-- Current Task: None
-- Current Task Status: COMPLETE
+- Current Milestone: MERGE-01
+- Current Sprint: MERGE-01-S01
+- Current Task: MERGE-01.001 — Merge V01 into main, repoint governance to main, and leave V01 safe to delete
+- Current Task Status: IN_PROGRESS
 - Next Task: None
-- Required Actor: CODEX
+- Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
-- Tracking Branch: main
-- Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
+- Tracking Branch: V01
+- Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/V01/TASKS.md
 - Blockers/Waits: None
 
 ## Progress
 
-- Total Tasks: 178
-- Completed Tasks: 178
-- Remaining Tasks: 0
-- Completion: 100%
+- Total Tasks: 199
+- Completed Tasks: 198
+- Remaining Tasks: 1
+- Completion: 99.5%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
+
+## Claude Ownership
+
+- Claude is the primary and default executor for all future FormuLab implementation work on branch `V01`.
+- Active backlog: MERGE-01 (owner-requested consolidation of V01 into main, 2026-11-12).
+- The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
+- New implementation tasks must be added to this root `TASKS.md` on branch `V01`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
+- Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
+- `main` remains the stable completed release branch until the owner explicitly requests a merge or release transition.
 
 ## Tracking Rules
 
@@ -61,6 +70,7 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 <!-- Append processed dashboard answers here with their Q-ID and affected task before doing dependent work. -->
 - Q-FVL-11.005-1 | FVL-11.005 | Switch to the new formulation UI as the v1 default. Do not keep both UIs as a permanent user-selectable choice. Retain the existing/legacy UI only as a temporary compatibility bridge or redirect for historical deep links and workflows that are not yet fully mapped. After FVL-11 acceptance confirms feature parity and historical-project access, the new workspace-based UI should be the single default v1 experience. Do not delete historical data, audit evidence, or compatibility routes merely to simplify the UI.
 - Q-FVL-11.011-1 | FVL-11.011 | o exe dosyasi projenin en son guncel halini acmali her seferinde. buna gore ayarla
+- Q-HARD-01.001-1 | HARD-01.001 | Evet, kur
 
 ## Tasks
 
@@ -325,6 +335,55 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] DEVX-01.005 — Recover dashboard data after transient Codex App Server disconnects
 - [x] DEVX-01.006 — Curate the dashboard project list and link selected GitHub repositories
 - [x] DEVX-01.007 — Add persistent light and dark dashboard themes
+
+# HARD-01
+
+## Sprint HARD-01-S01 — V01 review hardening
+Scope: defects confirmed in code by the 2026-11-10 read-only V01 review. Reported items verified as non-defects (Windows Python discovery, ja/ko/zh-Hans plural keys, findpapers lazy import, simple-optimizer LP cancel, per-platform uv fetch, region_profiles fallback) are excluded.
+- [x] HARD-01.001 — Bound the formulation pipeline subprocess with a wall-clock deadline and kill it on expiry
+- [x] HARD-01.002 — Enforce a Content Security Policy for the desktop webview without breaking previews, OCR, exports or IPC
+- [x] HARD-01.003 — HARD-01 closure: targeted regression, desktop verification and push
+
+# REL-01
+
+## Sprint REL-01-S01 — Release EXE refresh
+Owner decision Q-FVL-11.011-1 requires the desktop EXE to open the latest project state; it still opened the 2026-10-28 build after HARD-01.
+- [x] REL-01.001 — Rebuild the release EXE from V01 HEAD and verify FormuLab.lnk opens it
+
+# REV-01
+
+## Sprint REV-01-S01 — Verified deep review
+Every reported finding must be reproduced in code (and by test where possible) before it becomes a task; unverified claims are recorded as excluded.
+- [x] REV-01.001 — Verified deep code review of V01; open each confirmed defect as its own task
+
+## Sprint REV-01-S02 — Confirmed defect fixes
+Review evidence (2026-11-12): pytest 458/458, cargo 409/409, vitest src/lib 1012/1012, tsc 0, eslint 0 errors, IPC contract 0 unregistered commands / 0 argument mismatches. Excluded as unconfirmed or by design: `check_for_update` arbitrary https endpoint, `cleanup_old_data_location` ancestor paths (admin-only, UI-guarded), unauthenticated schema-meta writers, token-less sqlite connector reads (webview trusted by design).
+- [x] REV-01.002 — Reject drive-prefix, empty and dot ids before deleting or writing session and formulation directories
+- [x] REV-01.003 — Fail master-data writes when the existing collection cannot be read instead of overwriting it
+- [x] REV-01.004 — Stop the pipeline crash when a non-canonical water name wins the solvent role
+- [x] REV-01.005 — Build literature queries from the product description instead of the raw category key
+- [x] REV-01.006 — Send non-English regulated requests to human review and stop substring false refusals
+- [x] REV-01.007 — Enforce the forced password change with a self-service password change
+- [x] REV-01.008 — Revoke a user's sessions when an administrator resets the password
+- [x] REV-01.009 — Keep blank material prices blank in the cost optimizer
+- [x] REV-01.010 — Preserve non-ASCII product names in literature queries and session slugs
+- [x] REV-01.011 — Report targetActiveMatter and packagingType as uninterpreted instead of dropping them silently
+- [x] REV-01.012 — Show load errors instead of empty lists and end the stuck connections spinner
+- [x] REV-01.013 — Remove the plain-text provider API key from localStorage and the pipeline payload
+- [x] REV-01.014 — Small hardening: atomic identity migration, fail-closed session RNG, support-bundle auth, bounded attachment read, missing action keys, flaky test timeouts, atomic formula index
+- [x] REV-01.015 — REV-01 closure: regression, release EXE rebuild and push
+
+# PORT-01
+
+## Sprint PORT-01-S01 — Stable release fixes
+Owner instruction (2026-11-12): port the REV-01 defect fixes to `main`, the investor version. HARD-01 stays V01-only (owner declined on 2026-11-10). `main`'s own ledger is not modified.
+- [x] PORT-01.001 — Port the REV-01 defect fixes to main and verify them there
+
+# MERGE-01
+
+## Sprint MERGE-01-S01 — Consolidate V01 into main
+Owner instruction (2026-11-12): merge V01 completely into `main`, make `main` the active branch, and leave V01 ready for the owner to delete manually.
+- [~] MERGE-01.001 — Merge V01 into main, repoint governance to main, and leave V01 safe to delete
 
 ## Historical Detail & Evidence
 

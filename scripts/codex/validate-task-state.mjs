@@ -32,7 +32,7 @@ const remaining = Number(field("Remaining Tasks"));
 const completion = Number(field("Completion")?.replace(/%$/, ""));
 
 if (!current && currentField !== "None") fail("Current Task must contain one explicit task ID and title, or None when the queue is complete.");
-if (requiredActor !== "CODEX") fail(`Required Actor must be CODEX; found ${requiredActor ?? "missing"}.`);
+if (!["CODEX", "CLAUDE"].includes(requiredActor)) fail(`Required Actor must be CODEX or CLAUDE; found ${requiredActor ?? "missing"}.`);
 if (tasks.length !== total) fail(`Total Tasks says ${total}, but the checkbox ledger has ${tasks.length} tasks.`);
 
 const actualCompleted = tasks.filter((task) => task.status === "x").length;

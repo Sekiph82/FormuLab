@@ -50,7 +50,7 @@ export function CommandPalette() {
   const close = () => setOpen(false);
 
   const actions: Action[] = [
-    { id: "new", label: t("commandPalette.actions.newSession"), icon: <Plus size={16} />, run: () => { navigate("/live"); close(); } },
+    { id: "new", label: t("commandPalette.actions.newSession"), icon: <Plus size={16} />, run: () => { navigate("/formulation-request"); close(); } },
     { id: "files", label: t("commandPalette.actions.openFiles"), icon: <FileSearch size={16} />, run: () => { navigate("/files"); close(); } },
     { id: "notebooks", label: t("commandPalette.actions.openNotebooks"), icon: <NotebookPen size={16} />, run: () => { navigate("/notebooks"); close(); } },
     { id: "settings", label: t("commandPalette.actions.openSettings"), icon: <Settings size={16} />, run: () => { navigate("/settings"); close(); } },

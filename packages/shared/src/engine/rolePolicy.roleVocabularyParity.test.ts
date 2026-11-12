@@ -3,7 +3,7 @@
  *
  * `identity.rs`'s `Role` enum and `status.ts`'s `APPROVAL_ROLES` (this
  * module's `ROLES`) are two independent, hand-declared lists of the same
- * 12 fixed role strings. Nothing at the language level forces them to
+ * 13 fixed role strings. Nothing at the language level forces them to
  * agree. The mechanism here is a single JSON fixture
  * (`roleVocabulary.json`, checked into the repo, not generated at test
  * time) that both languages check *themselves* against:
@@ -14,7 +14,7 @@
  *   the_shared_json_fixture`) reads the *same* file via `include_str!`
  *   and asserts it is exactly `Role::ALL`, in the same order.
  *
- * Neither side hand-copies the other's 12 strings into a third list — a
+ * Neither side hand-copies the other's 13 strings into a third list — a
  * developer who adds/removes/renames a role on one side and forgets the
  * fixture fails that side's own test; a developer who updates the fixture
  * but forgets one side's enum/const fails the other side's test. There is
@@ -34,8 +34,8 @@ describe("rolePolicy — Rust/TypeScript role-vocabulary parity", () => {
     expect(ROLES).toEqual(APPROVAL_ROLES);
   });
 
-  it("has exactly 12 roles", () => {
-    expect(ROLES.length).toBe(12);
+  it("has exactly 13 roles", () => {
+    expect(ROLES.length).toBe(13);
   });
 
   it("matches the shared JSON fixture exactly, including order", () => {

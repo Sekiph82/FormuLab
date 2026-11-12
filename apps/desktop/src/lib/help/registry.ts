@@ -510,6 +510,8 @@ export interface HelpExclusion {
 }
 
 export const HELP_EXCLUSIONS: HelpExclusion[] = [
+  { route: "/reference-formulations", reason: "The review workspace explains source evidence, extracted values, decisions, and persistence behavior inline." },
+  { route: "/reference-formulations/:recordId", reason: "The record review screen is self-describing and labels each evidence citation and field-level decision in context." },
   { route: "/", reason: "Redirects immediately to /live — never rendered itself." },
   { route: "/formulas", reason: "Redirects to /projects for old bookmarks; never rendered itself." },
   {

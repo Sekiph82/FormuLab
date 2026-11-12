@@ -52,6 +52,33 @@ export interface FormulationBrief {
   estimatedBatchSize?: string;
   availableEquipment?: string;
   availableRawMaterials?: string;
+  /** Reviewed, exact-family supplier-formula appearance priors mapped to
+   * uniquely identity-reviewed active RawMaterial records. */
+  referenceFormulationGuidance?: {
+    schemaVersion: "formulab-new-request-reference-priors-v1";
+    productFamilyKey: string;
+    eligibleFormulaCount: number;
+    supplierCount: number;
+    ingredientPriors: Array<{
+      materialCode: string;
+      materialName: string;
+      canonicalChemistryId: string;
+      formulaCount: number;
+      eligibleFormulaCount: number;
+      supplierCount: number;
+      formulaWeightedFrequency: number;
+      supplierNeutralFrequency: number;
+      sourceRecordIds: string[];
+      dosageGuidance: Array<{
+        formulaCount: number;
+        supplierCount: number;
+        observedRangePercent: { lower: number; upper: number };
+        typicalRangePercent: { lower: number; upper: number };
+        sourceRecordIds: string[];
+      }>;
+    }>;
+    interpretation: "reviewed_field_formula_appearance_is_advisory_not_suitability_safety_compatibility_or_efficacy";
+  };
 }
 
 /** Mirrors PRODUCT_SAFETY_CLASSIFICATIONS in packages/shared/src/schemas/safety.ts. */

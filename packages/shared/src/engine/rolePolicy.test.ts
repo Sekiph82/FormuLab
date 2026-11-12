@@ -12,8 +12,8 @@ import {
 import { APPROVAL_AUTHORITY } from "../schemas/status";
 
 describe("rolePolicy — canonical model", () => {
-  it("supports exactly 12 roles", () => {
-    expect(ROLES.length).toBe(12);
+  it("supports exactly 13 roles", () => {
+    expect(ROLES.length).toBe(13);
   });
 
   it("does not accept chemist", () => {
@@ -45,7 +45,7 @@ describe("rolePolicy — default deny", () => {
 
   it("denies combinations not explicitly granted, for every role, on a locked-down area", () => {
     for (const role of ROLES) {
-      if (role === "administrator") continue;
+      if (role === "administrator" || role === "owner") continue;
       expect(can(role, "administrationUsers", "view")).toBe(false);
       expect(can(role, "administrationUsers", "administer")).toBe(false);
     }
@@ -237,10 +237,10 @@ describe("rolePolicy — introspection", () => {
   });
 
   it("rolesWithCapability(production, release) is exactly production_manager", () => {
-    expect(rolesWithCapability("production", "release")).toEqual(["production_manager"]);
+    expect(rolesWithCapability("production", "release")).toEqual(["production_manager", "owner"]);
   });
 
   it("rolesWithCapability(administrationUsers, administer) is exactly administrator", () => {
-    expect(rolesWithCapability("administrationUsers", "administer")).toEqual(["administrator"]);
+    expect(rolesWithCapability("administrationUsers", "administer")).toEqual(["administrator", "owner"]);
   });
 });

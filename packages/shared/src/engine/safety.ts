@@ -8,6 +8,9 @@ import Decimal from "decimal.js";
 import { resolvedPercent } from "./formula";
 import { matchLines, packagingMatches } from "./ruleConditions";
 import type { FormulationLine } from "../schemas/formulation";
+import type { Actor } from "../schemas/status";
+import { safetyResolutionSchema, type SafetyResolution } from "../schemas/safety";
+import { can } from "./rolePolicy";
 import type { RawMaterial } from "../schemas/materials";
 import type { ProductFamily } from "../schemas/product";
 import type { ProductSafetyClassification, SafetyFinding, SafetyRule } from "../schemas/safety";
@@ -72,6 +75,19 @@ export const HUMAN_REVIEW_CLASSIFICATIONS: readonly ProductSafetyClassification[
   "restricted_request",
   "human_review_required",
 ];
+
+/** Build a safety-resolution record from a trusted actor. Reviewer identity
+ *  is taken from the authenticated human actor, never from a caller-provided
+ *  name, and automated/import/system actors cannot clear safety findings. */
+export function recordSafetyResolution(
+  input: Omit<SafetyResolution, "reviewerName" | "reviewerRole">,
+  actor: Actor,
+): SafetyResolution {
+  if (actor.kind !== "human") throw new Error("Only an authenticated human may resolve a safety finding.");
+  if (!actor.userId.trim()) throw new Error("Safety resolution requires a named human actor.");
+  if (!can(actor.role, "formulation", "edit")) throw new Error("The human actor does not have formulation edit access to resolve safety findings.");
+  return safetyResolutionSchema.parse({ ...input, reviewerName: actor.userId.trim(), reviewerRole: actor.role });
+}
 
 function findingId(ruleId: string, lineIds: string[], conditions: number[]): string {
   return `safety-finding:${ruleId}:${[...lineIds].sort().join("+")}:${conditions.join(",")}`;

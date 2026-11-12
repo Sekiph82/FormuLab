@@ -107,49 +107,18 @@ function gitRaw(...args) {
   return execFileSync("git", args, { cwd: repositoryRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
-function normalizeRepository(value) {
-  return value.replace(/\.git$/, "").replace(/\/+/g, "/").toLowerCase();
-}
-
 async function runQueueClaim() {
   const source = await readFile(trackerPath, "utf8");
   const claim = claimCurrentTask(source);
   const branch = field(source, "Tracking Branch");
-  const trackingRepository = field(source, "Tracking Repository");
-  if (!branch || !trackingRepository) throw new Error("Tracking Branch and Tracking Repository must be explicit.");
+  if (!branch) throw new Error("Tracking Branch must be explicit.");
   if (git("branch", "--show-current") !== branch) throw new Error(`Queue claims run only on tracked branch ${branch}.`);
-  if (normalizeRepository(git("remote", "get-url", "origin")) !== normalizeRepository(trackingRepository)) {
-    throw new Error("origin does not match the canonical Tracking Repository in TASKS.md.");
-  }
-  git("fetch", "--quiet", "origin", branch);
   const head = git("rev-parse", "HEAD");
-  const remoteHead = git("rev-parse", `origin/${branch}`);
   if (claim.complete) {
-    if (head !== remoteHead || git("status", "--porcelain", "--", "TASKS.md") || gitRaw("show", "HEAD:TASKS.md") !== source) {
-      throw new Error("Queue completion must be committed, published, and identical to origin before it is accepted.");
+    if (git("status", "--porcelain", "--", "TASKS.md") || gitRaw("show", "HEAD:TASKS.md") !== source) {
+      throw new Error("Queue completion must be committed locally and identical to HEAD before it is accepted.");
     }
     console.log("Autonomous Queue complete: no tasks remain.");
-    return;
-  }
-  if (head !== remoteHead) {
-    const currentBranch = git("branch", "--show-current");
-    const changedFiles = git("diff", "--name-only", `origin/${branch}..HEAD`).split(/\r?\n/).filter(Boolean);
-    const remoteTracker = gitRaw("show", `origin/${branch}:TASKS.md`);
-    const localTracker = gitRaw("show", "HEAD:TASKS.md");
-    const canRecover = isRecoverableQueueClaim({
-      aheadCount: Number(git("rev-list", "--count", `origin/${branch}..HEAD`)),
-      subject: git("show", "--format=%s", "--no-patch", "HEAD"),
-      changedFiles,
-      clean: !git("status", "--porcelain"),
-      mergeBaseIsRemote: git("merge-base", "HEAD", `origin/${branch}`) === remoteHead,
-      contentMatchesClaim: matchesExpectedQueueClaim(remoteTracker, localTracker, claim.id),
-      branch: currentBranch,
-      expectedBranch: branch,
-      currentTaskId: claim.id,
-    });
-    if (!canRecover) throw new Error(`Local ${branch} differs from origin/${branch}; only a single clean, task-claim-only commit can be retried automatically.`);
-    git("push", "origin", branch);
-    console.log(`Autonomous Queue recovered and published the existing claim for ${claim.id}.`);
     return;
   }
   if (git("diff", "--cached", "--name-only")) throw new Error("Uncommitted staged changes exist; queue claim refused.");
@@ -170,8 +139,7 @@ async function runQueueClaim() {
     stagedByQueue = true;
     git("commit", "-m", `chore(tasks): claim ${claim.id}`);
     stagedByQueue = false;
-    git("push", "origin", branch);
-    console.log(`Autonomous Queue claimed and published ${claim.id}: ${claim.title}`);
+    console.log(`Autonomous Queue claimed locally ${claim.id}: ${claim.title}`);
   } catch (error) {
     if (git("rev-parse", "HEAD") === head) {
       if (stagedByQueue) git("restore", "--staged", "--", "TASKS.md");

@@ -21,14 +21,16 @@ tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Already in the tree via tauri — used directly for stall timeouts on uv setup.
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "net"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-notification = "2"
 getrandom = "0.4.3"
+keyring = { version = "4.2.0", default-features = false, features = ["v1"] }
+zeroize = "1.8"
 opener = { version = "0.8.5", features = ["reveal"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "native-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "native-tls", "stream"] }
 # Attachment checksums (spec: "checksum retained") — copied-in laboratory /
 # stability evidence files are hashed at copy time, not trusted from the
 # renderer.

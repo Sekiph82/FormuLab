@@ -105,7 +105,14 @@ describe("applyResultOverride", () => {
 
   it("refuses an override from a non-human actor", () => {
     const result = baseResult();
-    expect(() => applyResultOverride(result, { kind: "agent", runId: "run-1" }, { reason: "x", overriddenEvaluation: "pass" })).toThrow();
+    const automatedActors = [
+      { kind: "agent", runId: "run-1" },
+      { kind: "system", reason: "scheduled evaluation" },
+      { kind: "import", source: "instrument.csv" },
+    ] as const;
+    for (const actor of automatedActors) {
+      expect(() => applyResultOverride(result, actor, { reason: "x", overriddenEvaluation: "pass" })).toThrow(/Only a human/);
+    }
   });
 });
 

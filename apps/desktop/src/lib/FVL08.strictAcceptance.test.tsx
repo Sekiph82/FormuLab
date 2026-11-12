@@ -146,6 +146,7 @@ describe("FVL-08 strict production acceptance", () => {
       version: "v1", status: "ok", formula_state: "complete",
       formula: { name: "Strict acceptance shampoo", ingredients: [{ inci: "Surfactant", material_code: "RM-1", function: "Primary surfactant", weight_pct: "25" }] },
       evidence_links: [],
+      manufacturing: { ready: true, not_ready_reason: "", steps: [], critical_parameters: [], equipment: [], batch_scale: "laboratory" },
     } as unknown as FormulationCard;
 
     // Production source bridge creates and saves the exact immutable version from the generated card.
@@ -163,7 +164,9 @@ describe("FVL-08 strict production acceptance", () => {
     if (prediction.status !== "PREDICTED") throw new Error("Accepted model did not produce an eligible prediction.");
 
     const [candidate] = await buildAlternativeRankingCandidates({
-      sessionId: session.id, cards: [card], costSnapshots: [costSnapshot], availability: [undefined],
+      sessionId: session.id, cards: [card], costSnapshots: [costSnapshot], availability: [{
+        formulaState: "feasible", lines: [{ lineId: "line-1", displayName: "Surfactant", materialCode: "RM-1", state: "available", usableQuantity: "100", requiredQuantity: "25", unit: "kg", reason: "synthetic acceptance inventory evidence" }], evaluatedAt: "2026-10-21T12:00:00.000Z",
+      }],
       compatibility: [{ formulaState: "compatible", findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-10-21T12:00:00.000Z" }],
       safety: [{ formulaState: "safe", findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-10-21T12:00:00.000Z" }],
       regulatory: [{ formulaState: "compliant", requestedMarket: "Kenya", jurisdiction: "KE", findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-10-21T12:00:00.000Z" }],
