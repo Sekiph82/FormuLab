@@ -1,5 +1,7 @@
 # Progress
 
+2026-11-12 15:40 · MERGE-01: V01 merged into `main` (`f09d1d2`, merged tree identical to V01 `d2df603` before the governance repoint); `main` is now the single active branch and V01 holds no commit outside it, so it can be deleted.
+
 2026-11-12 15:00 · PORT-01: the 13 REV-01 fixes were ported to `main` (`3dce71b..ee4cf68`, fast-forward); on main cargo 375/375, pytest 454, shared vitest 2297/2297, desktop vitest 1799/1799, tsc and eslint clean. HARD-01 stays V01-only.
 
 2026-11-12 13:10 · REV-01 closed: 13 review-confirmed defects fixed on V01 (path ids, master-data overwrite, aqua crash, query heads, multilingual review gate, forced password change, reset revocation, blank prices, non-ASCII names, dropped fields, load errors, plain-text keys, hardening); cargo 413/413, pytest 467, shared vitest 2710/2710, desktop vitest 1920/1920; release EXE rebuilt (SHA-256 `9409C2F4D0264994EA4E720E39CC5502CB4F66AA73D8626D99E8186B3415BD9B`) and opened via `FormuLab.lnk`.
