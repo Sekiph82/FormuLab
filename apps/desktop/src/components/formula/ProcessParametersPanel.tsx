@@ -16,6 +16,7 @@ import { listRecords } from "@/lib/masterdata";
 export function ProcessParametersPanel({ formulaCode, formulaVersion }: { formulaCode: string; formulaVersion?: number }) {
   const { t } = useTranslation(["session", "common"]);
   const [steps, setSteps] = useState<ProcessParameter[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,11 +26,17 @@ export function ProcessParametersPanel({ formulaCode, formulaVersion }: { formul
         .filter((r) => r.formulaCode === formulaCode && (formulaVersion === undefined || r.formulaVersion === formulaVersion))
         .sort((a, b) => a.stepNumber - b.stepNumber);
       setSteps(filtered);
+    }, (e) => {
+      if (!cancelled) setLoadError(String(e));
     });
     return () => {
       cancelled = true;
     };
   }, [formulaCode, formulaVersion]);
+
+  if (loadError) {
+    return <div className="px-4 py-3"><div role="alert" className="rounded-card border border-error/40 bg-error/10 px-3 py-2 text-[12px] text-error">{loadError}</div></div>;
+  }
 
   if (steps.length === 0) {
     return (

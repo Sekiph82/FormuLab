@@ -58,6 +58,7 @@ export function DataExchangePage() {
   const [uploadTemplate, setUploadTemplate] = useState<DataExchangeTemplateDefinition | null>(null);
   const [bridgeImportTemplate, setBridgeImportTemplate] = useState<DataExchangeTemplateDefinition | null>(null);
   const [jobs, setJobs] = useState<DataExchangeImportJob[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [exportLog, setExportLog] = useState<{ id: string; templateCode: string; kind: string; fileType: string; at: string }[]>([]);
   const [busyExport, setBusyExport] = useState<string | null>(null);
 
@@ -66,7 +67,10 @@ export function DataExchangePage() {
   const visibleTemplates = moduleFilter === "all" ? templates : templates.filter((t2) => t2.module === moduleFilter);
 
   const refreshJobs = () => {
-    void listRecords("data_exchange_import_jobs").then((rows) => setJobs([...rows].sort((a, b) => (b.startedAt > a.startedAt ? 1 : -1))));
+    void listRecords("data_exchange_import_jobs").then(
+      (rows) => { setLoadError(null); setJobs([...rows].sort((a, b) => (b.startedAt > a.startedAt ? 1 : -1))); },
+      (e) => setLoadError(String(e)),
+    );
   };
   useEffect(refreshJobs, []);
 
@@ -135,6 +139,7 @@ export function DataExchangePage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {loadError && <div className="px-4 pt-2"><div role="alert" className="rounded-card border border-error/40 bg-error/10 px-3 py-2 text-[12px] text-error">{loadError}</div></div>}
       <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-2">
         <h1 className="text-[13px] font-medium text-text">{t("dataExchange.heading")}</h1>
         <nav className="flex flex-wrap gap-1">

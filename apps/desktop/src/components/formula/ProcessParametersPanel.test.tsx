@@ -32,6 +32,14 @@ beforeEach(() => {
   bridge.upsertRecords.mockResolvedValue({ inserted: 1, updated: 0, total: 1 });
 });
 
+describe("ProcessParametersPanel — load failure", () => {
+  it("shows the backend error instead of the empty-state message", async () => {
+    bridge.listRecords.mockRejectedValue("data/master/process_parameters.json is not a valid record list and was left untouched");
+    render(<ProcessParametersPanel formulaCode="FORM-1" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("not a valid record list");
+  });
+});
+
 describe("ProcessParametersPanel — real Manufacturing Procedure consumer for imported process_parameters", () => {
   it("displays the exact committed step values, keyed to the real formula/version identity, after a real Data Exchange import", async () => {
     const template = getDataExchangeTemplate("process_parameters")!;

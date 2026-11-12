@@ -129,9 +129,10 @@ export function FormulasPage() {
 
   useEffect(() => {
     void refreshProjects();
-    void listRecords("materials").then(setMaterials);
-    void listRecords("cost_snapshots").then(setCostSnapshots);
-    void listRecords("packaging_boms").then(setPackagingBoms);
+    const failed = (e: unknown) => setError(String(e));
+    void listRecords("materials").then(setMaterials, failed);
+    void listRecords("cost_snapshots").then(setCostSnapshots, failed);
+    void listRecords("packaging_boms").then(setPackagingBoms, failed);
   }, [refreshProjects]);
 
   const openProject = useCallback(
