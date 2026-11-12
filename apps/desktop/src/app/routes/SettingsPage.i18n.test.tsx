@@ -49,13 +49,13 @@ describe("Settings page strings (i18n)", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Model" })).toBeInTheDocument();
   });
 
-  it("renders the formulation model/key surface", async () => {
-    // Provider/model/key are local settings; nothing to connect to.
+  it("renders the formulation model surface without any API key field", async () => {
+    // Generation is zero-LLM: provider/model is a preference, no key is collected.
     renderAt("/settings/models");
     expect(
-      await screen.findByText("The model and API key used to generate formulations"),
+      await screen.findByText("Model preference. Formulation generation is deterministic and needs no API key"),
     ).toBeInTheDocument();
     expect(screen.getByText("Provider")).toBeInTheDocument();
-    expect(screen.getByText("API key")).toBeInTheDocument();
+    expect(screen.queryByText("API key")).not.toBeInTheDocument();
   });
 });

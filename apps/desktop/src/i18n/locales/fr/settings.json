@@ -76,7 +76,7 @@
   },
   "model": {
     "title": "Modèle",
-    "hint": "Le modèle et la clé API utilisés pour générer les formulations",
+    "hint": "Préférence de modèle. La génération des formulations est déterministe et ne nécessite aucune clé API",
     "connectPrompt": "Connectez le runtime pour configurer les modèles.",
     "notSet": "Non défini — choisissez un modèle par défaut",
     "providersDivider": "Fournisseurs",
