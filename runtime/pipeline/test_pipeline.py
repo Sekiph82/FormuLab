@@ -869,6 +869,39 @@ class SafetyClassificationTests(unittest.TestCase):
         self.assertEqual(classification, "prohibited_request")
         self.assertEqual(decision, "refused")
 
+    def test_regulated_requests_need_review_in_every_ui_language(self):
+        cases = {
+            "yüzey dezenfektanı": "regulated_disinfectant",
+            "Flächendesinfektionsmittel": "regulated_disinfectant",
+            "désinfectant de surface": "regulated_disinfectant",
+            "desinfectante multiusos": "regulated_disinfectant",
+            "表面消毒剤": "regulated_disinfectant",
+            "표면 소독제": "regulated_disinfectant",
+            "Pestizid Spray": "restricted_request",
+            "böcek ilacı": "restricted_request",
+            "diş macunu": "medical_or_health_related_product",
+            "牙膏": "medical_or_health_related_product",
+            "a gentle mouth rinse oralCare": "medical_or_health_related_product",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(pipeline.safety_decision(text), (expected, "human_review_required"))
+
+    def test_prohibited_words_match_whole_words_only(self):
+        for ordinary in ("detoxing charcoal shampoo", "detox clay face mask", "hair serum for heroines"):
+            with self.subTest(text=ordinary):
+                self.assertEqual(pipeline.safety_decision(ordinary)[1], "proceed")
+        for prohibited in ("botulinum toxin", "toxins for mice", "heroin", "a detonator charge", "LSD tabs"):
+            with self.subTest(text=prohibited):
+                self.assertEqual(pipeline.safety_decision(prohibited)[1], "refused")
+
+    def test_product_type_field_is_classified_too(self):
+        brief = {"target": "something for kitchen counters", "targetProductType": "Desinfektionsmittel"}
+        with tempfile.TemporaryDirectory() as tmp:
+            result = pipeline.run(brief, library=os.path.join(tmp, "library"),
+                                  out_dir=os.path.join(tmp, "s"), download_fulltexts=False)
+        self.assertEqual(result["status"], "human_review_required")
+
 
 # ---------------------------------------------------------------------------
 # FormuLab v1 correction (FVL-03): scientific formulation architecture

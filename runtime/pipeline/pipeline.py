@@ -23,6 +23,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 from typing import Any, Callable, Dict, List
 
 import architecture_portfolio
@@ -48,12 +49,33 @@ FORBIDDEN = [
 ]
 
 
-def safety_gate(target: str) -> str | None:
-    t = (target or "").lower()
+# Matched as prefixes ("detonator", "nitroglycerin"); every other FORBIDDEN
+# entry is a whole word or phrase, so "detox" and "heroines" are not hits.
+_FORBIDDEN_STEMS = frozenset({"detonat", "nitroglycer"})
+
+
+def _fold(text: str) -> str:
+    """Case- and accent-insensitive form, so "Désinfectant", "DEZENFEKTAN"
+    and "dezenfektanı" compare equal to plain keywords. Turkish dotless i is
+    mapped explicitly; NFKD does not decompose it."""
+    t = unicodedata.normalize("NFKD", (text or "").replace("ı", "i").replace("İ", "I")).casefold()
+    return "".join(ch for ch in t if not unicodedata.combining(ch))
+
+
+def _forbidden_hit(text: str) -> str | None:
+    t = _fold(text)
     for bad in FORBIDDEN:
-        if bad in t:
-            return (f"Refused: the target appears to involve a prohibited class "
-                    f"('{bad}'). FormuLab only designs lawful consumer/industrial products.")
+        tail = "" if bad in _FORBIDDEN_STEMS else r"s?(?![a-z0-9])"
+        if re.search(rf"(?<![a-z0-9]){re.escape(bad)}{tail}", t):
+            return bad
+    return None
+
+
+def safety_gate(target: str) -> str | None:
+    bad = _forbidden_hit(target)
+    if bad:
+        return (f"Refused: the target appears to involve a prohibited class "
+                f"('{bad}'). FormuLab only designs lawful consumer/industrial products.")
     return None
 
 
@@ -74,21 +96,40 @@ PRODUCT_SAFETY_CLASSIFICATIONS = (
     "human_review_required",
 )
 
+# English first, then the other UI languages (de, es, fr, tr, ja, ko, zh).
+# Written plain; both sides go through _fold before matching.
 _RESTRICTED_KEYWORDS = (
     "pesticide", "insecticide", "rodenticide", "fumigant", "veterinary drug",
     "controlled precursor",
+    "pestizid", "insektizid", "rodentizid", "begasung",
+    "pesticida", "plaguicida", "insecticida", "rodenticida",
+    "pestisit", "insektisit", "rodentisit", "bocek ilac", "tarim ilac",
+    "農薬", "殺虫", "殺鼠", "농약", "살충", "农药", "杀虫", "灭鼠",
 )
 _MEDICAL_KEYWORDS = (
     "toothpaste", "mouthwash", "therapeutic", "medicated", "medical device",
-    "wound care", "prescription", "drug",
+    "wound care", "prescription", "drug", "oralcare",
+    "zahnpasta", "zahncreme", "mundwasser", "arznei", "medizinisch", "therapeut",
+    "pasta dental", "dentifrico", "enjuague bucal", "medicad", "farmaceut", "terapeut",
+    "dentifrice", "bain de bouche", "medicament", "medical",
+    "dis macunu", "agiz gargara", "gargara", "ilac", "tibbi", "terapotik",
+    "歯磨", "歯みがき", "洗口", "医薬", "薬用", "치약", "구강청결", "의약", "약용",
+    "牙膏", "漱口", "药用", "医药", "医疗",
 )
 _DISINFECTANT_KEYWORDS = (
     "disinfectant", "sanitiser", "sanitizer", "qac", "quaternary ammonium",
     "chlorhexidine", "biocide", "germicide", "antimicrobial surface",
+    "desinfektion", "biozid", "keimtotend",
+    "desinfectante", "biocida", "sanitizante", "higienizante",
+    "desinfectant", "assainissant",
+    "dezenfektan", "biyosidal", "antiseptik",
+    "消毒", "殺菌", "소독", "살균", "杀菌",
 )
 _HAZARDOUS_LAWFUL_KEYWORDS = (
     "bleach", "hypochlorite", "sodium hypochlorite", "acid cleaner", "caustic",
     "sulfuric", "hydrochloric", "oven cleaner",
+    "hypochlorit", "hipoclorito", "hipoklorit", "lejia", "javel", "camasir suyu",
+    "漂白", "표백",
 )
 _INDUSTRIAL_KEYWORDS = (
     "degreaser", "industrial cleaner", "floor cleaner", "limescale remover", "descaler",
@@ -104,18 +145,19 @@ _HUMAN_REVIEW_TIERS = frozenset({
 
 def classify_target(target: str) -> str:
     """Deterministic classification of a free-text product target."""
-    t = (target or "").lower()
+    t = _fold(target)
+    has = lambda words: any(_fold(k) in t for k in words)  # noqa: E731
     if safety_gate(target):
         return "prohibited_request"
-    if any(k in t for k in _RESTRICTED_KEYWORDS):
+    if has(_RESTRICTED_KEYWORDS):
         return "restricted_request"
-    if any(k in t for k in _MEDICAL_KEYWORDS):
+    if has(_MEDICAL_KEYWORDS):
         return "medical_or_health_related_product"
-    if any(k in t for k in _DISINFECTANT_KEYWORDS):
+    if has(_DISINFECTANT_KEYWORDS):
         return "regulated_disinfectant"
-    if any(k in t for k in _HAZARDOUS_LAWFUL_KEYWORDS):
+    if has(_HAZARDOUS_LAWFUL_KEYWORDS):
         return "hazardous_lawful_product"
-    if any(k in t for k in _INDUSTRIAL_KEYWORDS):
+    if has(_INDUSTRIAL_KEYWORDS):
         return "industrial_cleaning_product"
     return "ordinary_consumer_product"
 
@@ -463,7 +505,10 @@ def run(
             ),
         }
 
-    classification, decision = safety_decision(target)
+    # Classify everything the user typed about the product, not only the
+    # request text: "Desinfektionsmittel" may sit in the product type field.
+    safety_text = " ".join(str(brief.get(k) or "") for k in ("target", "targetProductType", "category"))
+    classification, decision = safety_decision(safety_text)
     reviewer = str(brief.get("human_review_by", "")).strip()
     acknowledged = bool(brief.get("human_review_acknowledged")) and bool(reviewer)
     log_record: Dict[str, Any] = {
@@ -479,7 +524,7 @@ def run(
         return {
             "status": "refused",
             "classification": classification,
-            "message": safety_gate(target) or "Refused: prohibited request class.",
+            "message": safety_gate(safety_text) or "Refused: prohibited request class.",
         }
 
     if decision == "human_review_required" and not acknowledged:
