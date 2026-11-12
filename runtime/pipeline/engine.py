@@ -1305,11 +1305,12 @@ def build_formula_for_strategy(
     # The solvent is always the q.s.-to-100 closing ingredient — never given
     # an explicit percentage (its resolved concentration, if any, is
     # discarded in favor of q.s.).
-    water_key = normalize_ingredient_key("Water (Aqua)")
+    # Keyed on the q.s. resolution, not on "water-aqua": "aqua", "water" and
+    # "demineralized water" also win the solvent role and carry no number.
     ingredients_json: List[Dict[str, str]] = []
-    has_water = any(s.key == water_key for s in solved)
+    has_water = any(s.concentration.source_type == "qs_closure" for s in solved)
     for s in solved:
-        if s.key == water_key:
+        if s.concentration.source_type == "qs_closure":
             ingredients_json.append({"inci": s.display_name, "function": "Solvent", "weight_pct": "q.s. 100",
                                       "material_code": s.material_code})
         else:
