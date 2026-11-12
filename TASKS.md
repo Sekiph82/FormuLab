@@ -6,10 +6,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: None
-- Current Sprint: None
-- Current Task: None
-- Current Task Status: COMPLETE
+- Current Milestone: MERGE-01
+- Current Sprint: MERGE-01-S01
+- Current Task: MERGE-01.001 — Merge V01 into main, repoint governance to main, and leave V01 safe to delete
+- Current Task Status: IN_PROGRESS
 - Next Task: None
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -19,17 +19,17 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 198
+- Total Tasks: 199
 - Completed Tasks: 198
-- Remaining Tasks: 0
-- Completion: 100%
+- Remaining Tasks: 1
+- Completion: 99.5%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
 ## Claude Ownership
 
 - Claude is the primary and default executor for all future FormuLab implementation work on branch `V01`.
-- Current canonical backlog is empty: this ledger has 198/198 completed tasks and no open task (PORT-01 closed 2026-11-12).
+- Active backlog: MERGE-01 (owner-requested consolidation of V01 into main, 2026-11-12).
 - The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
 - New implementation tasks must be added to this root `TASKS.md` on branch `V01`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
 - Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
@@ -378,6 +378,12 @@ Review evidence (2026-11-12): pytest 458/458, cargo 409/409, vitest src/lib 1012
 ## Sprint PORT-01-S01 — Stable release fixes
 Owner instruction (2026-11-12): port the REV-01 defect fixes to `main`, the investor version. HARD-01 stays V01-only (owner declined on 2026-11-10). `main`'s own ledger is not modified.
 - [x] PORT-01.001 — Port the REV-01 defect fixes to main and verify them there
+
+# MERGE-01
+
+## Sprint MERGE-01-S01 — Consolidate V01 into main
+Owner instruction (2026-11-12): merge V01 completely into `main`, make `main` the active branch, and leave V01 ready for the owner to delete manually.
+- [~] MERGE-01.001 — Merge V01 into main, repoint governance to main, and leave V01 safe to delete
 
 ## Historical Detail & Evidence
 
