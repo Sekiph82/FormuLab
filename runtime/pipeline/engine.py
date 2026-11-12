@@ -183,6 +183,9 @@ class RequirementParse:
 _SCENT_PATTERN = re.compile(r"\b([a-z][a-z\-]{2,})\s+(?:scent|fragrance|aroma)\b", re.I)
 
 
+_UNCONSUMED_BRIEF_FIELDS = (("targetActiveMatter", "target active matter"), ("packagingType", "packaging type"))
+
+
 def parse_requirements(brief: Dict[str, Any]) -> RequirementParse:
     target = str(brief.get("target", ""))
     claims = str(brief.get("claims", ""))
@@ -230,6 +233,11 @@ def parse_requirements(brief: Dict[str, Any]) -> RequirementParse:
     ]
     # De-dup, preserve order.
     unresolved = list(dict.fromkeys(leftover_words))
+    # Request fields no engine module consumes yet: reported, never dropped.
+    for key, label in _UNCONSUMED_BRIEF_FIELDS:
+        value = str(brief.get(key) or "").strip()
+        if value:
+            unresolved.append(f"{label} {value}")
 
     return RequirementParse(resolved=sorted(set(resolved)), unresolved_fragments=unresolved,
                              scent_character=scent_character)

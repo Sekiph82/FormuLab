@@ -38,6 +38,12 @@ class RequirementParserTests(unittest.TestCase):
         parsed = engine.parse_requirements(brief)
         self.assertTrue(any("quantum" in f or "crystal" in f for f in parsed.unresolved_fragments))
 
+    def test_unconsumed_request_fields_are_reported_not_dropped(self):
+        parsed = engine.parse_requirements({"target": "shampoo", "targetActiveMatter": "15%", "packagingType": "pump bottle"})
+        self.assertIn("target active matter 15%", parsed.unresolved_fragments)
+        self.assertIn("packaging type pump bottle", parsed.unresolved_fragments)
+        self.assertEqual(engine.parse_requirements({"target": "shampoo"}).unresolved_fragments, [])
+
     def test_scent_character_is_extracted_as_a_narrow_structural_pattern(self):
         parsed = engine.parse_requirements({"target": "hand soap with rosemary scent"})
         self.assertEqual(parsed.scent_character, "rosemary")
