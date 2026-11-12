@@ -3455,6 +3455,15 @@
       "submitting": "Konto wird erstellt…",
       "roleNotice": "Dieses Konto wird immer mit vollen Administratorrechten erstellt. Bei der Ersteinrichtung gibt es keine Rollenauswahl."
     },
+    "changePassword": {
+      "title": "Neues Passwort wählen",
+      "subtitle": "{{name}}, Ihr aktuelles Passwort wurde von der Administration festgelegt. Wählen Sie vor dem Fortfahren ein eigenes.",
+      "currentLabel": "Aktuelles Passwort",
+      "newLabel": "Neues Passwort",
+      "confirmLabel": "Neues Passwort bestätigen",
+      "submit": "Passwort ändern",
+      "submitting": "Passwort wird geändert…"
+    },
     "account": {
       "logout": "Abmelden",
       "signedInAs": "Angemeldet als {{name}}"

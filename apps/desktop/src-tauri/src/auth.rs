@@ -292,7 +292,49 @@ pub(crate) fn current_session_logic(conn: &Connection, token: &str) -> Result<Op
     Ok(user.as_ref().map(SafeUser::from))
 }
 
+/// The signed-in user replaces their own password. This is the only way out
+/// of `must_change_password`, which `authz::current_actor` enforces.
+pub(crate) fn change_own_password_logic(
+    conn: &Connection,
+    token: &str,
+    current_password: &str,
+    new_password: &str,
+    confirm_password: &str,
+) -> Result<SafeUser, String> {
+    let user = identity::validate_session(conn, token, SESSION_IDLE_TIMEOUT_SECS)?
+        .ok_or_else(|| "not authenticated: sign in and try again".to_string())?;
+    if current_password.chars().count() > MAX_LOGIN_PASSWORD_LEN
+        || !identity::verify_password(current_password, &user.password_hash)
+    {
+        identity::record_security_audit_event(conn, Some(&user.id), Some(&user.id), "password_change", "failure", Some("current_password_mismatch"))?;
+        return Err("current password is incorrect".into());
+    }
+    if new_password != confirm_password {
+        return Err("passwords do not match".into());
+    }
+    validate_new_password(new_password)?;
+    if new_password == current_password {
+        return Err("the new password must differ from the current one".into());
+    }
+    identity::set_own_password(conn, &user.id, &identity::hash_password(new_password)?, token)?;
+    identity::record_security_audit_event(conn, Some(&user.id), Some(&user.id), "password_change", "success", None)?;
+    let fresh = identity::find_user_by_id(conn, &user.id)?.ok_or("user vanished after password change")?;
+    Ok(SafeUser::from(&fresh))
+}
+
 // -------------------------------------------------------- commands ---
+
+#[tauri::command(async)]
+pub async fn change_own_password(
+    app: AppHandle,
+    token: String,
+    current_password: String,
+    new_password: String,
+    confirm_password: String,
+) -> Result<SafeUser, String> {
+    let conn = identity::open_identity_db(&app)?;
+    change_own_password_logic(&conn, &token, &current_password, &new_password, &confirm_password)
+}
 
 #[tauri::command(async)]
 pub async fn bootstrap_status(app: AppHandle) -> Result<BootstrapStatusResult, String> {
@@ -687,5 +729,32 @@ mod tests {
         let conn = tmp_conn("boot-employee-present");
         seed_plain_user(&conn, "just.a.researcher", Role::Researcher, "whatever-1");
         assert!(bootstrap_status_logic(&conn).unwrap().bootstrap_required);
+    }
+    #[test]
+    fn a_forced_password_change_blocks_every_attributed_action_until_done() {
+        let mut conn = tmp_conn("forced-change");
+        bootstrap(&mut conn, "root.admin", "correct-horse-battery");
+        let user = seed_plain_user(&conn, "temp.user", Role::Researcher, "admin-set-temp-1");
+        assert!(user.must_change_password, "admin-created accounts start with a forced change");
+
+        let first = login_logic(&conn, "temp.user", "admin-set-temp-1").unwrap();
+        let other = login_logic(&conn, "temp.user", "admin-set-temp-1").unwrap();
+        assert!(first.user.must_change_password);
+        assert!(crate::authz::current_actor(&conn, &first.token).unwrap_err().contains("password change required"));
+        assert!(current_session_logic(&conn, &first.token).unwrap().is_some(), "the session still identifies the user");
+
+        assert_eq!(
+            change_own_password_logic(&conn, &first.token, "wrong-guess-123", "my-own-secret-9", "my-own-secret-9").unwrap_err(),
+            "current password is incorrect"
+        );
+        assert!(change_own_password_logic(&conn, &first.token, "admin-set-temp-1", "admin-set-temp-1", "admin-set-temp-1").is_err());
+        assert!(change_own_password_logic(&conn, &first.token, "admin-set-temp-1", "my-own-secret-9", "mismatch-9999").is_err());
+
+        let updated = change_own_password_logic(&conn, &first.token, "admin-set-temp-1", "my-own-secret-9", "my-own-secret-9").unwrap();
+        assert!(!updated.must_change_password);
+        assert_eq!(crate::authz::current_actor(&conn, &first.token).unwrap().user_id, user.id);
+        assert!(current_session_logic(&conn, &other.token).unwrap().is_none(), "other sessions are revoked");
+        assert!(login_logic(&conn, "temp.user", "admin-set-temp-1").is_err());
+        assert!(login_logic(&conn, "temp.user", "my-own-secret-9").is_ok());
     }
 }

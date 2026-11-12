@@ -89,6 +89,7 @@ pub fn run() {
             auth::login,
             auth::logout,
             auth::current_session,
+            auth::change_own_password,
             workspace::workspace_path,
             workspace::workspace_base,
             workspace::set_workspace_base,

@@ -449,6 +449,26 @@ pub(crate) fn update_password_hash(conn: &Connection, user_id: &str, new_hash: &
     Ok(())
 }
 
+/// The user's own password change: clears the forced-change flag and
+/// revokes every other session the user holds, keeping only `keep_token`.
+pub(crate) fn set_own_password(conn: &Connection, user_id: &str, new_hash: &str, keep_token: &str) -> Result<(), String> {
+    let n = conn
+        .execute(
+            "UPDATE users SET password_hash = ?1, updated_at = ?2, must_change_password = 0 WHERE id = ?3",
+            params![new_hash, now_iso(), user_id],
+        )
+        .map_err(|e| e.to_string())?;
+    if n == 0 {
+        return Err("no such user".into());
+    }
+    conn.execute(
+        "UPDATE authenticated_sessions SET revoked_at = ?1 WHERE user_id = ?2 AND id != ?3 AND revoked_at IS NULL",
+        params![now_iso(), user_id, hash_session_token(keep_token)],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 pub(crate) fn update_account_status(conn: &Connection, user_id: &str, active: bool) -> Result<(), String> {
     let status = if active { "active" } else { "disabled" };
     let n = conn

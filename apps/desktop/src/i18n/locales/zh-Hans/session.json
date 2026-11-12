@@ -3455,6 +3455,15 @@
       "submitting": "正在创建账户…",
       "roleNotice": "此账户始终以完整管理员权限创建。初始设置时无法选择角色。"
     },
+    "changePassword": {
+      "title": "设置新密码",
+      "subtitle": "{{name}}，您当前的密码由管理员设置。请在继续之前设置您自己的密码。",
+      "currentLabel": "当前密码",
+      "newLabel": "新密码",
+      "confirmLabel": "确认新密码",
+      "submit": "更改密码",
+      "submitting": "正在更改密码…"
+    },
     "account": {
       "logout": "退出登录",
       "signedInAs": "已登录：{{name}}"

@@ -3455,6 +3455,15 @@
       "submitting": "Creating account…",
       "roleNotice": "This account is always created with full Administrator access. There is no role choice on first setup."
     },
+    "changePassword": {
+      "title": "Choose a new password",
+      "subtitle": "{{name}}, your administrator set your current password. Choose your own before continuing.",
+      "currentLabel": "Current password",
+      "newLabel": "New password",
+      "confirmLabel": "Confirm new password",
+      "submit": "Change password",
+      "submitting": "Changing password…"
+    },
     "account": {
       "logout": "Sign out",
       "signedInAs": "Signed in as {{name}}"

@@ -10,6 +10,7 @@ const authMock = {
   login: vi.fn(),
   logout: vi.fn(),
   bootstrapCreateAdministrator: vi.fn(),
+  changeOwnPassword: vi.fn(),
 };
 vi.mock("@/lib/auth", () => ({
   bootstrapStatus: () => authMock.bootstrapStatus(),
@@ -17,6 +18,7 @@ vi.mock("@/lib/auth", () => ({
   login: (u: string, p: string) => authMock.login(u, p),
   logout: (token: string) => authMock.logout(token),
   bootstrapCreateAdministrator: (input: unknown) => authMock.bootstrapCreateAdministrator(input),
+  changeOwnPassword: (input: unknown) => authMock.changeOwnPassword(input),
 }));
 
 const ADMIN_USER: SafeUser = {
@@ -44,6 +46,56 @@ beforeEach(() => {
   authMock.login.mockReset();
   authMock.logout.mockReset();
   authMock.bootstrapCreateAdministrator.mockReset();
+  authMock.changeOwnPassword.mockReset();
+});
+
+describe("AuthProvider — administrator-set password", () => {
+  it("keeps the app closed until the user replaces the password", async () => {
+    window.localStorage.setItem("formulab.auth.token", "tok_temp");
+    authMock.bootstrapStatus.mockResolvedValue({ bootstrapRequired: false });
+    authMock.currentSession.mockResolvedValue({ ...ADMIN_USER, mustChangePassword: true });
+    authMock.changeOwnPassword.mockResolvedValue({ ...ADMIN_USER, mustChangePassword: false });
+    render(
+      <AuthProvider>
+        <ProtectedProbe />
+      </AuthProvider>,
+    );
+    expect(await screen.findByRole("heading", { name: /Choose a new password/i })).toBeInTheDocument();
+    expect(screen.queryByTestId("protected-content")).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Current password"), "admin-temp-1");
+    await user.type(screen.getByLabelText("New password"), "my-own-secret-9");
+    await user.type(screen.getByLabelText("Confirm new password"), "my-own-secret-9");
+    await user.click(screen.getByRole("button", { name: "Change password" }));
+
+    expect(await screen.findByTestId("protected-content")).toBeInTheDocument();
+    expect(authMock.changeOwnPassword).toHaveBeenCalledWith({
+      token: "tok_temp",
+      currentPassword: "admin-temp-1",
+      newPassword: "my-own-secret-9",
+      confirmPassword: "my-own-secret-9",
+    });
+  });
+
+  it("shows the backend refusal and stays on the change screen", async () => {
+    window.localStorage.setItem("formulab.auth.token", "tok_temp");
+    authMock.bootstrapStatus.mockResolvedValue({ bootstrapRequired: false });
+    authMock.currentSession.mockResolvedValue({ ...ADMIN_USER, mustChangePassword: true });
+    authMock.changeOwnPassword.mockRejectedValue("current password is incorrect");
+    render(
+      <AuthProvider>
+        <ProtectedProbe />
+      </AuthProvider>,
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Current password"), "wrong");
+    await user.type(screen.getByLabelText("New password"), "my-own-secret-9");
+    await user.type(screen.getByLabelText("Confirm new password"), "my-own-secret-9");
+    await user.click(screen.getByRole("button", { name: "Change password" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("current password is incorrect");
+    expect(screen.queryByTestId("protected-content")).not.toBeInTheDocument();
+  });
 });
 
 describe("AuthProvider — startup routing", () => {

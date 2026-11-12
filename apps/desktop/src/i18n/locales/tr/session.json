@@ -3455,6 +3455,15 @@
       "submitting": "Hesap oluşturuluyor…",
       "roleNotice": "Bu hesap her zaman tam Yönetici erişimiyle oluşturulur. İlk kurulumda rol seçimi yoktur."
     },
+    "changePassword": {
+      "title": "Yeni şifre belirleyin",
+      "subtitle": "{{name}}, mevcut şifrenizi yöneticiniz belirledi. Devam etmeden önce kendi şifrenizi belirleyin.",
+      "currentLabel": "Mevcut şifre",
+      "newLabel": "Yeni şifre",
+      "confirmLabel": "Yeni şifreyi doğrulayın",
+      "submit": "Şifreyi değiştir",
+      "submitting": "Şifre değiştiriliyor…"
+    },
     "account": {
       "logout": "Oturumu kapat",
       "signedInAs": "{{name}} olarak oturum açıldı"

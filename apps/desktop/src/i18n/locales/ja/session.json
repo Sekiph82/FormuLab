@@ -3455,6 +3455,15 @@
       "submitting": "アカウントを作成中…",
       "roleNotice": "このアカウントは常に完全な管理者権限で作成されます。初回セットアップでロールを選択することはできません。"
     },
+    "changePassword": {
+      "title": "新しいパスワードを設定",
+      "subtitle": "{{name}} さん、現在のパスワードは管理者が設定したものです。続行する前にご自身のパスワードを設定してください。",
+      "currentLabel": "現在のパスワード",
+      "newLabel": "新しいパスワード",
+      "confirmLabel": "新しいパスワード（確認）",
+      "submit": "パスワードを変更",
+      "submitting": "変更中…"
+    },
     "account": {
       "logout": "サインアウト",
       "signedInAs": "{{name}} としてサインイン中"

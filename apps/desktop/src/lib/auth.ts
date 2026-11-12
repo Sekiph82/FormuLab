@@ -70,6 +70,19 @@ export async function login(username: string, password: string): Promise<AuthSes
   return invoke<AuthSession>("login", { username, password });
 }
 
+/** Replaces the signed-in user's own password. Clears the forced-change
+ *  flag and revokes the user's other sessions; the current one stays. */
+export async function changeOwnPassword(input: {
+  token: string;
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<SafeUser> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<SafeUser>("change_own_password", input);
+}
+
 /** Revokes the session backend-side. Never throws for an already-invalid
  *  token (logging out twice, or after the session already expired, is a
  *  normal no-op) — callers should still always clear local state after
