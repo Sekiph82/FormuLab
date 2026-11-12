@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/formulationV2", () => ({
   generateFormulation: vi.fn(),
-  loadProviderConfig: () => ({ provider: "gemini", model: "m", apiKey: "k" }),
+  loadProviderConfig: () => ({ provider: "gemini", model: "m" }),
   notifySessionsChanged: vi.fn(),
   DEFAULT_FORMULA_ALTERNATIVES: 3,
   FORMULA_ALTERNATIVE_COUNTS: [3, 4, 5, 6, 7],

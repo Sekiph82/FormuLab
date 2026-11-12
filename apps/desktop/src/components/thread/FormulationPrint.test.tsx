@@ -7,7 +7,7 @@ const readSession = vi.fn();
 vi.mock("@/lib/formulationV2", () => ({
   readSession: (id: string) => readSession(id),
   generateFormulation: vi.fn(),
-  loadProviderConfig: () => ({ provider: "gemini", model: "m", apiKey: "k" }),
+  loadProviderConfig: () => ({ provider: "gemini", model: "m" }),
   notifySessionsChanged: vi.fn(),
   SESSIONS_CHANGED_EVENT: "formulab:sessions-changed",
   listSessions: vi.fn(async () => []),

@@ -108,8 +108,6 @@ pub struct GenerateRequest {
     pub brief: serde_json::Value,
     pub provider: String,
     pub model: String,
-    #[serde(default)]
-    pub api_key: String,
     #[serde(default = "default_n")]
     pub n: u32,
 }
@@ -359,7 +357,6 @@ pub async fn generate_formulation(
         "brief": request.brief,
         "provider": request.provider,
         "model": request.model,
-        "api_key": request.api_key,
         "library_dir": library.to_string_lossy(),
         "formulas_dir": formulas.to_string_lossy(),
         "sessions_dir": sessions.to_string_lossy(),
