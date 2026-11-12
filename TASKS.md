@@ -6,10 +6,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: None
-- Current Sprint: None
-- Current Task: None
-- Current Task Status: COMPLETE
+- Current Milestone: PORT-01
+- Current Sprint: PORT-01-S01
+- Current Task: PORT-01.001 — Port the REV-01 defect fixes to main and verify them there
+- Current Task Status: IN_PROGRESS
 - Next Task: None
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -19,17 +19,17 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 197
+- Total Tasks: 198
 - Completed Tasks: 197
-- Remaining Tasks: 0
-- Completion: 100%
+- Remaining Tasks: 1
+- Completion: 99.5%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
 ## Claude Ownership
 
 - Claude is the primary and default executor for all future FormuLab implementation work on branch `V01`.
-- Current canonical backlog is empty: this ledger has 197/197 completed tasks and no open task (REV-01 closed 2026-11-12).
+- Active backlog: PORT-01 (owner-requested port of REV-01 fixes to main, 2026-11-12).
 - The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
 - New implementation tasks must be added to this root `TASKS.md` on branch `V01`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
 - Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
@@ -372,6 +372,12 @@ Review evidence (2026-11-12): pytest 458/458, cargo 409/409, vitest src/lib 1012
 - [x] REV-01.013 — Remove the plain-text provider API key from localStorage and the pipeline payload
 - [x] REV-01.014 — Small hardening: atomic identity migration, fail-closed session RNG, support-bundle auth, bounded attachment read, missing action keys, flaky test timeouts, atomic formula index
 - [x] REV-01.015 — REV-01 closure: regression, release EXE rebuild and push
+
+# PORT-01
+
+## Sprint PORT-01-S01 — Stable release fixes
+Owner instruction (2026-11-12): port the REV-01 defect fixes to `main`, the investor version. HARD-01 stays V01-only (owner declined on 2026-11-10). `main`'s own ledger is not modified.
+- [~] PORT-01.001 — Port the REV-01 defect fixes to main and verify them there
 
 ## Historical Detail & Evidence
 
