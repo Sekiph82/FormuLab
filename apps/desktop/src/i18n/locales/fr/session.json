@@ -3953,6 +3953,15 @@
       "submitting": "Création du compte…",
       "roleNotice": "Ce compte est toujours créé avec un accès administrateur complet. Aucun choix de rôle n'est proposé lors de la configuration initiale."
     },
+    "changePassword": {
+      "title": "Choisissez un nouveau mot de passe",
+      "subtitle": "{{name}}, votre administrateur a défini votre mot de passe actuel. Choisissez le vôtre avant de continuer.",
+      "currentLabel": "Mot de passe actuel",
+      "newLabel": "Nouveau mot de passe",
+      "confirmLabel": "Confirmer le nouveau mot de passe",
+      "submit": "Changer le mot de passe",
+      "submitting": "Changement en cours…"
+    },
     "account": {
       "logout": "Se déconnecter",
       "signedInAs": "Connecté en tant que {{name}}"

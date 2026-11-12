@@ -3953,6 +3953,15 @@
       "submitting": "계정 생성 중…",
       "roleNotice": "이 계정은 항상 전체 관리자 권한으로 생성됩니다. 최초 설정 시 역할을 선택할 수 없습니다."
     },
+    "changePassword": {
+      "title": "새 비밀번호 설정",
+      "subtitle": "{{name}}님, 현재 비밀번호는 관리자가 설정했습니다. 계속하기 전에 본인의 비밀번호를 설정하세요.",
+      "currentLabel": "현재 비밀번호",
+      "newLabel": "새 비밀번호",
+      "confirmLabel": "새 비밀번호 확인",
+      "submit": "비밀번호 변경",
+      "submitting": "변경 중…"
+    },
     "account": {
       "logout": "로그아웃",
       "signedInAs": "{{name}}(으)로 로그인됨"

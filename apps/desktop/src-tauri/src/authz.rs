@@ -35,6 +35,11 @@ pub struct TrustedActor {
 pub(crate) fn current_actor(conn: &Connection, token: &str) -> Result<TrustedActor, String> {
     let user = identity::validate_session(conn, token, crate::auth::SESSION_IDLE_TIMEOUT_SECS)?
         .ok_or_else(|| "not authenticated: sign in and try again".to_string())?;
+    // An administrator-set password is known to that administrator; nothing
+    // may be attributed to this account until its owner has replaced it.
+    if user.must_change_password {
+        return Err("password change required: set a new password to continue".to_string());
+    }
     Ok(TrustedActor {
         user_id: user.id,
         role: user.role.as_str().to_string(),
@@ -168,6 +173,9 @@ mod tests {
             },
         )
         .unwrap();
+        // An active user who already replaced the administrator-set password.
+        conn.execute("UPDATE users SET must_change_password = 0 WHERE id = ?1", [&user.id]).unwrap();
+        let user = identity::find_user_by_id(conn, &user.id).unwrap().unwrap();
         let session = identity::create_session(conn, &user.id, 12 * 60 * 60).unwrap();
         (user, session.token)
     }

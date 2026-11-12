@@ -171,6 +171,7 @@ mod tests {
             },
         )
         .unwrap();
+        conn.execute("UPDATE users SET must_change_password = 0 WHERE id = ?1", [&user.id]).unwrap();
         let session = crate::identity::create_session(&conn, &user.id, 3600).unwrap();
         let state = AdvancedOptimizerState::default();
         let was_running = cancel_advanced_formulation_optimize_logic(&conn, &session.token, &state).unwrap();

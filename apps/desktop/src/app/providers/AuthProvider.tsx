@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import {
   bootstrapCreateAdministrator,
   bootstrapStatus,
+  changeOwnPassword,
   currentSession,
   login as loginRequest,
   logout as logoutRequest,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/auth";
 import { BootstrapScreen } from "@/components/auth/BootstrapScreen";
 import { LoginScreen } from "@/components/auth/LoginScreen";
+import { ChangePasswordScreen } from "@/components/auth/ChangePasswordScreen";
 
 /** localStorage holds ONLY the opaque bearer token — never username, role,
  *  displayName, or any other user detail. Every restart re-resolves the
@@ -24,7 +26,7 @@ import { LoginScreen } from "@/components/auth/LoginScreen";
  *  that could silently drift from it. */
 export const SESSION_TOKEN_KEY = "formulab.auth.token";
 
-type AuthPhase = "resolving" | "bootstrapRequired" | "loginRequired" | "authenticated";
+type AuthPhase = "resolving" | "bootstrapRequired" | "loginRequired" | "passwordChangeRequired" | "authenticated";
 
 export interface AuthContextValue {
   phase: AuthPhase;
@@ -111,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setUser(resolved);
       setToken(persisted);
-      setPhase("authenticated");
+      setPhase(resolved.mustChangePassword ? "passwordChangeRequired" : "authenticated");
     })();
     return () => {
       cancelled = true;
@@ -122,8 +124,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     persistToken(session.token);
     setToken(session.token);
     setUser(session.user);
-    setPhase("authenticated");
+    setPhase(session.user.mustChangePassword ? "passwordChangeRequired" : "authenticated");
   }, []);
+
+  const changePassword = useCallback(
+    async (input: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
+      if (!token) throw new Error("not signed in");
+      const updated = await changeOwnPassword({ token, ...input });
+      setUser(updated);
+      setPhase(updated.mustChangePassword ? "passwordChangeRequired" : "authenticated");
+    },
+    [token],
+  );
 
   const login = useCallback(
     async (username: string, password: string) => {
@@ -174,6 +186,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
   if (phase === "loginRequired") {
     return <LoginScreen onLogin={login} />;
+  }
+  if (phase === "passwordChangeRequired") {
+    return <ChangePasswordScreen displayName={user?.displayName ?? ""} onSubmit={changePassword} onLogout={logout} />;
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -3953,6 +3953,15 @@
       "submitting": "Creando cuenta…",
       "roleNotice": "Esta cuenta siempre se crea con acceso completo de administrador. No hay selección de rol en la configuración inicial."
     },
+    "changePassword": {
+      "title": "Elija una nueva contraseña",
+      "subtitle": "{{name}}, su administrador estableció su contraseña actual. Elija una propia antes de continuar.",
+      "currentLabel": "Contraseña actual",
+      "newLabel": "Nueva contraseña",
+      "confirmLabel": "Confirmar nueva contraseña",
+      "submit": "Cambiar contraseña",
+      "submitting": "Cambiando contraseña…"
+    },
     "account": {
       "logout": "Cerrar sesión",
       "signedInAs": "Sesión iniciada como {{name}}"
