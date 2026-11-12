@@ -6,10 +6,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: REV-01
-- Current Sprint: REV-01-S02
-- Current Task: REV-01.015 — REV-01 closure: regression, release EXE rebuild and push
-- Current Task Status: IN_PROGRESS
+- Current Milestone: None
+- Current Sprint: None
+- Current Task: None
+- Current Task Status: COMPLETE
 - Next Task: None
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -20,16 +20,16 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 197
-- Completed Tasks: 196
-- Remaining Tasks: 1
-- Completion: 99.5%
+- Completed Tasks: 197
+- Remaining Tasks: 0
+- Completion: 100%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
 ## Claude Ownership
 
 - Claude is the primary and default executor for all future FormuLab implementation work on branch `V01`.
-- Active backlog: REV-01-S02 confirmed defect fixes (owner-requested deep review, 2026-11-12).
+- Current canonical backlog is empty: this ledger has 197/197 completed tasks and no open task (REV-01 closed 2026-11-12).
 - The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
 - New implementation tasks must be added to this root `TASKS.md` on branch `V01`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
 - Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
@@ -371,7 +371,7 @@ Review evidence (2026-11-12): pytest 458/458, cargo 409/409, vitest src/lib 1012
 - [x] REV-01.012 — Show load errors instead of empty lists and end the stuck connections spinner
 - [x] REV-01.013 — Remove the plain-text provider API key from localStorage and the pipeline payload
 - [x] REV-01.014 — Small hardening: atomic identity migration, fail-closed session RNG, support-bundle auth, bounded attachment read, missing action keys, flaky test timeouts, atomic formula index
-- [~] REV-01.015 — REV-01 closure: regression, release EXE rebuild and push
+- [x] REV-01.015 — REV-01 closure: regression, release EXE rebuild and push
 
 ## Historical Detail & Evidence
 
