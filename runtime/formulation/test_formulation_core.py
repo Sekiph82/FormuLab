@@ -37,6 +37,22 @@ class OptimizeTests(unittest.TestCase):
         self.assertEqual(names, ["Cheap"])
         self.assertAlmostEqual(res["total_cost"], 100.0, places=2)
 
+    def test_a_blank_price_is_refused_not_treated_as_free(self):
+        for blank in (None, "", "  "):
+            payload = {
+                "materials": [
+                    {"name": "LABSA", "unit_price": 1.2, "stock": 100, "active_matter_pct": 96},
+                    {"name": "SLES", "unit_price": blank, "stock": 100, "active_matter_pct": 70},
+                ],
+                "constraints": {"batch_size": 100.0, "min_active_pct": 0.0},
+            }
+            with self.subTest(blank=blank), self.assertRaisesRegex(FormulationError, "SLES.*missing"):
+                optimize(payload)
+        no_key = {"materials": [{"name": "SLES", "stock": 100, "active_matter_pct": 70}],
+                  "constraints": {"batch_size": 10.0, "min_active_pct": 0.0}}
+        with self.assertRaisesRegex(FormulationError, "missing"):
+            optimize(no_key)
+
     def test_infeasible_active_target_too_high(self):
         payload = {**BASE, "constraints": {"batch_size": 100.0, "min_active_pct": 95.0}}
         res = optimize(payload)
