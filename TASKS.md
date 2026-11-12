@@ -13,8 +13,8 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Next Task: None
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
-- Tracking Branch: V01
-- Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/V01/TASKS.md
+- Tracking Branch: main
+- Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
 - Blockers/Waits: None
 
 ## Progress
@@ -28,12 +28,12 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 
 ## Claude Ownership
 
-- Claude is the primary and default executor for all future FormuLab implementation work on branch `V01`.
+- Claude is the primary and default executor for all future FormuLab implementation work on branch `main`.
 - Active backlog: MERGE-01 (owner-requested consolidation of V01 into main, 2026-11-12).
 - The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
-- New implementation tasks must be added to this root `TASKS.md` on branch `V01`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
+- New implementation tasks must be added to this root `TASKS.md` on branch `main`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
 - Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
-- `main` remains the stable completed release branch until the owner explicitly requests a merge or release transition.
+- V01 was merged into `main` on 2026-11-12 (MERGE-01); `main` is the single active branch and must stay releasable.
 
 ## Tracking Rules
 

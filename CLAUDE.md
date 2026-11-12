@@ -6,19 +6,16 @@ Repository:
 https://github.com/Sekiph82/FormuLab
 
 Active development branch:
-`V01`
-
-Stable release branch:
-`main`
+`main` (V01 was merged into it on 2026-11-12 and retired)
 
 Primary governance:
-https://github.com/Sekiph82/FormuLab/blob/V01/AGENTS.md
+https://github.com/Sekiph82/FormuLab/blob/main/AGENTS.md
 
 Current root task ledger:
-https://github.com/Sekiph82/FormuLab/blob/V01/TASKS.md
+https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
 
-Completed V01 supplier/reference-intelligence plan:
-https://github.com/Sekiph82/FormuLab/blob/V01/tasks.v01.md
+Completed V01 supplier/reference-intelligence plan (history):
+https://github.com/Sekiph82/FormuLab/blob/main/tasks.v01.md
 
 ## Authority
 
@@ -29,8 +26,8 @@ Claude is authorized to:
 - inspect and modify any repository file required by an approved task;
 - change source code, tests, schemas, migrations, documentation, build scripts and task-state files;
 - create and use task-owned worktrees/branches;
-- integrate validated work back into `V01`;
-- commit and push validated changes to `V01`;
+- integrate validated work back into `main`;
+- commit and push validated changes to `main`;
 - run repository build, test, lint, typecheck, package and installer commands;
 - update dependencies when genuinely required by the approved work;
 - use subagents/reviewers for code, testing, security, scientific-integrity, UI and data-integrity review;
@@ -99,11 +96,10 @@ If a genuine human gate prevents one task, record the exact condition and contin
 
 ## Git rules
 
-- `V01` is the active Claude development branch.
-- `main` is the stable completed release branch and must not be changed or merged into unless the owner explicitly requests it.
+- `main` is the active Claude development branch and the version shown to the owner and investors, so it must stay releasable: push only validated work.
 - Never force-push.
 - Preserve unrelated owner changes.
-- Push validated task transitions and code to `origin/V01`.
+- Push validated task transitions and code to `origin/main`.
 - Historical Codex branches/artifacts are not active task authority.
 
 ## Current handoff state
@@ -111,7 +107,7 @@ If a genuine human gate prevents one task, record the exact condition and contin
 At the time Claude ownership was established:
 
 - root `main/TASKS.md`: 178/178 complete, 0 open;
-- `V01/tasks.v01.md`: 164/164 complete, 0 open, 0 active, 0 blocked;
+- `tasks.v01.md` (V01 history): 164/164 complete, 0 open, 0 active, 0 blocked;
 - there is no pending implementation backlog to transfer;
 - all future FormuLab implementation tasks should name Claude as the required actor and be executed under this governance.
 

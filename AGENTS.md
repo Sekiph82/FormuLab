@@ -10,16 +10,16 @@ Project rules and working context for AI agents.
 **Primary implementation/execution agent: Claude.** Claude owns all active FormuLab implementation work, testing, task-state transitions, code review, commits, and pushes unless the owner explicitly assigns a different actor for a specific task. Codex artifacts are historical/compatibility evidence only and must not override this rule.
 
 Canonical repository: https://github.com/Sekiph82/FormuLab
-Canonical task ledger: https://github.com/Sekiph82/FormuLab/blob/V01/TASKS.md
+Canonical task ledger: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
 
 `CLAUDE.md` is the Claude execution entry point and must remain consistent with this governance file.
 
 ## H!veAI GitHub tracking
 
-- The repository root `TASKS.md` is the **only current project-status tracker**: https://github.com/Sekiph82/FormuLab/blob/V01/TASKS.md
+- The repository root `TASKS.md` is the **only current project-status tracker**: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
 - Claude is the default and sole required actor for active implementation unless the owner explicitly names another actor in the active task ledger.
 - H!veAI project truth is GitHub repository metadata plus root `TASKS.md` on the configured tracked branch.
-- Current active development/tracking branch for FormuLab is `V01`. `main` is the stable completed release branch and is not the active implementation branch.
+- The active development and tracking branch for FormuLab is `main` (V01 was merged into it on 2026-11-12 and retired). There is no separate release branch: keep `main` releasable and push only validated work.
 - `PROGRESS.md`, `project-control/**`, handoffs, audits, prompts, logs, roadmap/spec documents, GitHub issues, and `docs/migration/legacy-task-trackers/**` are evidence/history or scope context only. They must not override task state in root `TASKS.md`.
 - Do not create or revive `.hiveai/PROJECT*`, `.hiveai/TASKS*`, `.hiveai/STATE*`, `.hiveai/HANDOFF*`, `.hiveai/EVENTS*`, `.hiveai/RULES*`, dashboard manifests, or any other competing task ledger.
 - When a task starts, update both its checkbox row and the `Project Status` section in `TASKS.md` in the same logical change.
@@ -102,8 +102,8 @@ SQLite + JSONL provenance.
 
 ## Claude ownership and autonomous execution
 
-- Claude is authorized to inspect and modify any repository file required to complete owner-approved FormuLab work on branch `V01`, including source, tests, schemas, migrations, docs, build scripts, task ledgers, and project-control evidence.
-- Claude may create task-owned worktrees/branches when useful, but validated work must be integrated back into `V01` and pushed there unless the owner explicitly instructs otherwise.
+- Claude is authorized to inspect and modify any repository file required to complete owner-approved FormuLab work on branch `main`, including source, tests, schemas, migrations, docs, build scripts, task ledgers, and project-control evidence.
+- Claude may create task-owned worktrees/branches when useful, but validated work must be integrated back into `main` and pushed there unless the owner explicitly instructs otherwise.
 - Claude may run local build/test/lint/typecheck/package/install commands required by the repository and may update dependencies when necessary for the approved task. Do not weaken safety/security checks merely to make tests pass.
 - Claude may use subagents/reviewers for code, tests, security, scientific-integrity, UI, and data-integrity review. Claude remains responsible for final integration and evidence.
 - Claude must continue autonomously through the ordered queue. Routine implementation choices, test fixes, refactors, documentation updates, and task transitions do not require owner confirmation.
