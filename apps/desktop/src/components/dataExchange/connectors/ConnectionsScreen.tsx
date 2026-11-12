@@ -32,16 +32,23 @@ export function ConnectionsScreen({
   const [showAdd, setShowAdd] = useState(false);
   const [configuring, setConfiguring] = useState<ConnectorConnection | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const refresh = async () => {
     setLoading(true);
-    const rows = await loadConnections();
-    setConnections(rows);
-    const entries = await Promise.all(
-      rows.map(async (c) => [c.code, { runs: await importRunCountFor(c), lastImport: await lastImportTimestampFor(c), profiles: await mappingProfileCountFor(c.sourceSystemId) }] as const),
-    );
-    setMeta(Object.fromEntries(entries));
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const rows = await loadConnections();
+      setConnections(rows);
+      const entries = await Promise.all(
+        rows.map(async (c) => [c.code, { runs: await importRunCountFor(c), lastImport: await lastImportTimestampFor(c), profiles: await mappingProfileCountFor(c.sourceSystemId) }] as const),
+      );
+      setMeta(Object.fromEntries(entries));
+    } catch (e) {
+      setLoadError(String(e));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => {
     void refresh();
@@ -75,7 +82,8 @@ export function ConnectionsScreen({
         )
       }
     >
-      {!loading && visible.length === 0 && <Empty text={t("dataExchange.connectors.connections.empty")} />}
+      {loadError && <div role="alert" className="rounded-card border border-error/40 bg-error/10 px-3 py-2 text-[12px] text-error">{loadError}</div>}
+      {!loading && !loadError && visible.length === 0 && <Empty text={t("dataExchange.connectors.connections.empty")} />}
       {visible.length > 0 && (
         <Table
           headers={[

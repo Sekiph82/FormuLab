@@ -15,10 +15,12 @@ export function ImportRunsScreen() {
   const [jobs, setJobs] = useState<DataExchangeImportJob[]>([]);
   const [rowResults, setRowResults] = useState<DataExchangeImportRowResult[]>([]);
   const [detailJobId, setDetailJobId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    void listRecords("data_exchange_import_jobs").then((rows) => setJobs(rows.filter((j) => j.fileType === "connector").sort((a, b) => (b.startedAt > a.startedAt ? 1 : -1))));
-    void listRecords("data_exchange_import_row_results").then(setRowResults);
+    const failed = (e: unknown) => setLoadError(String(e));
+    void listRecords("data_exchange_import_jobs").then((rows) => setJobs(rows.filter((j) => j.fileType === "connector").sort((a, b) => (b.startedAt > a.startedAt ? 1 : -1))), failed);
+    void listRecords("data_exchange_import_row_results").then(setRowResults, failed);
   }, []);
 
   const detailJob = jobs.find((j) => j.id === detailJobId);
@@ -26,6 +28,7 @@ export function ImportRunsScreen() {
 
   return (
     <Card title={t("dataExchange.connectors.tabs.runs")}>
+      {loadError && <div role="alert" className="rounded-card border border-error/40 bg-error/10 px-3 py-2 text-[12px] text-error">{loadError}</div>}
       {jobs.length === 0 ? (
         <Empty text={t("dataExchange.connectors.runs.empty")} />
       ) : (

@@ -53,7 +53,14 @@ export function CorrectiveActionsPanel({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void listRecords("corrective_actions").then((all) => setActions(all.filter((a) => a.projectId === formulation.id)));
+    let cancelled = false;
+    void listRecords("corrective_actions").then(
+      (all) => { if (!cancelled) setActions(all.filter((a) => a.projectId === formulation.id)); },
+      (e) => { if (!cancelled) setError(String(e)); },
+    );
+    return () => {
+      cancelled = true;
+    };
   }, [formulation.id]);
 
   const persist = async (action: CorrectiveAction) => {
