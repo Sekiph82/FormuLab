@@ -28,13 +28,25 @@ fn formulations_root(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// Reject anything that could escape the formulations directory. Ids come from
 /// the webview, so they are untrusted input.
+/// True only when `id` joins onto a directory as exactly one child named
+/// `id`. Rejects "", ".", and Windows drive prefixes such as "C:", which
+/// `Path::join` would otherwise turn into a path outside the base.
+pub(crate) fn is_single_path_component(id: &str) -> bool {
+    let mut parts = std::path::Path::new(id).components();
+    matches!(
+        (parts.next(), parts.next()),
+        (Some(std::path::Component::Normal(name)), None) if name == std::ffi::OsStr::new(id)
+    )
+}
+
 pub(crate) fn safe_id(id: &str) -> Result<&str, String> {
     let ok = !id.is_empty()
         && id.len() <= 128
         && id
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ':' || c == '.')
-        && !id.contains("..");
+        && !id.contains("..")
+        && is_single_path_component(id);
     if ok {
         Ok(id)
     } else {
@@ -491,6 +503,18 @@ pub async fn delete_formulation(app: AppHandle, token: String, id: String) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ids_that_escape_or_replace_the_base_directory_are_rejected() {
+        for bad in ["", ".", "C:", "c:", "C:evil", "a/b", "a\\b", "..", "../x"] {
+            assert!(safe_id(bad).is_err(), "{bad:?} must be rejected");
+            assert!(!is_single_path_component(bad) || bad.contains(".."), "{bad:?} is not one component");
+        }
+        for good in ["formulation-k3x9-ab12", "v1.2", "mat-001", "2026-11-12-0931-laundry-detergent"] {
+            assert!(safe_id(good).is_ok(), "{good:?} must stay valid");
+            assert!(is_single_path_component(good));
+        }
+    }
 
     fn actor(role: &str) -> authz::TrustedActor {
         authz::TrustedActor {

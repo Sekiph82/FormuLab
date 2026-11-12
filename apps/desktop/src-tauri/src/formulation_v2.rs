@@ -506,7 +506,7 @@ pub async fn read_session(
 ) -> Result<serde_json::Value, String> {
     crate::authz::current_actor_app(&app, &token)?;
     // Guard against path traversal: the id must be a single path component.
-    if id.contains('/') || id.contains('\\') || id.contains("..") {
+    if !crate::formulations::is_single_path_component(&id) || id.contains("..") {
         return Err("invalid session id".into());
     }
     let dir = data_dir(&app, &["data", "sessions"])?.join(&id);
@@ -566,7 +566,7 @@ fn read_literature(dir: &std::path::Path) -> serde_json::Value {
 #[tauri::command(async)]
 pub async fn delete_session(app: AppHandle, token: String, id: String) -> Result<(), String> {
     crate::authz::current_actor_app(&app, &token)?;
-    if id.contains('/') || id.contains('\\') || id.contains("..") {
+    if !crate::formulations::is_single_path_component(&id) || id.contains("..") {
         return Err("invalid session id".into());
     }
     let dir = data_dir(&app, &["data", "sessions"])?.join(&id);
