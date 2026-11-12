@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: REL-01
-- Current Sprint: REL-01-S01
-- Current Task: REL-01.001 — Rebuild the release EXE from V01 HEAD and verify FormuLab.lnk opens it
+- Current Milestone: REV-01
+- Current Sprint: REV-01-S01
+- Current Task: REV-01.001 — Verified deep code review of V01; open each confirmed defect as its own task
 - Current Task Status: IN_PROGRESS
-- Next Task: REV-01.001 — Verified deep code review of V01; open each confirmed defect as its own task
+- Next Task: None
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: V01
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 183
-- Completed Tasks: 181
-- Remaining Tasks: 2
-- Completion: 98.9%
+- Completed Tasks: 182
+- Remaining Tasks: 1
+- Completion: 99.5%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -348,13 +348,13 @@ Scope: defects confirmed in code by the 2026-11-10 read-only V01 review. Reporte
 
 ## Sprint REL-01-S01 — Release EXE refresh
 Owner decision Q-FVL-11.011-1 requires the desktop EXE to open the latest project state; it still opened the 2026-10-28 build after HARD-01.
-- [~] REL-01.001 — Rebuild the release EXE from V01 HEAD and verify FormuLab.lnk opens it
+- [x] REL-01.001 — Rebuild the release EXE from V01 HEAD and verify FormuLab.lnk opens it
 
 # REV-01
 
 ## Sprint REV-01-S01 — Verified deep review
 Every reported finding must be reproduced in code (and by test where possible) before it becomes a task; unverified claims are recorded as excluded.
-- [ ] REV-01.001 — Verified deep code review of V01; open each confirmed defect as its own task
+- [~] REV-01.001 — Verified deep code review of V01; open each confirmed defect as its own task
 
 ## Historical Detail & Evidence
 
