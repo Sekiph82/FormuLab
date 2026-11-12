@@ -723,6 +723,13 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("viscosity", joined)
         self.assertIn("rosemary fragrance", joined)
 
+    def test_non_ascii_product_names_survive_queries_and_slugs(self):
+        qs = pipeline.build_queries({"target": "kepek önleyici şampuan"})
+        self.assertEqual(qs[0], "kepek önleyici şampuan")
+        self.assertEqual(pipeline._slug("kepek önleyici şampuan"), "kepek-onleyici-sampuan")
+        self.assertEqual(pipeline._slug("çamaşır deterjanı"), "camasir-deterjani")
+        self.assertEqual(pipeline._slug("洗发水"), "product")
+
     def test_request_page_category_identifiers_are_never_search_terms(self):
         qs = pipeline.build_queries({"target": "anti-dandruff shampoo", "category": "hairCare"})
         self.assertEqual(qs[0], "anti-dandruff shampoo")
