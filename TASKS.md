@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: None
-- Current Sprint: None
-- Current Task: None
-- Current Task Status: COMPLETE
-- Next Task: None
+- Current Milestone: REL-01
+- Current Sprint: REL-01-S01
+- Current Task: REL-01.001 — Rebuild the release EXE from V01 HEAD and verify FormuLab.lnk opens it
+- Current Task Status: IN_PROGRESS
+- Next Task: REV-01.001 — Verified deep code review of V01; open each confirmed defect as its own task
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: V01
@@ -19,17 +19,17 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 181
+- Total Tasks: 183
 - Completed Tasks: 181
-- Remaining Tasks: 0
-- Completion: 100%
+- Remaining Tasks: 2
+- Completion: 98.9%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
 ## Claude Ownership
 
 - Claude is the primary and default executor for all future FormuLab implementation work on branch `V01`.
-- Current canonical backlog is empty: this ledger has 181/181 completed tasks and no open task (HARD-01 closed 2026-11-10).
+- Active backlog: REL-01 (release EXE refresh, owner request 2026-11-12), then REV-01 (verified deep review, owner request 2026-11-12).
 - The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
 - New implementation tasks must be added to this root `TASKS.md` on branch `V01`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
 - Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
@@ -343,6 +343,18 @@ Scope: defects confirmed in code by the 2026-11-10 read-only V01 review. Reporte
 - [x] HARD-01.001 — Bound the formulation pipeline subprocess with a wall-clock deadline and kill it on expiry
 - [x] HARD-01.002 — Enforce a Content Security Policy for the desktop webview without breaking previews, OCR, exports or IPC
 - [x] HARD-01.003 — HARD-01 closure: targeted regression, desktop verification and push
+
+# REL-01
+
+## Sprint REL-01-S01 — Release EXE refresh
+Owner decision Q-FVL-11.011-1 requires the desktop EXE to open the latest project state; it still opened the 2026-10-28 build after HARD-01.
+- [~] REL-01.001 — Rebuild the release EXE from V01 HEAD and verify FormuLab.lnk opens it
+
+# REV-01
+
+## Sprint REV-01-S01 — Verified deep review
+Every reported finding must be reproduced in code (and by test where possible) before it becomes a task; unverified claims are recorded as excluded.
+- [ ] REV-01.001 — Verified deep code review of V01; open each confirmed defect as its own task
 
 ## Historical Detail & Evidence
 
