@@ -458,6 +458,16 @@ mod tests {
     }
 
     #[test]
+    fn reset_password_revokes_the_users_open_sessions() {
+        let conn = tmp_conn("reset-revokes");
+        let user = seed_user(&conn, "reset.revoke", Role::Researcher);
+        let session = identity::create_session(&conn, &user.id, 3600).unwrap();
+        let admin = actor("admin-1", "administrator");
+        reset_user_password_logic(&conn, &admin, &user.id, "brand-new-password-1", "brand-new-password-1").unwrap();
+        assert!(identity::validate_session(&conn, &session.token, 0).unwrap().is_none(), "a reset must end sessions opened with the old password");
+    }
+
+    #[test]
     fn reset_password_rejects_a_password_shorter_than_the_existing_policy() {
         let conn = tmp_conn("reset-weak");
         let user = seed_user(&conn, "weak.target", Role::Researcher);
