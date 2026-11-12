@@ -456,6 +456,13 @@ pub(crate) fn update_password_hash(conn: &Connection, user_id: &str, new_hash: &
     if n == 0 {
         return Err("no such user".into());
     }
+    // A reset is often a response to a compromised account: sessions opened
+    // with the old password must not outlive it.
+    conn.execute(
+        "UPDATE authenticated_sessions SET revoked_at = ?1 WHERE user_id = ?2 AND revoked_at IS NULL",
+        params![now_iso(), user_id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 

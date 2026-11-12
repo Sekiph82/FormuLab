@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: REV-01
 - Current Sprint: REV-01-S02
-- Current Task: REV-01.008 — Revoke a user's sessions when an administrator resets the password
+- Current Task: REV-01.009 — Keep blank material prices blank in the cost optimizer
 - Current Task Status: IN_PROGRESS
-- Next Task: REV-01.009 — Keep blank material prices blank in the cost optimizer
+- Next Task: REV-01.010 — Preserve non-ASCII product names in literature queries and session slugs
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: V01
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 197
-- Completed Tasks: 189
-- Remaining Tasks: 8
-- Completion: 95.9%
+- Completed Tasks: 190
+- Remaining Tasks: 7
+- Completion: 96.4%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -364,8 +364,8 @@ Review evidence (2026-11-12): pytest 458/458, cargo 409/409, vitest src/lib 1012
 - [x] REV-01.005 — Build literature queries from the product description instead of the raw category key
 - [x] REV-01.006 — Send non-English regulated requests to human review and stop substring false refusals
 - [x] REV-01.007 — Enforce the forced password change with a self-service password change
-- [~] REV-01.008 — Revoke a user's sessions when an administrator resets the password
-- [ ] REV-01.009 — Keep blank material prices blank in the cost optimizer
+- [x] REV-01.008 — Revoke a user's sessions when an administrator resets the password
+- [~] REV-01.009 — Keep blank material prices blank in the cost optimizer
 - [ ] REV-01.010 — Preserve non-ASCII product names in literature queries and session slugs
 - [ ] REV-01.011 — Report targetActiveMatter and packagingType as uninterpreted instead of dropping them silently
 - [ ] REV-01.012 — Show load errors instead of empty lists and end the stuck connections spinner
