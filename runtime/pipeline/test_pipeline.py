@@ -723,6 +723,15 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("viscosity", joined)
         self.assertIn("rosemary fragrance", joined)
 
+    def test_request_page_category_identifiers_are_never_search_terms(self):
+        qs = pipeline.build_queries({"target": "anti-dandruff shampoo", "category": "hairCare"})
+        self.assertEqual(qs[0], "anti-dandruff shampoo")
+        self.assertFalse(any("hairCare" in q for q in qs))
+        qs = pipeline.build_queries({"target": "something gentle for my scalp", "category": "other",
+                                     "targetProductType": "Shampoo"})
+        self.assertEqual(qs[0], "Shampoo")
+        self.assertIn("Shampoo surfactant", qs)
+
     def test_planner_adapts_to_product_class(self):
         qs = pipeline.build_queries({"target": "hand cream", "category": "hand cream"})
         joined = " ".join(qs).lower()

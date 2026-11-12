@@ -164,6 +164,9 @@ _FILLER = {"for", "with", "without", "free", "prone", "and", "or", "the", "a", "
            "my", "our", "type", "kind", "use", "used", "very", "extra", "super"}
 
 
+_UI_CATEGORY_KEYS = {"", "auto-detect", "haircare", "skincare", "homecare", "oralcare", "industrial", "other"}
+
+
 def _head(name: str, max_words: int = 3) -> str:
     """The searchable core of a product name: first few content words."""
     words = [w for w in re.findall(r"[A-Za-z0-9-]+", name or "") if w.lower() not in _FILLER]
@@ -186,13 +189,16 @@ def build_queries(
     """
     target = str(brief.get("target", "")).strip()
     cat = str(brief.get("category", "")).strip()
-    catl = f"{cat} {target}".lower()
+    product_type = str(brief.get("targetProductType", "")).strip()
+    catl = f"{cat} {product_type} {target}".lower()
 
     # Keep queries SHORT. These APIs match conjunctively: a five-concept query
     # like "limescale remover for kettles formulation ingredients" returns zero
     # hits, while "limescale removal" returns solid ones. So each angle is the
-    # product head plus ONE distinguishing term.
-    head = _head(cat if cat and cat != "auto-detect" else target)
+    # product head plus ONE distinguishing term. The request page's category
+    # select sends identifiers ("hairCare"), which are never search terms.
+    cat_term = "" if cat.lower() in _UI_CATEGORY_KEYS else cat
+    head = _head(product_type or cat_term or target)
 
     queries: List[str] = [head]
 
