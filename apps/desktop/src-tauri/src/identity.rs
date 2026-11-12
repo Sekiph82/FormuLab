@@ -216,9 +216,12 @@ fn run_migrations(conn: &Connection) -> Result<(), String> {
         return Ok(()); // already up to date — idempotent no-op
     }
     for (i, migration) in MIGRATIONS.iter().enumerate().skip(current) {
-        conn.execute_batch(migration).map_err(|e| format!("identity.db migration {} failed: {e}", i + 1))?;
-        let new_version = (i + 1) as i64;
-        conn.pragma_update(None, "user_version", new_version).map_err(|e| e.to_string())?;
+        // One transaction per step: a crash mid-migration must leave neither
+        // half the tables nor a user_version that disagrees with them.
+        let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        tx.execute_batch(migration).map_err(|e| format!("identity.db migration {} failed: {e}", i + 1))?;
+        tx.pragma_update(None, "user_version", (i + 1) as i64).map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -773,10 +776,11 @@ pub(crate) fn record_login_attempt(
 /// manifest hashing) for the one-way hash. Not a JWT — an offline local
 /// desktop app has no second party to verify a signed claim against, so a
 /// plain random-token-plus-hash design is the right amount of complexity.
-fn generate_session_token() -> String {
+fn generate_session_token() -> Result<String, String> {
     let mut buf = [0u8; 32];
-    let _ = getrandom::fill(&mut buf);
-    buf.iter().map(|b| format!("{b:02x}")).collect::<String>()
+    // Fail closed: an all-zero buffer would be a predictable bearer token.
+    getrandom::fill(&mut buf).map_err(|e| format!("could not create a secure session token: {e}"))?;
+    Ok(buf.iter().map(|b| format!("{b:02x}")).collect::<String>())
 }
 
 fn hash_session_token(token: &str) -> String {
@@ -801,7 +805,7 @@ pub(crate) struct Session {
 }
 
 pub(crate) fn create_session(conn: &Connection, user_id: &str, ttl_secs: i64) -> Result<Session, String> {
-    let token = generate_session_token();
+    let token = generate_session_token()?;
     let token_hash = hash_session_token(&token);
     let now = now_iso();
     let expires = (now.parse::<i64>().unwrap_or(0) + ttl_secs).to_string();

@@ -3,7 +3,9 @@
     "save": "保存",
     "cancel": "キャンセル",
     "remove": "削除",
-    "close": "Close"
+    "close": "Close",
+    "add": "追加",
+    "clear": "クリア"
   },
   "unsavedClose": {
     "title": "Unsaved changes",

@@ -3,7 +3,9 @@
     "save": "保存",
     "cancel": "取消",
     "remove": "移除",
-    "close": "Close"
+    "close": "Close",
+    "add": "添加",
+    "clear": "清除"
   },
   "unsavedClose": {
     "title": "Unsaved changes",

@@ -3,7 +3,9 @@
     "save": "Kaydet",
     "cancel": "İptal",
     "remove": "Kaldır",
-    "close": "Kapat"
+    "close": "Kapat",
+    "add": "Ekle",
+    "clear": "Temizle"
   },
   "unsavedClose": {
     "title": "Unsaved changes",

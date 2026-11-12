@@ -431,11 +431,18 @@ def archive_formulas(
     """
     os.makedirs(formulas_dir, exist_ok=True)
     index_path = os.path.join(formulas_dir, "index.json")
-    try:
-        with open(index_path, encoding="utf-8") as fh:
-            index = json.load(fh)
-    except Exception:
-        index = []
+    index: List[Dict[str, Any]] = []
+    if os.path.exists(index_path):
+        try:
+            with open(index_path, encoding="utf-8") as fh:
+                index = json.load(fh)
+            if not isinstance(index, list):
+                raise ValueError("index is not a list")
+        except (OSError, ValueError):
+            # Never overwrite what we could not read: keep it beside the new
+            # index for inspection, then start a fresh one.
+            os.replace(index_path, f"{index_path}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}")
+            index = []
 
     created = time.strftime("%Y-%m-%d %H:%M:%S")
     written: List[str] = []
@@ -462,8 +469,10 @@ def archive_formulas(
             "violations": card.get("violations", []),
         })
 
-    with open(index_path, "w", encoding="utf-8") as fh:
+    tmp_path = index_path + ".part"
+    with open(tmp_path, "w", encoding="utf-8") as fh:
         json.dump(index, fh, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, index_path)
     return written
 
 

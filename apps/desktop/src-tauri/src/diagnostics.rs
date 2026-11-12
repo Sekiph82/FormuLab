@@ -415,7 +415,10 @@ fn build_support_bundle(app: &AppHandle, summary: &DiagnosticsSummary) -> Result
 }
 
 #[tauri::command(async)]
-pub async fn export_support_bundle(app: AppHandle, destination: String) -> Result<(), String> {
+pub async fn export_support_bundle(app: AppHandle, token: String, destination: String) -> Result<(), String> {
+    // The destination comes from the save dialog, but the command itself writes
+    // anywhere it is pointed, so it requires a signed-in user.
+    crate::authz::current_actor_app(&app, &token)?;
     let summary = diagnostics_summary(app.clone()).await?;
     let bundle = build_support_bundle(&app, &summary)?;
     let json = serde_json::to_string_pretty(&bundle).map_err(|e| e.to_string())?;

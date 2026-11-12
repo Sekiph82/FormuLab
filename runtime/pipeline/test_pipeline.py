@@ -723,6 +723,21 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("viscosity", joined)
         self.assertIn("rosemary fragrance", joined)
 
+    def test_an_unreadable_formula_index_is_kept_aside_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            index_path = os.path.join(tmp, "index.json")
+            with open(index_path, "w", encoding="utf-8") as fh:
+                fh.write('[{"file": "a.md"}, {"file": "b.md"')
+            pipeline.archive_formulas(tmp, [{"version": "v1", "markdown": "# card", "formula": {}}],
+                                      {"target": "shampoo"}, "shampoo", "2026-11-12-0900-shampoo")
+            kept = [n for n in os.listdir(tmp) if n.startswith("index.json.unreadable-")]
+            self.assertEqual(len(kept), 1)
+            with open(os.path.join(tmp, kept[0]), encoding="utf-8") as fh:
+                self.assertIn('"b.md"', fh.read())
+            with open(index_path, encoding="utf-8") as fh:
+                self.assertEqual(len(json.load(fh)), 1)
+            self.assertFalse(os.path.exists(index_path + ".part"))
+
     def test_non_ascii_product_names_survive_queries_and_slugs(self):
         qs = pipeline.build_queries({"target": "kepek önleyici şampuan"})
         self.assertEqual(qs[0], "kepek önleyici şampuan")
