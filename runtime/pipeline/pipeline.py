@@ -210,7 +210,8 @@ _UI_CATEGORY_KEYS = {"", "auto-detect", "haircare", "skincare", "homecare", "ora
 
 def _head(name: str, max_words: int = 3) -> str:
     """The searchable core of a product name: first few content words."""
-    words = [w for w in re.findall(r"[A-Za-z0-9-]+", name or "") if w.lower() not in _FILLER]
+    # Unicode-aware: "kepek önleyici şampuan" must not lose its letters.
+    words = [w for w in re.findall(r"[^\W_][\w-]*", name or "") if w.lower() not in _FILLER]
     return " ".join(words[:max_words]) or "product"
 
 
@@ -297,7 +298,8 @@ def build_queries(
 
 
 def _slug(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", (text or "product").lower()).strip("-")[:48] or "product"
+    # Folded to ASCII so session ids stay portable: "şampuan" -> "sampuan".
+    return re.sub(r"[^a-z0-9]+", "-", _fold(text or "product")).strip("-")[:48] or "product"
 
 
 def _author_list(authors: str) -> List[str]:
