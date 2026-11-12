@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: REV-01
 - Current Sprint: REV-01-S02
-- Current Task: REV-01.011 — Report targetActiveMatter and packagingType as uninterpreted instead of dropping them silently
+- Current Task: REV-01.012 — Show load errors instead of empty lists and end the stuck connections spinner
 - Current Task Status: IN_PROGRESS
-- Next Task: REV-01.012 — Show load errors instead of empty lists and end the stuck connections spinner
+- Next Task: REV-01.013 — Remove the plain-text provider API key from localStorage and the pipeline payload
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: V01
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 197
-- Completed Tasks: 192
-- Remaining Tasks: 5
-- Completion: 97.5%
+- Completed Tasks: 193
+- Remaining Tasks: 4
+- Completion: 98%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -367,8 +367,8 @@ Review evidence (2026-11-12): pytest 458/458, cargo 409/409, vitest src/lib 1012
 - [x] REV-01.008 — Revoke a user's sessions when an administrator resets the password
 - [x] REV-01.009 — Keep blank material prices blank in the cost optimizer
 - [x] REV-01.010 — Preserve non-ASCII product names in literature queries and session slugs
-- [~] REV-01.011 — Report targetActiveMatter and packagingType as uninterpreted instead of dropping them silently
-- [ ] REV-01.012 — Show load errors instead of empty lists and end the stuck connections spinner
+- [x] REV-01.011 — Report targetActiveMatter and packagingType as uninterpreted instead of dropping them silently
+- [~] REV-01.012 — Show load errors instead of empty lists and end the stuck connections spinner
 - [ ] REV-01.013 — Remove the plain-text provider API key from localStorage and the pipeline payload
 - [ ] REV-01.014 — Small hardening: atomic identity migration, fail-closed session RNG, support-bundle auth, bounded attachment read, missing action keys, flaky test timeouts, atomic formula index
 - [ ] REV-01.015 — REV-01 closure: regression, release EXE rebuild and push
