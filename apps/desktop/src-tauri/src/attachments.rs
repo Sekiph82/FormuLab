@@ -28,6 +28,8 @@ const CATEGORY_EXTENSIONS: &[(&str, &[&str])] = &[
     ("text_document", &["doc", "docx", "txt", "md", "rtf", "odt"]),
 ];
 
+const MAX_ATTACHMENT_BYTES: u64 = 100 * 1024 * 1024;
+
 fn category_for_extension(ext: &str) -> Option<&'static str> {
     let low = ext.to_ascii_lowercase();
     CATEGORY_EXTENSIONS
@@ -85,6 +87,10 @@ pub async fn copy_attachment_into_project(
     let metadata = std::fs::metadata(&source).map_err(|_| "source file not found".to_string())?;
     if !metadata.is_file() {
         return Err("attachment source is not a regular file".into());
+    }
+    // The file is hashed and copied in one read, so cap it before reading.
+    if metadata.len() > MAX_ATTACHMENT_BYTES {
+        return Err(format!("attachment is larger than {} MB", MAX_ATTACHMENT_BYTES / (1024 * 1024)));
     }
 
     let original_file_name = source

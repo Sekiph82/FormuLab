@@ -93,7 +93,8 @@ export async function pickSupportBundleDestination(defaultName: string): Promise
  *  backup contents, localStorage, or any formula/master-data row — only
  *  counts, health, and redacted bounded log lines. */
 export async function exportSupportBundle(destination: string): Promise<void> {
-  await call("export_support_bundle", { destination });
+  const { currentSessionToken } = await import("./sessionToken");
+  await call("export_support_bundle", { token: currentSessionToken(), destination });
 }
 
 /** Reveals the folder holding `debug.log` (and its rotated siblings). */

@@ -152,7 +152,8 @@ async function makePipeline(size = 60, family = "SHAMPOO", labelledSize = size, 
   return { bundles, featureRows, partitionManifest, bundleManifests };
 }
 
-describe("FVL-07 predictive performance engine", () => {
+// Real model training: ~4 s per case alone, more under a parallel run.
+describe("FVL-07 predictive performance engine", { timeout: 30_000 }, () => {
   it("generates deterministic, provenance-linked composition and property features with configured interactions", async () => {
     const pipeline = await makePipeline(4);
     const config = { version: "interactions-v1", interactions: [{ id: "composition-active", leftFeature: "material.RM-001.activeMatterPercent", rightFeature: "composition.material.RM-001.percent" }] };

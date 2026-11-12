@@ -3,7 +3,9 @@
     "save": "Speichern",
     "cancel": "Abbrechen",
     "remove": "Entfernen",
-    "close": "Close"
+    "close": "Close",
+    "add": "Hinzufügen",
+    "clear": "Leeren"
   },
   "unsavedClose": {
     "title": "Unsaved changes",

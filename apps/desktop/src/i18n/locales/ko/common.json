@@ -3,7 +3,9 @@
     "save": "저장",
     "cancel": "취소",
     "remove": "제거",
-    "close": "Close"
+    "close": "Close",
+    "add": "추가",
+    "clear": "지우기"
   },
   "unsavedClose": {
     "title": "Unsaved changes",
