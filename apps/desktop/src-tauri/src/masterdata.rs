@@ -502,11 +502,16 @@ fn collection_path(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
     Ok(master_dir(app)?.join(format!("{safe}.json")))
 }
 
-fn read_array(path: &PathBuf) -> Vec<serde_json::Value> {
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|t| serde_json::from_str::<Vec<serde_json::Value>>(&t).ok())
-        .unwrap_or_default()
+fn read_array(path: &PathBuf) -> Result<Vec<serde_json::Value>, String> {
+    // Only a missing file means "no records yet". Any other failure must stop
+    // the caller, or a later write_array would replace the real collection.
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(format!("could not read {}: {e}", path.display())),
+    };
+    serde_json::from_str(&text)
+        .map_err(|e| format!("{} is not a valid record list and was left untouched: {e}", path.display()))
 }
 
 /// Write-then-rename, so an interrupted write cannot truncate the file that
@@ -541,7 +546,7 @@ fn row_key(row: &serde_json::Value) -> Option<String> {
 pub(crate) fn collection_has_code(app: &AppHandle, collection: &str, code: &str) -> Result<bool, String> {
     let (name, _) = collection_spec(collection)?;
     let path = collection_path(app, name)?;
-    Ok(read_array(&path).iter().any(|row| row_key(row).as_deref() == Some(code)))
+    Ok(read_array(&path)?.iter().any(|row| row_key(row).as_deref() == Some(code)))
 }
 
 #[tauri::command(async)]
@@ -552,7 +557,7 @@ pub async fn list_master_records(
 ) -> Result<serde_json::Value, String> {
     authz::current_actor_app(&app, &token)?;
     let path = collection_path(&app, &collection)?;
-    Ok(serde_json::Value::Array(read_array(&path)))
+    Ok(serde_json::Value::Array(read_array(&path)?))
 }
 
 /// Insert or update rows by their stable code.
@@ -578,7 +583,7 @@ pub async fn upsert_master_records(
         .ok_or_else(|| format!("{name} has no policy area mapping and cannot be written"))?;
     authz::authorize_any_app(&app, &token, area, &WRITE_CAPABILITIES)?;
     let path = collection_path(&app, name)?;
-    let rows = read_array(&path);
+    let rows = read_array(&path)?;
     let (rows, inserted, updated) = apply_upsert(rows, records, append_only, name)?;
 
     write_array(&path, &rows)?;
@@ -681,7 +686,7 @@ pub async fn delete_master_record(
     authz::authorize_app(&app, &token, "projects", "delete")?;
     ensure_master_delete_allowed(name, append_only)?;
     let path = collection_path(&app, name)?;
-    let mut rows = read_array(&path);
+    let mut rows = read_array(&path)?;
     backup_collection(&app, name)?;
     let before = rows.len();
     rows.retain(|r| row_key(r).as_deref() != Some(code.as_str()));
@@ -1116,7 +1121,7 @@ mod tests {
         write_array(&path, &rows).unwrap();
 
         // Simulate restart: nothing in memory carries over, only the file.
-        let reloaded = read_array(&path);
+        let reloaded = read_array(&path).unwrap();
         assert_eq!(reloaded, rows);
 
         // A second write-then-read (as an upsert would do) still round-trips.
@@ -1127,7 +1132,7 @@ mod tests {
             "status": "in_preparation",
         }));
         write_array(&path, &rows2).unwrap();
-        assert_eq!(read_array(&path), rows2);
+        assert_eq!(read_array(&path).unwrap(), rows2);
 
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -1135,7 +1140,7 @@ mod tests {
     #[test]
     fn missing_file_reads_as_an_empty_collection_rather_than_erroring() {
         let path = std::env::temp_dir().join("formulab-masterdata-test-does-not-exist.json");
-        assert_eq!(read_array(&path), Vec::<serde_json::Value>::new());
+        assert_eq!(read_array(&path).unwrap(), Vec::<serde_json::Value>::new());
     }
 
     // ------------------------------------------- Session 4: authorization ---
@@ -1186,5 +1191,19 @@ mod tests {
             );
         }
         assert!(!WRITE_CAPABILITIES.iter().any(|cap| crate::role_policy::can("regulatory", "rawMaterials", cap)));
+    }
+    #[test]
+    fn an_unreadable_collection_is_an_error_not_an_empty_list() {
+        let dir = std::env::temp_dir().join(format!("formulab-readarray-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("materials.json");
+        assert_eq!(read_array(&path).unwrap(), Vec::<serde_json::Value>::new(), "missing file = no records");
+
+        std::fs::write(&path, "[{\"code\":\"M-1\"},").unwrap();
+        assert!(read_array(&path).is_err(), "truncated JSON must not read as empty");
+        std::fs::write(&path, "{\"code\":\"M-1\"}").unwrap();
+        assert!(read_array(&path).is_err(), "an object is not a record list");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"code\":\"M-1\"}", "the file is left untouched");
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
