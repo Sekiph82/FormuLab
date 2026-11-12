@@ -484,6 +484,21 @@ class SolverTests(unittest.TestCase):
         self.assertEqual(len(qs), 1)
         self.assertEqual(qs[0]["inci"], "Water (Aqua)")
 
+    def test_any_water_name_that_wins_the_solvent_role_closes_as_qs(self):
+        for preferred in ("aqua", "demineralized water", "water"):
+            with self.subTest(preferred=preferred):
+                brief = {"target": "anti-dandruff shampoo", "category": "shampoo", "preferredIngredients": preferred}
+                constraints = derive_constraints(brief)
+                parsed = engine.parse_requirements(brief)
+                group = engine.category_group("shampoo", brief["target"])
+                roles = engine.resolve_role_requirements(group, brief, constraints, parsed)
+                records = [make_record("Decyl Glucoside", value=10.0)]
+                pool = engine.build_candidate_pool(brief, constraints, records, [])
+                result = engine.build_formula_for_strategy(self._strategy(), group, roles, pool, records, constraints, parsed)
+                solvents = [i for i in result.formula["ingredients"] if i["function"] == "Solvent"]
+                self.assertEqual(len(solvents), 1)
+                self.assertEqual(solvents[0]["weight_pct"], "q.s. 100")
+
     def test_avoid_major_role_keys_makes_the_solver_pick_a_real_alternative(self):
         # Phase 14 Session 6 correction gate: when a real alternative
         # candidate exists for a MAJOR role, a version told to avoid an
