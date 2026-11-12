@@ -541,11 +541,16 @@ fn collection_path(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
     Ok(master_dir(app)?.join(format!("{safe}.json")))
 }
 
-fn read_array(path: &PathBuf) -> Vec<serde_json::Value> {
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|t| serde_json::from_str::<Vec<serde_json::Value>>(&t).ok())
-        .unwrap_or_default()
+fn read_array(path: &PathBuf) -> Result<Vec<serde_json::Value>, String> {
+    // Only a missing file means "no records yet". Any other failure must stop
+    // the caller, or a later write_array would replace the real collection.
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(format!("could not read {}: {e}", path.display())),
+    };
+    serde_json::from_str(&text)
+        .map_err(|e| format!("{} is not a valid record list and was left untouched: {e}", path.display()))
 }
 
 /// Write-then-rename, so an interrupted write cannot truncate the file that
@@ -580,7 +585,7 @@ fn row_key(row: &serde_json::Value) -> Option<String> {
 pub(crate) fn collection_has_code(app: &AppHandle, collection: &str, code: &str) -> Result<bool, String> {
     let (name, _) = collection_spec(collection)?;
     let path = collection_path(app, name)?;
-    Ok(read_array(&path).iter().any(|row| row_key(row).as_deref() == Some(code)))
+    Ok(read_array(&path)?.iter().any(|row| row_key(row).as_deref() == Some(code)))
 }
 
 #[tauri::command(async)]
@@ -591,7 +596,7 @@ pub async fn list_master_records(
 ) -> Result<serde_json::Value, String> {
     authz::current_actor_app(&app, &token)?;
     let path = collection_path(&app, &collection)?;
-    Ok(serde_json::Value::Array(read_array(&path)))
+    Ok(serde_json::Value::Array(read_array(&path)?))
 }
 
 /// Insert or update rows by their stable code.
@@ -617,7 +622,7 @@ pub async fn upsert_master_records(
     let area = area_for_collection(name)
         .ok_or_else(|| format!("{name} has no policy area mapping and cannot be written"))?;
     let path = collection_path(&app, name)?;
-    let rows = read_array(&path);
+    let rows = read_array(&path)?;
     let actor = authorize_masterdata_records(&app, &token, name, area, &rows, &records)?;
     let records = validate_verified_rule_writes(name, &rows, records, &actor.role)?;
     let records = if name == "safety_resolutions" {
@@ -659,7 +664,7 @@ pub async fn append_supplier_document_acquisitions(
         }
     }
     let path = collection_path(&app, "supplier_document_acquisitions")?;
-    let existing = read_array(&path);
+    let existing = read_array(&path)?;
     let pending = new_immutable_records(&existing, records, "supplier_document_acquisitions")?;
     let (rows, inserted, _) = apply_upsert(existing, pending, true, "supplier_document_acquisitions")?;
     write_array(&path, &rows)?;
@@ -678,7 +683,7 @@ pub async fn append_reference_formulations(
     let _guard = REFERENCE_FORMULATION_SOURCE_WRITE_LOCK.lock()
         .map_err(|_| "reference formulation storage is unavailable".to_string())?;
     let acquisition_path = collection_path(&app, "supplier_document_acquisitions")?;
-    let acquisitions = read_array(&acquisition_path);
+    let acquisitions = read_array(&acquisition_path)?;
     let data_root = crate::formulation_v2::project_data_dir(&app, "data")?;
     for record in &records {
         let acquisition_code = record["source"]["acquisitionCode"].as_str()
@@ -693,7 +698,7 @@ pub async fn append_reference_formulations(
         }
     }
     let path = collection_path(&app, "reference_formulations")?;
-    let existing = read_array(&path);
+    let existing = read_array(&path)?;
     let pending = new_immutable_records(&existing, records, "reference_formulations")?;
     let (rows, inserted, _) = apply_upsert(existing, pending, true, "reference_formulations")?;
     write_array(&path, &rows)?;
@@ -718,7 +723,7 @@ pub async fn append_reference_formulation_review(
         &now_rfc3339_utc(),
     )?;
     let source_path = collection_path(&app, "reference_formulations")?;
-    let source_rows = read_array(&source_path);
+    let source_rows = read_array(&source_path)?;
     let source = source_rows.iter().find(|row| {
         row.get("id").and_then(|value| value.as_str())
             == review["referenceFormulationRecordId"].as_str()
@@ -731,7 +736,7 @@ pub async fn append_reference_formulation_review(
     };
     let source_acquisition_code = source["source"]["acquisitionCode"].as_str()
         .ok_or_else(|| "review source is missing its supplier acquisition link".to_string())?;
-    let acquisitions = read_array(&collection_path(&app, "supplier_document_acquisitions")?);
+    let acquisitions = read_array(&collection_path(&app, "supplier_document_acquisitions")?)?;
     let acquisition = acquisitions.iter().find(|item| item["code"].as_str() == Some(source_acquisition_code))
         .ok_or_else(|| "review source must cite a persisted supplier acquisition".to_string())?;
     validate_supplier_document_acquisition_record(acquisition)?;
@@ -750,7 +755,7 @@ pub async fn append_reference_formulation_review(
         .lock()
         .map_err(|_| "reference formulation review storage is unavailable".to_string())?;
     let path = collection_path(&app, "reference_formulation_reviews")?;
-    let rows = read_array(&path);
+    let rows = read_array(&path)?;
     if let Some(existing) = rows.iter().find(|row| row["id"] == review["id"]) {
         if reference_formulation_review_retry_matches(existing, &review) {
             return Ok(existing.clone());
@@ -788,15 +793,15 @@ pub async fn append_reference_formulation_normalization(
         .as_str()
         .ok_or_else(|| "normalization is missing its source formulation identity".to_string())?;
     let source_path = collection_path(&app, "reference_formulations")?;
-    let source_rows = read_array(&source_path);
+    let source_rows = read_array(&source_path)?;
     let source = source_rows.iter().find(|row| row["id"].as_str() == Some(source_id))
         .ok_or_else(|| "normalization source formulation was not found".to_string())?;
     let sds_evidence_path = collection_path(&app, "supplier_sds_product_evidence")?;
-    let sds_evidence_rows = read_array(&sds_evidence_path);
+    let sds_evidence_rows = read_array(&sds_evidence_path)?;
     let acquisition_path = collection_path(&app, "supplier_document_acquisitions")?;
-    let acquisition_rows = read_array(&acquisition_path);
+    let acquisition_rows = read_array(&acquisition_path)?;
     let path = collection_path(&app, "reference_formulation_normalizations")?;
-    let rows = read_array(&path);
+    let rows = read_array(&path)?;
     let mut history = rows.iter()
         .filter(|row| row["referenceFormulationRecordId"].as_str() == Some(source_id))
         .cloned()
@@ -833,7 +838,7 @@ pub async fn append_supplier_sds_product_evidence(
     let acquisition_code = evidence["acquisitionCode"].as_str()
         .ok_or_else(|| "SDS evidence is missing its acquisition identity".to_string())?;
     let acquisition_path = collection_path(&app, "supplier_document_acquisitions")?;
-    let acquisition_rows = read_array(&acquisition_path);
+    let acquisition_rows = read_array(&acquisition_path)?;
     let acquisition = acquisition_rows.iter().find(|row| row["code"].as_str() == Some(acquisition_code))
         .ok_or_else(|| "SDS evidence must reference a persisted supplier document acquisition".to_string())?;
     validate_supplier_document_acquisition_record(acquisition)?;
@@ -846,13 +851,13 @@ pub async fn append_supplier_sds_product_evidence(
         return Err("SDS acquisition failed its persisted byte-size check".to_string());
     }
     let crosswalk_path = collection_path(&app, "external_id_crosswalks")?;
-    let crosswalk_rows = read_array(&crosswalk_path);
+    let crosswalk_rows = read_array(&crosswalk_path)?;
     validate_supplier_sds_product_evidence_record(&evidence, acquisition, &crosswalk_rows)?;
     if let Some(object) = evidence.as_object_mut() {
         object.insert("createdAt".to_string(), serde_json::Value::String(now_rfc3339_utc()));
     }
     let path = collection_path(&app, "supplier_sds_product_evidence")?;
-    let rows = read_array(&path);
+    let rows = read_array(&path)?;
     let (next_rows, inserted, _) = apply_upsert(rows, vec![evidence.clone()], true, "supplier_sds_product_evidence")?;
     if inserted != 1 {
         return Err("supplier SDS evidence was not appended".to_string());
@@ -875,7 +880,7 @@ pub async fn append_supplier_product_evidence(
     let _guard = SUPPLIER_PRODUCT_EVIDENCE_WRITE_LOCK.lock()
         .map_err(|_| "supplier product evidence storage is unavailable".to_string())?;
     let path = collection_path(&app, "supplier_product_evidence")?;
-    let rows = read_array(&path);
+    let rows = read_array(&path)?;
     if evidence["recordType"].as_str() != Some("document") || card_version["recordType"].as_str() != Some("card_version") {
         return Err("a product evidence update must include one document snapshot and one product-card version".to_string());
     }
@@ -936,7 +941,7 @@ pub async fn append_supplier_product_claim_review(
         return Err("supplier product claim review is invalid".to_string());
     }
     let path = collection_path(&app, "supplier_product_evidence")?;
-    let mut rows = read_array(&path);
+    let mut rows = read_array(&path)?;
     if rows.iter().any(|row| row["id"] == review["id"]) {
         return Err("supplier product claim review ID already exists".to_string());
     }
@@ -1000,7 +1005,7 @@ fn validate_supplier_product_document_evidence(app: &AppHandle, record: &serde_j
     }
     let acquisition_code = record["acquisitionCode"].as_str().ok_or_else(|| "supplier product evidence is missing its document acquisition".to_string())?;
     let acquisition_path = collection_path(app, "supplier_document_acquisitions")?;
-    let acquisitions = read_array(&acquisition_path);
+    let acquisitions = read_array(&acquisition_path)?;
     let acquisition = acquisitions.iter().find(|item| item["code"].as_str() == Some(acquisition_code))
         .ok_or_else(|| "supplier product evidence must reference a persisted acquisition".to_string())?;
     validate_supplier_document_acquisition_record(acquisition)?;
@@ -1136,12 +1141,12 @@ pub async fn append_identity_field_review(
     let product_id = review["commercialProductId"].as_str().ok_or_else(|| "identity review is missing commercial product".to_string())?;
     let target_code = review["targetRecordId"].as_str().ok_or_else(|| "identity review is missing its RawMaterial target".to_string())?;
     let evidence_path = collection_path(&app, "supplier_sds_product_evidence")?;
-    let evidence_rows = read_array(&evidence_path);
+    let evidence_rows = read_array(&evidence_path)?;
     let source = evidence_rows.iter().find(|row| row["evidence"]["id"].as_str() == Some(source_id)
         && row["evidence"]["commercialProductId"].as_str() == Some(product_id))
         .ok_or_else(|| "identity review must cite persisted SDS evidence for this commercial product".to_string())?;
     let material_path = collection_path(&app, "materials")?;
-    if !read_array(&material_path).iter().any(|row| row["code"].as_str() == Some(target_code)) {
+    if !read_array(&material_path)?.iter().any(|row| row["code"].as_str() == Some(target_code)) {
         return Err("identity review target RawMaterial does not exist".to_string());
     }
     let refs = review["evidenceRefs"].as_array().ok_or_else(|| "identity review requires source evidence references".to_string())?;
@@ -1178,7 +1183,7 @@ pub async fn append_identity_field_review(
     }
     if let Some(supersedes) = review.get("supersedesReviewId").and_then(|value| value.as_str()) {
         let prior_path = collection_path(&app, "identity_field_reviews")?;
-        let prior_rows = read_array(&prior_path);
+        let prior_rows = read_array(&prior_path)?;
         if !prior_rows.iter().any(|prior| prior["id"].as_str() == Some(supersedes)
             && prior["commercialProductId"] == review["commercialProductId"]
             && prior["targetRecordId"] == review["targetRecordId"]
@@ -1190,7 +1195,7 @@ pub async fn append_identity_field_review(
     review["reviewerRole"] = serde_json::Value::String(actor.role.clone());
     review["reviewedAt"] = serde_json::Value::String(now_rfc3339_utc());
     let path = collection_path(&app, "identity_field_reviews")?;
-    let rows = read_array(&path);
+    let rows = read_array(&path)?;
     let (next_rows, inserted, _) = apply_upsert(rows, vec![review.clone()], true, "identity_field_reviews")?;
     if inserted != 1 { return Err("identity field review was not appended".to_string()); }
     write_array(&path, &next_rows)?;
@@ -2903,7 +2908,7 @@ pub async fn delete_master_record(
     authz::authorize_app(&app, &token, "projects", "delete")?;
     ensure_master_delete_allowed(name, append_only)?;
     let path = collection_path(&app, name)?;
-    let mut rows = read_array(&path);
+    let mut rows = read_array(&path)?;
     backup_collection(&app, name)?;
     let before = rows.len();
     rows.retain(|r| row_key(r).as_deref() != Some(code.as_str()));
@@ -2965,7 +2970,7 @@ pub async fn write_master_collection_raw(
         .ok_or_else(|| format!("{name} has no policy area mapping and cannot be written"))?;
     let actor = authz::authorize_any_app(&app, &token, area, &WRITE_CAPABILITIES)?;
     let path = collection_path(&app, name)?;
-    let existing = read_array(&path);
+    let existing = read_array(&path)?;
     validate_raw_sensitive_write(name, &existing, &records, &actor.role)?;
     write_array(&path, &records)
 }
@@ -4119,7 +4124,7 @@ mod tests {
         write_array(&path, &rows).unwrap();
 
         // Simulate restart: nothing in memory carries over, only the file.
-        let reloaded = read_array(&path);
+        let reloaded = read_array(&path).unwrap();
         assert_eq!(reloaded, rows);
 
         // A second write-then-read (as an upsert would do) still round-trips.
@@ -4151,7 +4156,7 @@ mod tests {
             "evidenceRefs": [format!("{}:p2", "b".repeat(64))]
         }));
         write_array(&path, &rows2).unwrap();
-        let after_second_restart = read_array(&path);
+        let after_second_restart = read_array(&path).unwrap();
         assert_eq!(after_second_restart, rows2);
         assert_eq!(after_second_restart[1]["version"], 1);
         assert_eq!(after_second_restart[3]["evidenceRecordIds"].as_array().unwrap().len(), 2);
@@ -4163,7 +4168,7 @@ mod tests {
     #[test]
     fn missing_file_reads_as_an_empty_collection_rather_than_erroring() {
         let path = std::env::temp_dir().join("formulab-masterdata-test-does-not-exist.json");
-        assert_eq!(read_array(&path), Vec::<serde_json::Value>::new());
+        assert_eq!(read_array(&path).unwrap(), Vec::<serde_json::Value>::new());
     }
 
     // ------------------------------------------- Session 4: authorization ---
@@ -4293,5 +4298,19 @@ mod tests {
         assert!(supplier_product_review_citations_match(&exact, &expected));
         assert!(!supplier_product_review_citations_match(&duplicate, &expected));
         assert!(!supplier_product_review_citations_match(&reordered, &expected));
+    }
+    #[test]
+    fn an_unreadable_collection_is_an_error_not_an_empty_list() {
+        let dir = std::env::temp_dir().join(format!("formulab-readarray-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("materials.json");
+        assert_eq!(read_array(&path).unwrap(), Vec::<serde_json::Value>::new(), "missing file = no records");
+
+        std::fs::write(&path, "[{\"code\":\"M-1\"},").unwrap();
+        assert!(read_array(&path).is_err(), "truncated JSON must not read as empty");
+        std::fs::write(&path, "{\"code\":\"M-1\"}").unwrap();
+        assert!(read_array(&path).is_err(), "an object is not a record list");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"code\":\"M-1\"}", "the file is left untouched");
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

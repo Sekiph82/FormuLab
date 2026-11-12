@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: REV-01
 - Current Sprint: REV-01-S02
-- Current Task: REV-01.003 — Fail master-data writes when the existing collection cannot be read instead of overwriting it
+- Current Task: REV-01.004 — Stop the pipeline crash when a non-canonical water name wins the solvent role
 - Current Task Status: IN_PROGRESS
-- Next Task: REV-01.004 — Stop the pipeline crash when a non-canonical water name wins the solvent role
+- Next Task: REV-01.005 — Build literature queries from the product description instead of the raw category key
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: V01
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 197
-- Completed Tasks: 184
-- Remaining Tasks: 13
-- Completion: 93.4%
+- Completed Tasks: 185
+- Remaining Tasks: 12
+- Completion: 93.9%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -359,8 +359,8 @@ Every reported finding must be reproduced in code (and by test where possible) b
 ## Sprint REV-01-S02 — Confirmed defect fixes
 Review evidence (2026-11-12): pytest 458/458, cargo 409/409, vitest src/lib 1012/1012, tsc 0, eslint 0 errors, IPC contract 0 unregistered commands / 0 argument mismatches. Excluded as unconfirmed or by design: `check_for_update` arbitrary https endpoint, `cleanup_old_data_location` ancestor paths (admin-only, UI-guarded), unauthenticated schema-meta writers, token-less sqlite connector reads (webview trusted by design).
 - [x] REV-01.002 — Reject drive-prefix, empty and dot ids before deleting or writing session and formulation directories
-- [~] REV-01.003 — Fail master-data writes when the existing collection cannot be read instead of overwriting it
-- [ ] REV-01.004 — Stop the pipeline crash when a non-canonical water name wins the solvent role
+- [x] REV-01.003 — Fail master-data writes when the existing collection cannot be read instead of overwriting it
+- [~] REV-01.004 — Stop the pipeline crash when a non-canonical water name wins the solvent role
 - [ ] REV-01.005 — Build literature queries from the product description instead of the raw category key
 - [ ] REV-01.006 — Send non-English regulated requests to human review and stop substring false refusals
 - [ ] REV-01.007 — Enforce the forced password change with a self-service password change
