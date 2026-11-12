@@ -7,10 +7,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Project Status
 
 - Current Milestone: REV-01
-- Current Sprint: REV-01-S01
-- Current Task: REV-01.001 — Verified deep code review of V01; open each confirmed defect as its own task
-- Current Task Status: IN_PROGRESS
-- Next Task: None
+- Current Sprint: REV-01-S02
+- Current Task: REV-01.002 — Reject drive-prefix, empty and dot ids before deleting or writing session and formulation directories
+- Current Task Status: READY
+- Next Task: REV-01.003 — Fail master-data writes when the existing collection cannot be read instead of overwriting it
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: V01
@@ -19,17 +19,17 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 183
-- Completed Tasks: 182
-- Remaining Tasks: 1
-- Completion: 99.5%
+- Total Tasks: 197
+- Completed Tasks: 183
+- Remaining Tasks: 14
+- Completion: 92.9%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
 ## Claude Ownership
 
 - Claude is the primary and default executor for all future FormuLab implementation work on branch `V01`.
-- Active backlog: REL-01 (release EXE refresh, owner request 2026-11-12), then REV-01 (verified deep review, owner request 2026-11-12).
+- Active backlog: REV-01-S02 confirmed defect fixes (owner-requested deep review, 2026-11-12).
 - The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
 - New implementation tasks must be added to this root `TASKS.md` on branch `V01`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
 - Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
@@ -354,7 +354,24 @@ Owner decision Q-FVL-11.011-1 requires the desktop EXE to open the latest projec
 
 ## Sprint REV-01-S01 — Verified deep review
 Every reported finding must be reproduced in code (and by test where possible) before it becomes a task; unverified claims are recorded as excluded.
-- [~] REV-01.001 — Verified deep code review of V01; open each confirmed defect as its own task
+- [x] REV-01.001 — Verified deep code review of V01; open each confirmed defect as its own task
+
+## Sprint REV-01-S02 — Confirmed defect fixes
+Review evidence (2026-11-12): pytest 458/458, cargo 409/409, vitest src/lib 1012/1012, tsc 0, eslint 0 errors, IPC contract 0 unregistered commands / 0 argument mismatches. Excluded as unconfirmed or by design: `check_for_update` arbitrary https endpoint, `cleanup_old_data_location` ancestor paths (admin-only, UI-guarded), unauthenticated schema-meta writers, token-less sqlite connector reads (webview trusted by design).
+- [ ] REV-01.002 — Reject drive-prefix, empty and dot ids before deleting or writing session and formulation directories
+- [ ] REV-01.003 — Fail master-data writes when the existing collection cannot be read instead of overwriting it
+- [ ] REV-01.004 — Stop the pipeline crash when a non-canonical water name wins the solvent role
+- [ ] REV-01.005 — Build literature queries from the product description instead of the raw category key
+- [ ] REV-01.006 — Send non-English regulated requests to human review and stop substring false refusals
+- [ ] REV-01.007 — Enforce the forced password change with a self-service password change
+- [ ] REV-01.008 — Revoke a user's sessions when an administrator resets the password
+- [ ] REV-01.009 — Keep blank material prices blank in the cost optimizer
+- [ ] REV-01.010 — Preserve non-ASCII product names in literature queries and session slugs
+- [ ] REV-01.011 — Report targetActiveMatter and packagingType as uninterpreted instead of dropping them silently
+- [ ] REV-01.012 — Show load errors instead of empty lists and end the stuck connections spinner
+- [ ] REV-01.013 — Remove the plain-text provider API key from localStorage and the pipeline payload
+- [ ] REV-01.014 — Small hardening: atomic identity migration, fail-closed session RNG, support-bundle auth, bounded attachment read, missing action keys, flaky test timeouts, atomic formula index
+- [ ] REV-01.015 — REV-01 closure: regression, release EXE rebuild and push
 
 ## Historical Detail & Evidence
 
