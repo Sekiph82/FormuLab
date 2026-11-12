@@ -76,7 +76,7 @@
   },
   "model": {
     "title": "Model",
-    "hint": "Formülasyon üretmek için kullanılan model ve API anahtarı",
+    "hint": "Model tercihi. Formülasyon üretimi deterministiktir ve API anahtarı gerektirmez",
     "connectPrompt": "Modelleri yapılandırmak için çalışma zamanını bağlayın.",
     "notSet": "Ayarlanmadı — bir varsayılan model seçin",
     "providersDivider": "Sağlayıcılar",

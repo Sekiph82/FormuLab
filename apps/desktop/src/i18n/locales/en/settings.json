@@ -76,7 +76,7 @@
   },
   "model": {
     "title": "Model",
-    "hint": "The model and API key used to generate formulations",
+    "hint": "Model preference. Formulation generation is deterministic and needs no API key",
     "connectPrompt": "Connect the runtime to configure models.",
     "notSet": "Not set — pick a default model",
     "providersDivider": "Providers",

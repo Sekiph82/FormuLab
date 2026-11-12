@@ -76,7 +76,7 @@
   },
   "model": {
     "title": "Modell",
-    "hint": "Modell und API-Schlüssel für die Erstellung von Formulierungen",
+    "hint": "Modellpräferenz. Formulierungen werden deterministisch erstellt und benötigen keinen API-Schlüssel",
     "connectPrompt": "Verbinden Sie die Runtime, um Modelle zu konfigurieren.",
     "notSet": "Nicht festgelegt — Standardmodell wählen",
     "providersDivider": "Anbieter",
