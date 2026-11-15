@@ -520,6 +520,7 @@ export * from "./engine/optimization";
 export * from "./engine/scenarios";
 export * from "./catalog/optimizationProfiles";
 export * from "./catalog/productFamilyTaxonomy";
+export * from "./engine/referenceFormulationCurrent";
 export * from "./schemas/substitution";
 export * from "./engine/substitution";
 export * from "./engine/systemSubstitution";

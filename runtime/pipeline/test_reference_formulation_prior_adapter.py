@@ -6,6 +6,7 @@ import os
 import tempfile
 import unittest
 
+import reference_formulation_prior_adapter as adapter
 from reference_formulation_prior_adapter import build_authoritative_guidance
 
 
@@ -69,6 +70,11 @@ class AuthoritativeReferenceGuidanceTests(unittest.TestCase):
     def _write(self, name, rows):
         with open(os.path.join(self.directory, f"{name}.json"), "w", encoding="utf-8") as handle:
             json.dump(rows, handle)
+
+    def test_only_the_newest_layout_parse_of_a_source_document_counts(self):
+        rec = lambda rid, h, v: {"id": rid, "sourceDocumentHash": h, "source": {"parserVersion": f"formulab-reference-formulation-layout-v{v}"}}
+        records = [rec("old", "AA", 1), rec("new-a", "aa", 3), rec("new-b", "aa", 3), rec("only", "bb", 1)]
+        self.assertEqual([r["id"] for r in adapter._current(records)], ["new-a", "new-b", "only"])
 
     def test_recomputes_prior_and_dosage_from_reviewed_source_records(self):
         result = build_authoritative_guidance(self.directory, {"targetProductType": "  HAND   DISHWASH "}, [self.material])

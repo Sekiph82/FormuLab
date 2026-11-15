@@ -1,4 +1,5 @@
 import {
+  currentReferenceFormulations,
   matchReferenceFormulationProducts,
   referenceFormulationRecordSchema,
   type CommercialProduct,
@@ -35,9 +36,10 @@ export async function recordReferenceFormulation(input: ReferenceFormulationReco
   return record;
 }
 
+/** Newest parse of each source document; older parses remain stored as history. */
 export async function listReferenceFormulations(): Promise<ReferenceFormulationRecord[]> {
   const records = await listRecords("reference_formulations");
-  return records.map((record) => referenceFormulationRecordSchema.parse(record));
+  return currentReferenceFormulations(records.map((record) => referenceFormulationRecordSchema.parse(record)));
 }
 
 /** Resolve supplier product-code candidates against the existing FVL-04 crosswalk collection. */

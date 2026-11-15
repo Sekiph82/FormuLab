@@ -15,7 +15,20 @@ type FolderFile = { file: File; relativePath: string; supplierId: string; market
 const SUPPLIERS: Record<string, string> = {
   archroma: "archroma", basf: "basf", cht: "cht", clariant: "clariant", croda: "croda",
   dow: "dow", dystar: "dystar", dyestar: "dystar", evonik: "evonik", nouryon: "nouryon", seppic: "seppic",
+  ashland: "ashland", cpkelco: "cp-kelco", hoffmannmineral: "hoffmann-mineral", kao: "kao", kaochemicalseurope: "kao",
+  lygos: "lygos", schtzenchemicalgroup: "schuetzen", schutzenchemicalgroup: "schuetzen", stepan: "stepan", syensqo: "syensqo",
 };
+/** Folder names that organise downloads rather than describe a product category. */
+const NON_CATEGORY_FOLDERS = /^(formulations?|all[ _]markets|all formulations|other formulations|original downloads|formulation copies|products?|resources|shared[ _]resources|download[ _]archives|download[ _]conflicts.*|imported downloads.*|exact[ _]duplicates.*|.*_\d{8})$/iu;
+
+/** Product-category folders between the supplier folder and the file ("Hair Care"), kept as family evidence. */
+export function sourceCategoriesFromPath(path: string): string[] {
+  const folders = path.split(/[\\/]/u).filter(Boolean).slice(1, -1);
+  // Folders under "Products" are raw-material names, not product categories.
+  const productsAt = folders.findIndex((part) => /^products?$/iu.test(part.trim()));
+  return (productsAt >= 0 ? folders.slice(0, productsAt) : folders)
+    .filter((part) => !NON_CATEGORY_FOLDERS.test(part.trim()) && !SUPPLIERS[normalizedPart(part)]);
+}
 const CATEGORY_ORDER: Kind[] = ["FORMULATION", "SDS", "TDS", "OTHER"];
 
 function normalizedPart(value: string): string {
@@ -42,8 +55,9 @@ function marketAndLanguage(path: string): { market: string; language: string } {
   return { market, language };
 }
 
-function classify(path: string): Kind {
+export function classify(path: string): Kind {
   const value = path.normalize("NFKC").toLocaleLowerCase("en-US");
+  if (/(?:^|[\\/])excluded[\\/]/iu.test(value)) return "OTHER";
   if (/(?:^|[^a-z])(?:sds|msds|safety[ _-]*data)(?:[^a-z]|$)/iu.test(value)) return "SDS";
   if (/(?:^|[^a-z])(?:tds|technical[ _-]*data)(?:[^a-z]|$)/iu.test(value)
     || /(?:^|[\\/])data[ _-]*sheets?(?:[\\/]|$)/iu.test(value)) return "TDS";
@@ -83,8 +97,8 @@ function attestedInternalResearchRights(actor: TrustedActor, selectedAt: string)
   };
 }
 
-function asSelectedPdf(file: File) {
-  return { name: file.name, type: file.type, size: file.size, arrayBuffer: () => file.arrayBuffer() };
+function asSelectedPdf(file: File, sourceCategories: string[]) {
+  return { name: file.name, type: file.type, size: file.size, arrayBuffer: () => file.arrayBuffer(), sourceCategories };
 }
 
 export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor | null; onImported: () => void }) {
@@ -127,7 +141,10 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
 
   const importFormulations = async () => {
     if (!actor || !rightsConfirmed) return;
-    const formulationFiles = files.filter((entry) => entry.kind === "FORMULATION");
+    // The same PDF is often saved in several folders; importing the copy with the most category
+    // folders first keeps that evidence, and the remaining copies are skipped as exact duplicates.
+    const formulationFiles = files.filter((entry) => entry.kind === "FORMULATION")
+      .sort((left, right) => sourceCategoriesFromPath(right.relativePath).length - sourceCategoriesFromPath(left.relativePath).length);
     if (!formulationFiles.length) return;
     setRunning(true); setError(""); setResult("");
     const controller = new AbortController();
@@ -147,7 +164,7 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
         const [supplierId, groupMarket, groupLanguage] = key.split("\n");
         if (!supplierId || !groupMarket || !groupLanguage) continue;
         setProgress(text(`${supplierId}: processing ${group.length} formulation PDFs…`, `${supplierId}: ${group.length} formülasyon PDF'i işleniyor…`));
-        const response = await startReferenceFormulationBulkImport(group.map(({ file }) => asSelectedPdf(file)), {
+        const response = await startReferenceFormulationBulkImport(group.map(({ file, relativePath }) => asSelectedPdf(file, sourceCategoriesFromPath(relativePath))), {
           supplierId, providerId: "owner-local-folder", surfaceId: "user-selected-folder",
           market: groupMarket, language: groupLanguage,
           rights: attestedInternalResearchRights(actor, selectedAt), requestedBy: actor.userId,

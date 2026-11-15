@@ -18,6 +18,7 @@ import {
   type SupplierSdsProductEvidenceRecord,
   type ReferenceFormulationQueryRecord,
   type ReferenceFormulationLocalIndex,
+  currentReferenceFormulations,
 } from "@formulab/shared";
 import { appendReferenceFormulationNormalizationRecord, listRecords, nowIso } from "./masterdata";
 
@@ -51,7 +52,7 @@ export async function rebuildReferenceFormulationCorpusIndex(): Promise<{
     listRecords("reference_formulation_normalizations"),
     listRecords("supplier_sds_product_evidence"),
   ]);
-  const sources = sourceRows.map((record) => referenceFormulationRecordSchema.parse(record))
+  const sources = currentReferenceFormulations(sourceRows.map((record) => referenceFormulationRecordSchema.parse(record)))
     .sort((left, right) => compareStable(left.id, right.id));
   if (new Set(sources.map((source) => source.id)).size !== sources.length) {
     throw new Error("Corpus index rebuild cannot contain duplicate immutable source record IDs.");

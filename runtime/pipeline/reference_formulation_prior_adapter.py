@@ -27,6 +27,20 @@ def _array(directory: str, name: str) -> list[dict[str, Any]]:
         return []
 
 
+def _parser_generation(record: dict[str, Any]) -> int:
+    match = re.search(r"layout-v(\d+)", str(record.get("source", {}).get("parserVersion") or ""))
+    return int(match.group(1)) if match else 0
+
+
+def _current(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Newest parse of each source document; immutable older parses stay as history."""
+    newest: dict[str, int] = {}
+    for record in records:
+        key = str(record.get("sourceDocumentHash") or "").lower()
+        newest[key] = max(newest.get(key, 0), _parser_generation(record))
+    return [r for r in records if _parser_generation(r) == newest.get(str(r.get("sourceDocumentHash") or "").lower())]
+
+
 def _key(value: Any) -> str:
     return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", str(value or "")).strip()).lower()
 
@@ -102,7 +116,7 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
     family = _key(brief.get("targetProductType"))
     if not family or not master_dir:
         return None
-    sources = _array(master_dir, "reference_formulations")
+    sources = _current(_array(master_dir, "reference_formulations"))
     normalizations = _array(master_dir, "reference_formulation_normalizations")
     reviews = _array(master_dir, "reference_formulation_reviews")
     identity_reviews = _array(master_dir, "identity_field_reviews")
