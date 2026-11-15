@@ -63,4 +63,15 @@ describe("supplier TDS product identity extraction", () => {
       expect.objectContaining({ fieldCode: "product_identifier", rawValue: "Crodateric CDA 38" }),
     ]));
   });
+
+  it("keeps a TDS claim whose text layer reports positions in PDF points, without the position", async () => {
+    vi.mocked(extractSupplierPdfText).mockResolvedValue({
+      status: "extracted", documentHash: hash, parserVersion: "pdf-text-v1",
+      pages: [{ pageNumber: 1, lines: [{ lineNumber: 1, text: "Product name: Crodateric CDA 38", position: { x: 72, y: 720 } }] }],
+    } as never);
+    const evidence = await extractSupplierProductDocumentEvidence(acquisition as never, new Uint8Array([1]), "card-1");
+    const claim = evidence.claims.find((item) => item.fieldCode === "product_identifier");
+    expect(claim?.evidence[0]).toMatchObject({ pageNumber: 1, lineNumber: 1 });
+    expect(claim?.evidence[0]).not.toHaveProperty("position");
+  });
 });

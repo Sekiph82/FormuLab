@@ -11,7 +11,7 @@ import { referenceMaterialCandidatesCsvFromLocalRecords } from "@/lib/referenceM
 import { saveTextWithFeedback } from "@/lib/download";
 import { createSupplierProductCardVersion, deriveSupplierProductCardId } from "@/lib/supplierProductCards";
 import type { TrustedActor } from "@/lib/currentActor";
-import { supplierProductEvidenceRecordSchema, type NewSupplierDocumentAcquisition, type ReferenceFormulationRights } from "@formulab/shared";
+import { supplierProductEvidenceRecordSchema, type NewSupplierDocumentAcquisition, type ReferenceFormulationRights, type SupplierDocumentAcquisition } from "@formulab/shared";
 
 /** PRODUCT_DOC: other raw-material documents in a product folder (specification, GHS, regulatory, brochure). */
 type Kind = "FORMULATION" | "SDS" | "TDS" | "PRODUCT_DOC" | "OTHER";
@@ -221,12 +221,18 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
     let imported = 0; let duplicates = 0; let failed = 0; let formulaCopies = 0; let extracted = 0; let notExtracted = 0;
     try {
       // A formula PDF also saved in a product folder stays a formulation; it is not stored twice.
-      const formulaHashes = new Set((await listRecords("supplier_document_acquisitions"))
+      const acquisitions = await listRecords("supplier_document_acquisitions");
+      const formulaHashes = new Set(acquisitions
         .filter((record) => record.documentType === "FORMULATION").map((record) => record.sha256.toLowerCase()));
+      const storedProductDocuments = new Map(acquisitions
+        .filter((record) => record.documentType !== "FORMULATION").map((record) => [record.sha256.toLowerCase(), record]));
       const productEvidence = (await listRecords("supplier_product_evidence")).map((row) => supplierProductEvidenceRecordSchema.parse(row));
+      // A stored SDS/TDS whose reading failed earlier is read again on the next run; stored bytes are not re-copied.
+      const readHashes = new Set(productEvidence.flatMap((record) => record.recordType === "document" ? [record.documentHash.toLowerCase()] : []));
       for (let offset = 0; offset < documents.length; offset += 100) {
         const receiptInputs: NewSupplierDocumentAcquisition[] = [];
         const fileByHash = new Map<string, File>();
+        const unread: SupplierDocumentAcquisition[] = [];
         const batch = documents.slice(offset, offset + 100);
         for (const [batchIndex, entry] of batch.entries()) {
           if (controller.signal.aborted) break;
@@ -239,6 +245,12 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
             if (admission.status !== "admitted") throw new Error(admission.reason);
             const sha256 = await contentHash(bytes);
             if (formulaHashes.has(sha256)) { formulaCopies += 1; continue; }
+            const stored = storedProductDocuments.get(sha256);
+            if (stored) {
+              duplicates += 1;
+              if (!readHashes.has(sha256) && !unread.includes(stored)) { unread.push(stored); fileByHash.set(sha256, entry.file); }
+              continue;
+            }
             await storeSupplierDocumentPdf(bytes, sha256);
             fileByHash.set(sha256, entry.file);
             const filename = safeBasename(entry.file.name);
@@ -264,7 +276,7 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
         const persisted = await recordSupplierDocumentAcquisitionBatch(receiptInputs);
         imported += persisted.records.length;
         duplicates += persisted.duplicateCount;
-        for (const acquisition of persisted.records) {
+        for (const acquisition of [...persisted.records, ...unread]) {
           if (controller.signal.aborted) break;
           const file = fileByHash.get(acquisition.sha256.toLowerCase());
           if (!file || (acquisition.documentType !== "SDS" && acquisition.documentType !== "TDS")) continue;

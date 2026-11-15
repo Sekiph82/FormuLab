@@ -64,7 +64,8 @@ function citedEvidence(hash: string, lines: EvidenceLine[]) {
     excerpt: line.excerpt,
     source: line.source,
     ...(line.confidence === undefined ? {} : { confidence: line.confidence }),
-    ...(line.position ? { position: line.position } : {}),
+    // Evidence positions are page fractions; the PDF text layer reports points, which stay uncited.
+    ...(line.position && [line.position.x, line.position.y].every((value) => value >= 0 && value <= 1) ? { position: line.position } : {}),
   }));
 }
 
