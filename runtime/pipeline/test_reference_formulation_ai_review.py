@@ -53,8 +53,10 @@ class ClaudeReviewTests(unittest.TestCase):
         chemistry = rows[-1]
         self.assertEqual((chemistry["evidenceExcerpt"], chemistry["cellIndex"]), ("Texapon N 70 | Sodium Laureth Sulfate | 100", 1))
 
-    def test_open_totals_and_broad_groups_get_no_ai_decision(self):
-        self.assertEqual(ai.build_ai_reviews([_source(total=("80", "80"), family="Hair care")], [NORMALIZATION], {"Shampoo"}, "t"), [])
+    def test_broad_groups_get_no_family_decision_and_open_totals_are_noted(self):
+        rows = ai.build_ai_reviews([_source(total=("80", "80"), family="Hair care")], [NORMALIZATION], {"Shampoo"}, "t")
+        self.assertFalse(any(row["targetType"] == "identity" for row in rows))
+        self.assertTrue(rows and all("does not close" in row["note"] for row in rows if row["targetKey"].startswith("ingredient:")))
 
     def test_append_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:

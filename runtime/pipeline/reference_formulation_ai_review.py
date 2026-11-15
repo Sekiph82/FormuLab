@@ -7,9 +7,10 @@ evidence a human decision on that field would cite, so the prior adapter can
 check it the same way; a human decision on the same target always wins.
 
 A field is accepted only when Claude's checks pass:
-- product family: the candidate names a specific family (not only a broad group);
-- ingredient lines: the formula's own amounts add up to 99-101 % w/w, so the
-  table was read completely, and the cell holds a name rather than a number;
+- product family: the candidate resolves to a family of the shared taxonomy;
+- ingredient lines: the cell holds a name rather than a number (owner decision
+  2026-11-15: supplier field formulas are used without waiting for a person; the
+  note records whether the formula total closed at 99-101 % w/w);
 - canonical chemistry: the candidate is exactly the id of the printed INCI name;
 - amounts: the cell is a plain number or range between 0 and 100.
 Everything else gets no AI decision and stays for a human.
@@ -27,29 +28,12 @@ import unicodedata
 from datetime import datetime, timezone
 from typing import Any
 
-from reference_formulation_prior_adapter import _array, _current, _number_range
+from product_family_taxonomy import family_key
+from reference_formulation_prior_adapter import _array, _current, _number_range, inci_chemistry_id
 
 REVIEWER = {"userId": "ai:claude-opus-5-5", "displayName": "Claude (AI review, advisory)"}
 COLLECTION = "reference_formulation_ai_reviews"
 TAXONOMY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "packages", "shared", "src", "catalog", "productFamilies.json")
-_WATER = re.compile(r"^(?:aqua|water|eau)(?:\s*(?:/|\()\s*(?:aqua|water|eau)\s*\)?)?$")
-_BLEND = re.compile(r"\s*\(and\)\s*|\s*;\s*|,\s+|\s+&\s+")
-
-
-def inci_chemistry_id(raw: str | None) -> str | None:
-    """Python twin of the shared canonicalChemistryIdFromInci; both must agree."""
-    text = unicodedata.normalize("NFKC", raw or "").lower()
-    text = re.sub(r"[®™©*†‡¹²³⁴⁵⁶⁷⁸⁹⁰]", "", text)
-    text = re.sub(r"\s*\(\d{1,2}\)\s*$", "", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    if not text or len(text) > 120 or "%" in text or not re.search(r"[a-z]{3}", text):
-        return None
-    if _WATER.match(text):
-        return "inci:water"
-    if len([part for part in _BLEND.split(text) if part]) > 1:
-        return None
-    slug = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
-    return f"inci:{slug}" if slug else None
 
 
 def _is_name(text: str) -> bool:
@@ -93,15 +77,15 @@ def build_ai_reviews(sources: list[dict[str, Any]], normalizations: list[dict[st
     rows: list[dict[str, Any]] = []
     for source in _current(sources):
         for index, candidate in enumerate(source.get("identityCandidates", [])):
-            if candidate.get("field") != "product_family" or candidate.get("rawValue") not in family_labels:
+            if candidate.get("field") != "product_family" or (
+                    candidate.get("rawValue") not in family_labels and not family_key(candidate.get("rawValue"))):
                 continue
             evidence = (candidate.get("evidence") or [{}])[0]
             rows.append(_row(source, "identity", f"identity:product_family:{index}",
                              f"identityCandidates[{index}].product_family", candidate["rawValue"],
                              evidence.get("excerpt", ""), evidence,
                              f"Specific product family read by {candidate.get('extractionMethod')}.", reviewed_at))
-        if not _total_closes(source):
-            continue
+        closes = "Formula total closes at 99-101 % w/w" if _total_closes(source) else "Formula total does not close at 99-101 % w/w"
         normalization = latest_norm.get(source["id"])
         chemistry_by_line = {line.get("sourceLineId"): line.get("canonicalChemistry", {}) for line in (normalization or {}).get("lines", [])}
         for line in source.get("ingredientLines", []):
@@ -112,13 +96,13 @@ def build_ai_reviews(sources: list[dict[str, Any]], normalizations: list[dict[st
                 if cell and _is_name(cell["rawValue"]):
                     rows.append(_row(source, "ingredient", f"ingredient:{line_id}:{field}", f"ingredientLines[{line_id}].{field}",
                                      cell["rawValue"], excerpt, cell["evidence"],
-                                     "Formula total closes at 99-101 % w/w; cell holds an ingredient name.", reviewed_at))
+                                     f"{closes}; cell holds an ingredient name.", reviewed_at))
                     break
             amount = line.get("amount")
             if amount and line.get("quantitySemantics") == "explicit_amount" and _number_range(amount["rawValue"]):
                 rows.append(_row(source, "ingredient", f"ingredient:{line_id}:amount", f"ingredientLines[{line_id}].amount",
                                  amount["rawValue"], excerpt, amount["evidence"],
-                                 "Formula total closes at 99-101 % w/w; amount is a plain percentage.", reviewed_at))
+                                 f"{closes}; amount is a plain percentage.", reviewed_at))
             chemistry = chemistry_by_line.get(line_id) or {}
             inci = line.get("inciOrChemicalName")
             ids = chemistry.get("candidateIds") or []

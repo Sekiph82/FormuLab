@@ -102,6 +102,28 @@ class AuthoritativeReferenceGuidanceTests(unittest.TestCase):
         self.assertEqual(result["eligibleFormulaCount"], 1)
         self.assertEqual(result["ingredientPriors"], [])
 
+    def test_printed_name_meets_material_and_header_gives_unit(self):
+        # A Croda-style line: trade name only, unit and basis printed in the column header.
+        line = {"id": "line-2", "quantitySemantics": "explicit_amount",
+                "ingredientName": {"rawValue": "Crodamol GTCC", "evidence": {"sourceDocumentHash": self.digest}},
+                "amount": {"rawValue": "5.2", "evidence": {"sourceDocumentHash": self.digest, "header": "% w/w"}}}
+        unreviewed = {"id": "line-3", "quantitySemantics": "explicit_amount",
+                      "ingredientName": {"rawValue": "Unknown blend", "evidence": {"sourceDocumentHash": self.digest}}}
+        self._write("reference_formulations", [{**self.source, "ingredientLines": [line, unreviewed]}])
+        self._write("reference_formulation_normalizations", [])
+        self._write("identity_field_reviews", [])
+        self._write("reference_formulation_reviews", [
+            self.reviews[0],
+            self._review("ingredient:line-2:ingredientName", "ingredientLines[line-2].ingredientName", "Crodamol GTCC"),
+            self._review("ingredient:line-2:amount", "ingredientLines[line-2].amount", "5.2"),
+        ])
+        material = {"code": "MAT-GTCC", "name": "Crodamol GTCC", "trade_name": "Crodamol GTCC", "active": True}
+        result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [material])
+        self.assertEqual(result["eligibleFormulaCount"], 1)
+        prior = result["ingredientPriors"][0]
+        self.assertEqual(prior["materialCode"], "MAT-GTCC")
+        self.assertEqual(prior["dosageGuidance"][0]["typicalRangePercent"], {"lower": 5.2, "upper": 5.2})
+
     def _as_ai(self, rows):
         return [{**row, "id": "ai-" + row["id"], "reviewer": {"userId": "ai:claude-opus-5-5", "displayName": "Claude (AI review, advisory)"}}
                 for row in rows]

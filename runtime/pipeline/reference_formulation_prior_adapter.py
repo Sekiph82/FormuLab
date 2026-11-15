@@ -29,6 +29,27 @@ def _array(directory: str, name: str) -> list[dict[str, Any]]:
         return []
 
 
+_WATER = re.compile(r"^(?:aqua|water|eau)(?:\s*(?:/|\()\s*(?:aqua|water|eau)\s*\)?)?$")
+_BLEND = re.compile(r"\s*\(and\)\s*|\s*;\s*|,\s+|\s+&\s+")
+
+
+def inci_chemistry_id(raw: str | None) -> str | None:
+    """Python twin of the shared canonicalChemistryIdFromInci; both must agree. Also keys a printed
+    ingredient name, so a formula line and a Material Master row with the same name meet."""
+    text = unicodedata.normalize("NFKC", raw or "").lower()
+    text = re.sub(r"[®™©*†‡¹²³⁴⁵⁶⁷⁸⁹⁰]", "", text)
+    text = re.sub(r"\s*\(\d{1,2}\)\s*$", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text or len(text) > 120 or "%" in text or not re.search(r"[a-z]{3}", text):
+        return None
+    if _WATER.match(text):
+        return "inci:water"
+    if len([part for part in _BLEND.split(text) if part]) > 1:
+        return None
+    slug = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    return f"inci:{slug}" if slug else None
+
+
 def _parser_generation(record: dict[str, Any]) -> int:
     match = re.search(r"layout-v(\d+)", str(record.get("source", {}).get("parserVersion") or ""))
     return int(match.group(1)) if match else 0
@@ -188,49 +209,50 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
             ai_used.discard(source_id)
             continue
         normalization = norm_by_source.get(source_id)
-        if (not normalization or source_id in ambiguous_normalizations
-                or normalization.get("sourceDocumentHash", "").lower() != digest):
+        if normalization and (source_id in ambiguous_normalizations
+                              or normalization.get("sourceDocumentHash", "").lower() != digest):
             continue
         lines = source.get("ingredientLines", [])
-        normalized_lines = normalization.get("lines", [])
-        by_line = {str(row.get("sourceLineId") or ""): row for row in normalized_lines if isinstance(row, dict)}
-        if not lines or len(by_line) != len(lines):
-            continue
+        by_line = {str(row.get("sourceLineId") or ""): row for row in (normalization or {}).get("lines", []) if isinstance(row, dict)}
         validated_lines = []
-        valid = True
         for line in lines:
             line_id = str(line.get("id") or "")
-            normalized = by_line.get(line_id)
-            if not line_id or not normalized:
-                valid = False
-                break
-            identity_reviewed = False
+            if not line_id:
+                continue
+            identity_value = ""
             for field in ("ingredientName", "inciOrChemicalName", "supplierProductCode"):
                 item = line.get(field)
                 value = str(item.get("rawValue") or "") if isinstance(item, dict) else ""
                 evidence = item.get("evidence", {}) if isinstance(item, dict) else {}
-                if not isinstance(evidence, dict) or evidence.get("sourceDocumentHash", "").lower() != digest:
+                if not value or not isinstance(evidence, dict) or evidence.get("sourceDocumentHash", "").lower() != digest:
                     continue
-                key = f"ingredient:{line_id}:{field}"
-                review = review_for(source_id, key) if value else None
-                if value and review and review.get("sourceDocumentHash", "").lower() == digest and _accepted(
-                    review, field_path=f"ingredientLines[{line_id}].{field}", source_value=value, target_type="ingredient"):
-                    identity_reviewed = True
+                review = review_for(source_id, f"ingredient:{line_id}:{field}")
+                if review and review.get("sourceDocumentHash", "").lower() == digest and _accepted(
+                        review, field_path=f"ingredientLines[{line_id}].{field}", source_value=value, target_type="ingredient"):
+                    identity_value = value
                     break
-            chemistry = normalized.get("canonicalChemistry", {})
+            if not identity_value:
+                continue
+            # A reviewed canonical chemistry wins; otherwise the line is keyed by its printed INCI or
+            # ingredient name, which meets the Material Master row of the same name.
+            chemistry_id = None
+            normalized = by_line.get(line_id) or {}
+            chemistry = normalized.get("canonicalChemistry", {}) if isinstance(normalized, dict) else {}
             ids = chemistry.get("candidateIds", []) if isinstance(chemistry, dict) else []
-            if not identity_reviewed or chemistry.get("status") != "proposed" or len(ids) != 1:
-                valid = False
-                break
-            chemistry_id = str(ids[0])
-            target_key = f"normalization:{normalization.get('id')}:line:{line_id}:canonicalChemistry:{chemistry_id}"
-            review = review_for(source_id, target_key)
-            if not review or review.get("sourceDocumentHash", "").lower() != digest or not _accepted(
-                review, field_path=f"normalizations[{normalization.get('id')}].lines[{line_id}].canonicalChemistry",
-                source_value=chemistry_id, target_type="ingredient"):
-                valid = False
-                break
-            validated_lines.append((line, chemistry_id))
+            if chemistry.get("status") == "proposed" and len(ids) == 1 and normalization:
+                target_key = f"normalization:{normalization.get('id')}:line:{line_id}:canonicalChemistry:{ids[0]}"
+                review = review_for(source_id, target_key)
+                if review and review.get("sourceDocumentHash", "").lower() == digest and _accepted(
+                        review, field_path=f"normalizations[{normalization.get('id')}].lines[{line_id}].canonicalChemistry",
+                        source_value=str(ids[0]), target_type="ingredient"):
+                    chemistry_id = str(ids[0])
+            if chemistry_id is None:
+                inci = line.get("inciOrChemicalName")
+                chemistry_id = inci_chemistry_id(inci.get("rawValue") if isinstance(inci, dict) else None) or inci_chemistry_id(identity_value)
+            if chemistry_id:
+                validated_lines.append((line, chemistry_id))
+        # Lines no review or name can key are left out; they no longer hide the rest of the formula.
+        valid = bool(validated_lines)
         if valid:
             eligible.append({"id": source_id, "supplier": str(source.get("source", {}).get("supplierId") or ""),
                              "lines": validated_lines, "source": source})
@@ -265,10 +287,17 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
         chemistry_id = snapshot.get("canonicalChemistryId") if isinstance(snapshot, dict) else None
         if chemistry_id:
             materials_by_chemistry.setdefault(str(chemistry_id), []).append(material)
+    # Without a reviewed identity, a material meets formula lines through its INCI, trade or display name.
+    materials_by_name: dict[str, list[dict[str, Any]]] = {}
+    for material in materials:
+        if not (material.get("code") or material.get("material_code")) or not material.get("active", True):
+            continue
+        for name_key in {inci_chemistry_id(material.get(field)) for field in ("inci", "trade_name", "name")} - {None}:
+            materials_by_name.setdefault(str(name_key), []).append(material)
 
     priors = []
     for chemistry_id, rows in sorted(by_chemistry.items()):
-        mapped = materials_by_chemistry.get(chemistry_id, [])
+        mapped = materials_by_chemistry.get(chemistry_id) or materials_by_name.get(chemistry_id, [])
         if len(mapped) != 1:
             continue
         source_ids = sorted({row["id"] for row in rows})
@@ -289,9 +318,17 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
                     break
                 line_id = str(line.get("id") or "")
                 values = {}
+                header = str(((line.get("amount") or {}).get("evidence") or {}).get("header") or "")
+                header_unit = header_basis = None
+                if "%" in header and re.search(r"w\s*/\s*w|wt|weight|mass", header, re.I):
+                    header_unit, header_basis = "%", "w/w"
                 for field in ("amount", "unit", "basis"):
                     item = line.get(field)
                     value = str(item.get("rawValue") or "") if isinstance(item, dict) else ""
+                    if not value and field != "amount" and header_unit:
+                        # The amount column's printed header ("% w/w") states the unit and basis.
+                        values[field] = header_unit if field == "unit" else header_basis
+                        continue
                     review = review_for(row["id"], f"ingredient:{line_id}:{field}")
                     if (not value or not review or review.get("sourceDocumentHash", "").lower() != row["source"].get("sourceDocumentHash", "").lower()
                             or not _accepted(review, field_path=f"ingredientLines[{line_id}].{field}",
