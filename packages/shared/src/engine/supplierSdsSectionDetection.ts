@@ -64,8 +64,9 @@ const CANONICAL_TITLES = [
 // https://eur-lex.europa.eu/eli/reg/2020/878/oj
 export const SUPPLIER_SDS_SECTION_TITLE_ALIASES = {
   en: [
-    "Identification of the substance/mixture and of the company/undertaking|Identification of the substance or mixture and of the company/undertaking",
-    "Hazards identification|Identification of hazards",
+    // US OSHA HazCom/GHS sheets title section 1 "Identification" and section 2 "Hazard(s) identification".
+    "Identification of the substance/mixture and of the company/undertaking|Identification of the substance or mixture and of the company/undertaking|Identification",
+    "Hazards identification|Identification of hazards|Hazard(s) identification|Hazard identification",
     "Composition/information on ingredients|Composition and information on ingredients",
     "First aid measures",
     "Firefighting measures|Fire-fighting measures",
@@ -267,8 +268,11 @@ function parseHeadingText(value: string): { sectionNumber: number; title: string
 
 function matchTitle(sectionNumber: number, value: string): Set<string> {
   const title = normalize(value);
+  // Some PDF fonts split words inside headings ("HAZARDS IDENTIFIC ATION"); compare without spaces too.
+  const compact = title.replace(/ /g, "");
   const languages = TITLE_ALIASES.filter((alias) => alias.sectionNumber === sectionNumber
-    && (title === alias.normalized || title.startsWith(`${alias.normalized} `)))
+    && (title === alias.normalized || title.startsWith(`${alias.normalized} `)
+      || compact.startsWith(alias.normalized.replace(/ /g, ""))))
     .map((alias) => alias.language);
   return new Set(languages);
 }

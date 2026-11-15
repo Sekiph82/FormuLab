@@ -40,6 +40,19 @@ describe("supplier SDS section detection", () => {
     expect(result.unobservedSectionNumbers).not.toContain(1);
   });
 
+  it("reads US GHS headings and headings whose words the PDF font split apart", () => {
+    const result = detectSupplierSdsSections([
+      line(1, 1, "1. Identification"),
+      line(1, 2, "Product identifier : TEGOSOFT OER MB"),
+      line(1, 3, "2. Hazard(s) identification"),
+      line(1, 4, "Not classified"),
+      line(2, 1, "3. COMPOSITION/INFORMATION ON INGREDIE NTS"),
+      line(2, 2, "Siloxanes and silicones, dimethyl"),
+      line(2, 3, "4. FIRST AID MEASURE S"),
+    ]);
+    expect(result.sections.map(({ sectionNumber }) => sectionNumber)).toEqual([1, 2, 3, 4]);
+  });
+
   it("recognizes all 16 standardized section titles", () => {
     const titles = [
       "Identification of the substance/mixture and of the company/undertaking",
