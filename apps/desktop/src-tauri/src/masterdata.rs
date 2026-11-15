@@ -1985,6 +1985,14 @@ fn validate_string_array(value: &serde_json::Value, label: &str, minimum: usize)
     Ok(())
 }
 
+/// Printed table cells as read: a blank cell (an empty phase column on a continuation row) stays blank.
+fn validate_raw_cells(value: &serde_json::Value, label: &str) -> Result<(), String> {
+    if value.as_array().ok_or_else(|| format!("{label} must be an array"))?.iter().any(|item| !item.is_string()) {
+        return Err(format!("{label} contains an invalid string"));
+    }
+    Ok(())
+}
+
 fn validate_reference_evidence(value: &serde_json::Value, field_evidence: bool, label: &str) -> Result<(), String> {
     let mut required = vec!["sourceDocumentHash", "pageNumber", "blockIndex", "excerpt", "source"];
     if field_evidence { required.extend(["rowIndex", "cellIndex", "headerRowIndex", "header"]); }
@@ -2010,6 +2018,11 @@ fn validate_reference_evidence(value: &serde_json::Value, field_evidence: bool, 
     Ok(())
 }
 
+/// Mirrors `extractionMethod` in packages/shared referenceFormulationIdentityExtraction.ts.
+/// title_keyword and source_category are product-family proposals from the title or the supplier folder.
+const REFERENCE_IDENTITY_EXTRACTION_METHODS: [&str; 5] =
+    ["labeled_field", "semantic_heading", "embedded_formulation_code", "title_keyword", "source_category"];
+
 fn validate_reference_formulation_record_schema(record: &serde_json::Value) -> Result<(), String> {
     ensure_schema_object(record, &[
         "schemaVersion", "recordKind", "id", "code", "source", "sourceDocumentHash", "parserVersions", "identityCandidates",
@@ -2033,7 +2046,7 @@ fn validate_reference_formulation_record_schema(record: &serde_json::Value) -> R
     for candidate in record["identityCandidates"].as_array().unwrap() {
         ensure_schema_object(candidate, &["field", "rawValue", "extractionMethod", "evidence", "reviewRequired"], &[], "identity candidate")?;
         if !["supplier_name", "application", "product_family", "formulation_title", "formulation_code", "revision_identifier", "revision_date", "publication_date", "document_version", "source_identifier"].contains(&candidate["field"].as_str().unwrap_or_default())
-            || !["labeled_field", "semantic_heading", "embedded_formulation_code"].contains(&candidate["extractionMethod"].as_str().unwrap_or_default())
+            || !REFERENCE_IDENTITY_EXTRACTION_METHODS.contains(&candidate["extractionMethod"].as_str().unwrap_or_default())
             || candidate["reviewRequired"] != true || candidate["rawValue"].as_str().map_or(true, |value| value.trim().is_empty())
             || candidate["evidence"].as_array().map_or(true, |items| items.is_empty())
         { return Err("identity candidate does not match the versioned schema".to_string()); }
@@ -2067,7 +2080,7 @@ fn validate_reference_formulation_record_schema(record: &serde_json::Value) -> R
             || line["pageNumber"].as_u64().unwrap_or(0) == 0 || line["tableBlockIndex"].as_u64().is_none() || line["rowIndex"].as_u64().is_none()
             || line["rawRow"].as_array().is_none() || !["explicit_amount", "q_s", "not_stated"].contains(&line["quantitySemantics"].as_str().unwrap_or_default())
             || line["reviewRequired"] != true { return Err("ingredient line does not match the versioned schema".to_string()); }
-        validate_string_array(&line["rawRow"], "ingredient source row", 0)?;
+        validate_raw_cells(&line["rawRow"], "ingredient source row")?;
         for field in ["ingredientName", "supplierProductCode", "inciOrChemicalName", "function", "phase", "amount", "unit", "basis"] {
             if let Some(cell) = line.get(field) {
                 ensure_schema_object(cell, &["rawValue", "evidence"], &[], "ingredient source cell")?;
@@ -2084,7 +2097,7 @@ fn validate_reference_formulation_record_schema(record: &serde_json::Value) -> R
             || step["rawContextCells"].as_array().is_none() || step["actions"].as_array().map_or(true, |items| items.is_empty())
             || step["conditions"].as_array().is_none() || !["procedure_section_text", "procedure_table_column"].contains(&step["extractionMethod"].as_str().unwrap_or_default())
             || step["reviewRequired"] != true { return Err("procedure step does not match the versioned schema".to_string()); }
-        validate_string_array(&step["rawContextCells"], "procedure source cells", 0)?;
+        validate_raw_cells(&step["rawContextCells"], "procedure source cells")?;
         if step["actions"].as_array().unwrap().iter().any(|action| !["addition", "dissolve", "mix", "hold", "heat", "cool", "adjust_ph", "thicken", "appearance_check", "finish", "other"].contains(&action.as_str().unwrap_or_default())) {
             return Err("procedure step contains an unsupported action".to_string());
         }
@@ -3476,6 +3489,21 @@ mod tests {
         let mut conflicting = acquisition;
         conflicting["providerId"] = serde_json::json!("provider-tampered");
         assert!(new_immutable_records(&rows, vec![conflicting], "supplier_document_acquisitions").is_err());
+    }
+
+    #[test]
+    fn reference_identity_methods_match_the_shared_schema() {
+        let shared = include_str!("../../../../packages/shared/src/engine/referenceFormulationIdentityExtraction.ts");
+        let enum_line = shared.lines().find(|line| line.trim_start().starts_with("extractionMethod: z.enum(")).unwrap();
+        let shared_methods: Vec<&str> = enum_line.split('"').skip(1).step_by(2).collect();
+        assert_eq!(shared_methods, REFERENCE_IDENTITY_EXTRACTION_METHODS.to_vec());
+    }
+
+    #[test]
+    fn printed_table_cells_may_be_blank_but_must_be_strings() {
+        assert!(validate_raw_cells(&serde_json::json!(["", "Decyl Cocoate", "5.50"]), "row").is_ok());
+        assert!(validate_raw_cells(&serde_json::json!(["A", 5]), "row").is_err());
+        assert!(validate_raw_cells(&serde_json::json!("A"), "row").is_err());
     }
 
     #[test]

@@ -53,11 +53,13 @@ export async function rebuildReferenceFormulationCorpusIndex(): Promise<{
     listRecords("reference_formulation_normalizations"),
     listRecords("supplier_sds_product_evidence"),
   ]);
-  const sources = currentReferenceFormulations(sourceRows.map((record) => referenceFormulationRecordSchema.parse(record)))
-    .sort((left, right) => compareStable(left.id, right.id));
-  if (new Set(sources.map((source) => source.id)).size !== sources.length) {
+  const allSources = sourceRows.map((record) => referenceFormulationRecordSchema.parse(record));
+  if (new Set(allSources.map((source) => source.id)).size !== allSources.length) {
     throw new Error("Corpus index rebuild cannot contain duplicate immutable source record IDs.");
   }
+  // Older parses stay stored as history; their normalizations are kept but only the newest parse is indexed.
+  const knownSourceIds = new Set(allSources.map((source) => source.id));
+  const sources = currentReferenceFormulations(allSources).sort((left, right) => compareStable(left.id, right.id));
   const sourceById = new Map(sources.map((source) => [source.id, source]));
   const versions = versionRows.map((record) => referenceFormulationNormalizationVersionSchema.parse(record));
   if (new Set(versions.map((version) => version.id)).size !== versions.length) {
@@ -65,9 +67,10 @@ export async function rebuildReferenceFormulationCorpusIndex(): Promise<{
   }
   const versionsBySource = new Map<string, ReferenceFormulationNormalizationVersion[]>();
   for (const version of versions) {
-    if (!sourceById.has(version.referenceFormulationRecordId)) {
+    if (!knownSourceIds.has(version.referenceFormulationRecordId)) {
       throw new Error("Corpus index rebuild found a normalization version without its immutable source record.");
     }
+    if (!sourceById.has(version.referenceFormulationRecordId)) continue;
     const sourceVersions = versionsBySource.get(version.referenceFormulationRecordId) ?? [];
     sourceVersions.push(version);
     versionsBySource.set(version.referenceFormulationRecordId, sourceVersions);

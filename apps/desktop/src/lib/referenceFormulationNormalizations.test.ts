@@ -279,6 +279,21 @@ describe("reference formulation normalization persistence", () => {
     sdsRows = [sdsEvidence, { ...sdsEvidence, acquisitionCode: "duplicate-sds-acquisition" }];
     await expect(rebuildReferenceFormulationCorpusIndex()).rejects.toThrow(/duplicate immutable SDS evidence IDs/);
   });
+
+  it("keeps a re-parsed formula's older normalizations as history and indexes only the newest parse", async () => {
+    const older = sourceRecord([], "older-parse");
+    const newer = { ...sourceRecord([], "newer-parse"), source: { ...older.source, parserVersion: "formulab-reference-formulation-layout-v3-multi-supplier-tables" } };
+    const olderNormalization = createReferenceFormulationNormalizationVersion({ id: "older-normalization", source: older, version: 1, createdAt: older.createdAt });
+    let normalizations: unknown[] = [olderNormalization];
+    vi.mocked(listRecords).mockImplementation(async (collection) => (collection === "reference_formulations" ? [older, newer]
+      : collection === "reference_formulation_normalizations" ? normalizations : []) as never);
+    const rebuilt = await rebuildReferenceFormulationCorpusIndex();
+    expect(rebuilt.queryRecords.map((record) => record.sourceRecordId)).toEqual(["newer-parse"]);
+    normalizations = [createReferenceFormulationNormalizationVersion({
+      id: "orphan", source: { ...older, id: "missing-source" }, version: 1, createdAt: older.createdAt,
+    })];
+    await expect(rebuildReferenceFormulationCorpusIndex()).rejects.toThrow(/without its immutable source record/);
+  });
 });
 
 describe("automatic first normalization after import", () => {
