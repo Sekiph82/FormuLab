@@ -8,21 +8,21 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: REF-01
 - Current Sprint: REF-01-S01
-- Current Task: REF-01.013 — Unverified Material Master candidates built one by one from every extracted formula line, linked to raw-material documents
+- Current Task: REF-01.014 — Make the supplier formulation corpus the primary source for formula architecture and dosage; literature search becomes supporting evidence
 - Current Task Status: IN_PROGRESS
-- Next Task: REF-01.014 — Make the supplier formulation corpus the primary source for formula architecture and dosage; literature search becomes supporting evidence
+- Next Task: REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
 - Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
-- Blockers/Waits: Q-REF-01.004-1 (owner-run folder import; REF-01.007 review run and REF-01.012 document run wait on it, their code is shipped), Q-REF-01.009-1
+- Blockers/Waits: Q-REF-01.004-1 (owner-run folder import; REF-01.007 review run, REF-01.012 document run and REF-01.010 end-to-end acceptance wait on it), Q-REF-01.009-1
 
 ## Progress
 
 - Total Tasks: 213
-- Completed Tasks: 205
-- Remaining Tasks: 8
-- Completion: 96.2%
+- Completed Tasks: 206
+- Remaining Tasks: 7
+- Completion: 96.7%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -402,10 +402,10 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [!] REF-01.007 — Claude-attributed AI review of every extracted family and line, advisory-only, with human override
 - [x] REF-01.008 — Taxonomy-based product-family matching in the prior adapter and generation context
 - [!] REF-01.009 — Link reviewed canonical chemistry to Material Master materials in the active data root
-- [ ] REF-01.010 — End-to-end acceptance: real supplier PDFs reach a New Request with eligibleFormulaCount above zero
+- [!] REF-01.010 — End-to-end acceptance: real supplier PDFs reach a New Request with eligibleFormulaCount above zero
 - [!] REF-01.012 — Import the 1,704 unique raw-material documents (SDS, TDS, specifications, GHS, regulatory, brochures) with SDS extraction and product-card links
-- [~] REF-01.013 — Unverified Material Master candidates built one by one from every extracted formula line, linked to raw-material documents
-- [ ] REF-01.014 — Make the supplier formulation corpus the primary source for formula architecture and dosage; literature search becomes supporting evidence
+- [x] REF-01.013 — Unverified Material Master candidates built one by one from every extracted formula line, linked to raw-material documents
+- [~] REF-01.014 — Make the supplier formulation corpus the primary source for formula architecture and dosage; literature search becomes supporting evidence
 - [ ] REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
 
 ## Historical Detail & Evidence
