@@ -8,14 +8,14 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: REF-01
 - Current Sprint: REF-01-S01
-- Current Task: REF-01.012 — Import the 1,704 unique raw-material documents (SDS, TDS, specifications, GHS, regulatory, brochures) with SDS extraction and product-card links
+- Current Task: REF-01.013 — Unverified Material Master candidates built one by one from every extracted formula line, linked to raw-material documents
 - Current Task Status: IN_PROGRESS
-- Next Task: REF-01.013 — Unverified Material Master candidates built one by one from every extracted formula line, linked to raw-material documents
+- Next Task: REF-01.014 — Make the supplier formulation corpus the primary source for formula architecture and dosage; literature search becomes supporting evidence
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
 - Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
-- Blockers/Waits: Q-REF-01.004-1 (owner-run folder import; REF-01.007 review run waits on its records, mechanism shipped in 70f3522), Q-REF-01.009-1
+- Blockers/Waits: Q-REF-01.004-1 (owner-run folder import; REF-01.007 review run and REF-01.012 document run wait on it, their code is shipped), Q-REF-01.009-1
 
 ## Progress
 
@@ -63,7 +63,7 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 ## Questions for Şekip
 
 <!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
-- Q-REF-01.004-1 | The folder import is ready in the app, but importing supplier PDFs needs a signed-in person to confirm the internal-research rights, which Claude cannot do for you. Please open FormuLab, sign in, go to Reference Formulations, click "Choose folder", select `C:\Users\sekip\Downloads\Source`, tick the rights confirmation, then run "Import formulation PDFs" and "Store SDS/TDS PDFs". Reply "done" when it has finished; Claude then measures coverage. | TASK: REF-01.004
+- Q-REF-01.004-1 | The folder import is ready in the app, but importing supplier PDFs needs a signed-in person to confirm the internal-research rights, which Claude cannot do for you. Please open FormuLab, sign in, go to Reference Formulations, click "Choose folder", select `C:\Users\sekip\Downloads\Source`, tick the rights confirmation, then run "Import formulation PDFs" and, after it finishes, "Store raw-material documents". Reply "done" when it has finished; Claude then measures coverage. | TASK: REF-01.004
 - Q-REF-01.009-1 | An older data folder, `Desktop\FormuLab\data\master`, holds 44 collections (laboratory trials, regulatory dossiers, DOE studies, label reviews, 2 materials) that the app has not shown since August, because it now uses `Desktop\FormuLab\data\data\master`. Should Claude merge those records into the active folder (no overwrites; conflicts listed for you), or leave them archived? | TASK: REF-01.009
 
 
@@ -403,8 +403,8 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [x] REF-01.008 — Taxonomy-based product-family matching in the prior adapter and generation context
 - [!] REF-01.009 — Link reviewed canonical chemistry to Material Master materials in the active data root
 - [ ] REF-01.010 — End-to-end acceptance: real supplier PDFs reach a New Request with eligibleFormulaCount above zero
-- [~] REF-01.012 — Import the 1,704 unique raw-material documents (SDS, TDS, specifications, GHS, regulatory, brochures) with SDS extraction and product-card links
-- [ ] REF-01.013 — Unverified Material Master candidates built one by one from every extracted formula line, linked to raw-material documents
+- [!] REF-01.012 — Import the 1,704 unique raw-material documents (SDS, TDS, specifications, GHS, regulatory, brochures) with SDS extraction and product-card links
+- [~] REF-01.013 — Unverified Material Master candidates built one by one from every extracted formula line, linked to raw-material documents
 - [ ] REF-01.014 — Make the supplier formulation corpus the primary source for formula architecture and dosage; literature search becomes supporting evidence
 - [ ] REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
 
