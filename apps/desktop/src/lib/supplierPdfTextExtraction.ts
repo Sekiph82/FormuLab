@@ -295,6 +295,21 @@ export async function extractSupplierPdfText(input: {
 
   const warnings = new Set<SupplierPdfTextWarningCode>();
   const maxChars = Math.max(1, Math.min(SUPPLIER_PDF_TEXT_MAX_CHARS, Math.floor(options.maxChars ?? SUPPLIER_PDF_TEXT_MAX_CHARS)));
+  if (admission.encrypted || admission.repaired) {
+    // pdf-lib cannot decrypt strings or read past a broken object; PDF.js opens permissions-only
+    // encryption with the empty password and skips broken objects.
+    let pages: SupplierPdfTextPage[];
+    try {
+      pages = await extractPdfJsPages(input.bytes, admission.pageCount);
+    } catch {
+      return { status: "quarantined", reason: admission.encrypted ? "encrypted_pdf" : "malformed_pdf", parserVersion: SUPPLIER_PDF_TEXT_PARSER_VERSION };
+    }
+    if (pages.every(({ lines }) => lines.length === 0)) warnings.add("no_text_layer");
+    return {
+      status: "extracted", documentHash: await sha256(input.bytes), parserVersion: SUPPLIER_PDF_TEXT_PARSER_VERSION,
+      pageCount: admission.pageCount, pages, warnings: [...warnings].sort(),
+    };
+  }
   const document = await PDFDocument.load(input.bytes, { ignoreEncryption: false, throwOnInvalidObject: true, updateMetadata: false, capNumbers: true });
   const pages: SupplierPdfTextPage[] = [];
   let charsUsed = 0;

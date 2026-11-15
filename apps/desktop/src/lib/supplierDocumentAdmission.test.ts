@@ -45,9 +45,33 @@ describe("supplier PDF admission and quarantine", () => {
       .resolves.toMatchObject({ status: "quarantined", reason: "page_limit_exceeded" });
   });
 
+  it.each([[-44, "admitted"], [-64, "quarantined"]] as const)(
+    "admits permissions-only encryption only when text copying is allowed (P=%i)", async (permissions, status) => {
+      const document = await PDFDocument.create();
+      document.addPage();
+      document.context.trailerInfo.Encrypt = document.context.register(document.context.obj({ Filter: "Standard", V: 1, R: 2, P: permissions }));
+      const result = await admitSupplierPdf({ bytes: await document.save({ useObjectStreams: false }), filename: "protected.pdf", declaredMimeType: "application/pdf" });
+      expect(result).toMatchObject(status === "admitted" ? { status, encrypted: true } : { status, reason: "encrypted_pdf" });
+    },
+  );
+
+  it.each([["Sérum_équilibrant_01.pdf", "S_rum__quilibrant_01.pdf"], ["27-1930-01-revive!-hair.pdf", "27-1930-01-revive_-hair.pdf"]])(
+    "admits supplier names with accents or punctuation under a safe name (%s)", async (filename, safeFilename) => {
+      await expect(admitSupplierPdf({ bytes: await validPdf(), filename, declaredMimeType: "application/pdf" }))
+        .resolves.toMatchObject({ status: "admitted", safeFilename, encrypted: false });
+    },
+  );
+
+  it("reopens a sheet with one broken object leniently and marks it repaired", async () => {
+    const strictFailure = vi.spyOn(PDFDocument, "load").mockRejectedValueOnce(new Error("Trying to parse invalid object"));
+    await expect(admitSupplierPdf({ bytes: await validPdf(), filename: "soya.pdf", declaredMimeType: "application/pdf" }))
+      .resolves.toMatchObject({ status: "admitted", repaired: true, pageCount: 1 });
+    strictFailure.mockRestore();
+  });
+
   it("quarantines parser failures without returning exception text, URLs or secrets", async () => {
     const privateDetails = "https://supplier.example/sds.pdf?token=TOPSECRET password=PRIVATE-CREDENTIAL";
-    const loadSpy = vi.spyOn(PDFDocument, "load").mockRejectedValueOnce(new Error(privateDetails));
+    const loadSpy = vi.spyOn(PDFDocument, "load").mockRejectedValue(new Error(privateDetails));
 
     const result = await admitSupplierPdf({
       bytes: await validPdf(),
