@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReferenceFormulationRecord } from "@formulab/shared";
 import { ReferenceFormulationsPage } from "./ReferenceFormulationsPage";
@@ -51,15 +51,14 @@ describe("reference formulation evidence review page", () => {
   });
 
   function renderPage() {
-    return render(<MemoryRouter initialEntries={["/reference-formulations/reference-formula-1"]}>
-      <Routes><Route path="/reference-formulations/:recordId" element={<ReferenceFormulationsPage />} /></Routes>
-    </MemoryRouter>);
+    // A data router: the folder import blocks navigation while it runs.
+    return render(<RouterProvider router={createMemoryRouter([{ path: "/reference-formulations/:recordId", element: <ReferenceFormulationsPage /> }],
+      { initialEntries: ["/reference-formulations/reference-formula-1"] })} />);
   }
 
   function renderListPage() {
-    return render(<MemoryRouter initialEntries={["/reference-formulations"]}>
-      <Routes><Route path="/reference-formulations" element={<ReferenceFormulationsPage />} /></Routes>
-    </MemoryRouter>);
+    return render(<RouterProvider router={createMemoryRouter([{ path: "/reference-formulations", element: <ReferenceFormulationsPage /> }],
+      { initialEntries: ["/reference-formulations"] })} />);
   }
 
   it("searches indexed identity, function, dosage, process, and target candidates and opens the source lineage", async () => {

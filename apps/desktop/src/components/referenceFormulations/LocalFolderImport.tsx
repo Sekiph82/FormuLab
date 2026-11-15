@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string -- this workflow has a compact bilingual fallback so folder import remains usable in every shipped locale. */
-import { useMemo, useRef, useState, type ChangeEvent, type InputHTMLAttributes } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type InputHTMLAttributes } from "react";
+import { useBlocker } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, FolderOpen, LoaderCircle, Upload } from "lucide-react";
 import { admitSupplierPdf, SUPPLIER_PDF_DEFAULT_MAX_BYTES } from "@/lib/supplierDocumentAdmission";
@@ -133,6 +134,16 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
+  // An import keeps running when the page is left, but its progress and Pause button vanish
+  // and a second run could start; ask before leaving while one runs.
+  const blocker = useBlocker(running);
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    const leave = window.confirm(i18n.language.startsWith("tr")
+      ? "İçe aktarım sürüyor. Sayfadan çıkarsanız aktarım duraklatılır. Çıkılsın mı?"
+      : "An import is running. Leaving this page pauses it. Leave anyway?");
+    if (leave) { abortController.current?.abort(); blocker.proceed(); } else blocker.reset();
+  }, [blocker, i18n.language]);
   const tr = i18n.resolvedLanguage?.startsWith("tr") ?? false;
   const text = (en: string, turkish: string) => tr ? turkish : en;
 
