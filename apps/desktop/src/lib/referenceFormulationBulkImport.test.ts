@@ -249,6 +249,15 @@ describe("reference formulation bulk import", () => {
     ] });
   });
 
+  it("proposes a review-required product family from the supplier source folder, citing the folder", async () => {
+    await startReferenceFormulationBulkImport([{ ...selectedFile("ref-4411.pdf", await validPdf()), sourceCategories: ["Croda", "Laundry Care"] }], metadata);
+    const [record] = collections.get("reference_formulations") as Array<{ identityCandidates: Array<Record<string, unknown>> }>;
+    expect(record!.identityCandidates.filter((candidate) => candidate.field === "product_family")).toEqual([expect.objectContaining({
+      rawValue: "Laundry detergent", extractionMethod: "source_category", reviewRequired: true,
+      evidence: [expect.objectContaining({ excerpt: "Supplier source folder: Laundry Care", source: "unknown" })],
+    })]);
+  });
+
   it("processes files independently, persists source-backed review records, and deduplicates repeated bytes", async () => {
     const bytes = await validPdf();
     const result = await startReferenceFormulationBulkImport([

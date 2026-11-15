@@ -23,7 +23,9 @@ const identityEvidenceSchema = z.object({
 export const referenceFormulationIdentityCandidateSchema = z.object({
   field: fieldSchema,
   rawValue: z.string().trim().min(1).max(500),
-  extractionMethod: z.enum(["labeled_field", "semantic_heading", "embedded_formulation_code"]),
+  // title_keyword / source_category: product family read from the title, page headings or the
+  // supplier's own source folder via the shared product-family taxonomy; still review-required.
+  extractionMethod: z.enum(["labeled_field", "semantic_heading", "embedded_formulation_code", "title_keyword", "source_category"]),
   evidence: z.array(identityEvidenceSchema).min(1),
   reviewRequired: z.literal(true),
 }).strict();

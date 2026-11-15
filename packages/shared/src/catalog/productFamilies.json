@@ -1,0 +1,680 @@
+{
+  "version": "formulab-product-families-v1",
+  "note": "Ordered by priority: the first family with a matching alias wins, so specific families come before generic ones. An alias ending in * matches as a word prefix; others match whole words. Shared by the desktop app (TypeScript) and the Python generation pipeline.",
+  "groups": [
+    {
+      "key": "hair_care",
+      "label": "Hair care",
+      "aliases": [
+        "hair care",
+        "hair"
+      ]
+    },
+    {
+      "key": "skin_care",
+      "label": "Skin care",
+      "aliases": [
+        "skin care",
+        "beauty care",
+        "body care",
+        "barrier lotions",
+        "barrier creams",
+        "barrier gels",
+        "body lotions",
+        "men's care",
+        "mens care",
+        "nail care",
+        "personal hygiene"
+      ]
+    },
+    {
+      "key": "cleansing",
+      "label": "Cleansing & bath",
+      "aliases": [
+        "cleansing & bath",
+        "cleansing and bath",
+        "cleansing"
+      ]
+    },
+    {
+      "key": "color_cosmetics",
+      "label": "Color cosmetics",
+      "aliases": [
+        "color cosmetics",
+        "colour cosmetics",
+        "make-up",
+        "makeup"
+      ]
+    },
+    {
+      "key": "sun_care",
+      "label": "Sun care",
+      "aliases": [
+        "sun care"
+      ]
+    },
+    {
+      "key": "oral_care",
+      "label": "Oral care",
+      "aliases": [
+        "oral care"
+      ]
+    },
+    {
+      "key": "baby_care",
+      "label": "Baby & kids care",
+      "aliases": [
+        "baby & kids care",
+        "baby care",
+        "kids care"
+      ]
+    },
+    {
+      "key": "home_care",
+      "label": "Home care",
+      "aliases": [
+        "home care",
+        "hard surface care",
+        "hard surface cleaners",
+        "surface wipes",
+        "interior care",
+        "abrasives",
+        "metal polishes",
+        "footwear care",
+        "shoe polish",
+        "carpet cleaners",
+        "bottle cleaning"
+      ]
+    },
+    {
+      "key": "laundry",
+      "label": "Laundry care",
+      "aliases": [
+        "laundry care",
+        "laundry"
+      ]
+    },
+    {
+      "key": "dishwashing",
+      "label": "Dishwashing",
+      "aliases": [
+        "dishwashing",
+        "dishwash"
+      ]
+    },
+    {
+      "key": "air_care",
+      "label": "Air care",
+      "aliases": [
+        "air care"
+      ]
+    },
+    {
+      "key": "vehicle_care",
+      "label": "Vehicle care",
+      "aliases": [
+        "vehicle care",
+        "car wash"
+      ]
+    },
+    {
+      "key": "industrial",
+      "label": "Industrial & institutional",
+      "aliases": [
+        "production, equipment & materials cleaning",
+        "industrial",
+        "institutional"
+      ]
+    },
+    {
+      "key": "health",
+      "label": "Health & nutrition",
+      "aliases": [
+        "dietary_supplements",
+        "dietary supplements",
+        "pharmaceuticals",
+        "animal_health",
+        "animal health"
+      ]
+    },
+    {
+      "key": "coatings",
+      "label": "Coatings & inks",
+      "aliases": [
+        "coatings",
+        "paints",
+        "inks"
+      ]
+    }
+  ],
+  "families": [
+    {
+      "key": "toilet_cleaner",
+      "label": "Toilet cleaner",
+      "group": "home_care",
+      "aliases": [
+        "toilet*",
+        "wc",
+        "rim gel",
+        "rim block",
+        "bowl cleaner"
+      ]
+    },
+    {
+      "key": "dishwash_automatic",
+      "label": "Automatic dishwashing",
+      "group": "dishwashing",
+      "aliases": [
+        "automatic dish*",
+        "auto dish*",
+        "dishwasher*",
+        "machine dish*",
+        "rinse aid",
+        "adw"
+      ]
+    },
+    {
+      "key": "dishwash_hand",
+      "label": "Hand dishwashing",
+      "group": "dishwashing",
+      "aliases": [
+        "hand dish*",
+        "dishwashing liquid",
+        "dish liquid",
+        "washing-up",
+        "washing up",
+        "manual dish*",
+        "hand dishwashing"
+      ]
+    },
+    {
+      "key": "fabric_softener",
+      "label": "Fabric softener",
+      "group": "laundry",
+      "aliases": [
+        "fabric softener*",
+        "fabric conditioner*",
+        "softener*",
+        "rinse conditioner*",
+        "fabric refresher*",
+        "fabric care",
+        "ironing",
+        "starch",
+        "fabric protect*"
+      ]
+    },
+    {
+      "key": "laundry_detergent",
+      "label": "Laundry detergent",
+      "group": "laundry",
+      "aliases": [
+        "laundry*",
+        "washing powder",
+        "heavy duty",
+        "heavy-duty",
+        "hdl",
+        "hdd",
+        "stain remover*",
+        "pre-spotter",
+        "prespotter",
+        "pre-wash",
+        "prewash",
+        "laundry pod*"
+      ]
+    },
+    {
+      "key": "vehicle_care",
+      "label": "Vehicle care",
+      "group": "vehicle_care",
+      "aliases": [
+        "car",
+        "cars",
+        "vehicle*",
+        "automotive",
+        "tyre*",
+        "tire*",
+        "windscreen*",
+        "windshield*",
+        "wheel cleaner*",
+        "bug remover*",
+        "car wash"
+      ]
+    },
+    {
+      "key": "insect_repellent",
+      "label": "Insect repellent",
+      "group": "home_care",
+      "aliases": [
+        "insect*",
+        "repellen*",
+        "mosquito*"
+      ]
+    },
+    {
+      "key": "air_care",
+      "label": "Air freshener",
+      "group": "air_care",
+      "aliases": [
+        "air freshener*",
+        "air care",
+        "room spray*",
+        "odour*",
+        "odor*",
+        "reed diffuser*",
+        "diffuser*",
+        "candle*",
+        "freshener*"
+      ]
+    },
+    {
+      "key": "disinfectant",
+      "label": "Disinfectant / sanitizer",
+      "group": "home_care",
+      "aliases": [
+        "disinfect*",
+        "sanitiz*",
+        "sanitis*",
+        "biocid*",
+        "antibacterial surface"
+      ]
+    },
+    {
+      "key": "industrial_cleaner",
+      "label": "Industrial cleaner",
+      "group": "industrial",
+      "aliases": [
+        "industrial*",
+        "cip",
+        "clean-in-place",
+        "metal cleaner*",
+        "metalworking",
+        "parts wash*",
+        "bottle wash*",
+        "bottle cleaning",
+        "dairy",
+        "food processing",
+        "alkaline metal*",
+        "acid metal*",
+        "greasy soil*"
+      ]
+    },
+    {
+      "key": "hard_surface_cleaner",
+      "label": "Hard surface cleaner",
+      "group": "home_care",
+      "aliases": [
+        "all-purpose",
+        "all purpose",
+        "multi-purpose",
+        "multipurpose",
+        "hard surface",
+        "kitchen cleaner*",
+        "bathroom cleaner*",
+        "bath cleaner*",
+        "shower cleaner*",
+        "glass cleaner*",
+        "window cleaner*",
+        "floor cleaner*",
+        "surface cleaner*",
+        "acid cleaner*",
+        "acidic cleaner*",
+        "alkaline cleaner*",
+        "degreaser*",
+        "descaler*",
+        "limescale",
+        "oven cleaner*",
+        "metal polish*",
+        "furniture polish*",
+        "polish",
+        "wipe*",
+        "carpet*",
+        "upholstery",
+        "shoe*",
+        "footwear",
+        "leather care",
+        "scouring",
+        "cream cleanser",
+        "cleaner*",
+        "cleaning*",
+        "grill*",
+        "power clean*",
+        "bucket dilutable*"
+      ]
+    },
+    {
+      "key": "oral_care",
+      "label": "Oral care",
+      "group": "oral_care",
+      "aliases": [
+        "toothpaste*",
+        "tooth paste*",
+        "mouthwash*",
+        "mouth wash*",
+        "mouth rinse*",
+        "dentifrice*",
+        "gingival",
+        "denture*",
+        "oral care",
+        "tooth gel"
+      ]
+    },
+    {
+      "key": "deodorant",
+      "label": "Deodorant / antiperspirant",
+      "group": "skin_care",
+      "aliases": [
+        "deodorant*",
+        "deo",
+        "antiperspirant*",
+        "anti-perspirant*",
+        "ap-deo",
+        "roll-on",
+        "roll on"
+      ]
+    },
+    {
+      "key": "sunscreen",
+      "label": "Sun care",
+      "group": "sun_care",
+      "aliases": [
+        "sunscreen*",
+        "sun screen*",
+        "sun care",
+        "spf",
+        "after sun",
+        "after-sun",
+        "sun protect*",
+        "sun cream*",
+        "sun lotion*",
+        "sun spray*",
+        "sun milk",
+        "uv protect*",
+        "self tan*",
+        "self-tan*"
+      ]
+    },
+    {
+      "key": "shampoo",
+      "label": "Shampoo",
+      "group": "hair_care",
+      "aliases": [
+        "shampoo*",
+        "2-in-1",
+        "2 in 1",
+        "anti-dandruff",
+        "dandruff",
+        "co-wash"
+      ]
+    },
+    {
+      "key": "conditioner",
+      "label": "Hair conditioner",
+      "group": "hair_care",
+      "aliases": [
+        "conditioner*",
+        "conditioning rinse",
+        "hair rinse",
+        "detangl*",
+        "cream rinse"
+      ]
+    },
+    {
+      "key": "hair_styling",
+      "label": "Hair styling",
+      "group": "hair_care",
+      "aliases": [
+        "hair gel*",
+        "styling*",
+        "hair spray*",
+        "hairspray*",
+        "hair wax*",
+        "pomade*",
+        "mousse",
+        "curl*",
+        "heat protect*",
+        "hair fix*"
+      ]
+    },
+    {
+      "key": "hair_treatment",
+      "label": "Hair mask / treatment",
+      "group": "hair_care",
+      "aliases": [
+        "hair mask*",
+        "hair treatment*",
+        "leave-in",
+        "leave in",
+        "hair serum*",
+        "hair oil*",
+        "scalp*",
+        "hair colo*",
+        "hair dye*",
+        "hair repair"
+      ]
+    },
+    {
+      "key": "shaving",
+      "label": "Shaving",
+      "group": "skin_care",
+      "aliases": [
+        "shav*",
+        "after shave",
+        "aftershave*",
+        "beard*"
+      ]
+    },
+    {
+      "key": "hand_soap",
+      "label": "Hand soap",
+      "group": "cleansing",
+      "aliases": [
+        "hand soap*",
+        "hand wash*",
+        "liquid soap*",
+        "soap bar*",
+        "bar soap*",
+        "hand cleanser*",
+        "soap"
+      ]
+    },
+    {
+      "key": "facial_cleanser",
+      "label": "Facial cleanser",
+      "group": "cleansing",
+      "aliases": [
+        "facial cleans*",
+        "face wash*",
+        "micellar",
+        "cleansing milk*",
+        "cleansing oil*",
+        "make-up remover*",
+        "makeup remover*",
+        "cleansing water*",
+        "face cleans*",
+        "cleansing gel*",
+        "cleansing balm*",
+        "cleansing foam*"
+      ]
+    },
+    {
+      "key": "body_wash",
+      "label": "Body wash / shower gel",
+      "group": "cleansing",
+      "aliases": [
+        "body wash*",
+        "shower gel*",
+        "shower cream*",
+        "shower oil*",
+        "shower foam*",
+        "bath foam*",
+        "bubble bath*",
+        "foam bath*",
+        "bath oil*",
+        "bath salt*",
+        "bath bomb*",
+        "cleansing bar*",
+        "syndet*",
+        "intimate wash*",
+        "intimate"
+      ]
+    },
+    {
+      "key": "lip_care",
+      "label": "Lip care",
+      "group": "color_cosmetics",
+      "aliases": [
+        "lip balm*",
+        "lip care",
+        "lip scrub*",
+        "lip oil*",
+        "lip mask*"
+      ]
+    },
+    {
+      "key": "color_cosmetics",
+      "label": "Color cosmetics",
+      "group": "color_cosmetics",
+      "aliases": [
+        "foundation*",
+        "mascara*",
+        "lipstick*",
+        "lip gloss*",
+        "lip colo*",
+        "lip tint*",
+        "eyeshadow*",
+        "eye shadow*",
+        "eyeliner*",
+        "eye liner*",
+        "concealer*",
+        "blush*",
+        "bronzer*",
+        "highlighter*",
+        "bb cream*",
+        "cc cream*",
+        "make-up",
+        "makeup",
+        "primer*",
+        "nail polish*",
+        "nail*",
+        "face powder",
+        "pressed powder",
+        "loose powder",
+        "color corrector*",
+        "colour corrector*",
+        "stick foundation"
+      ]
+    },
+    {
+      "key": "baby_care",
+      "label": "Baby care",
+      "group": "baby_care",
+      "aliases": [
+        "baby*",
+        "kids",
+        "diaper*",
+        "nappy",
+        "infant*"
+      ]
+    },
+    {
+      "key": "pet_care",
+      "label": "Pet care",
+      "group": "health",
+      "aliases": [
+        "pet",
+        "pets",
+        "dog*",
+        "cat",
+        "cats",
+        "paw*",
+        "animal*"
+      ]
+    },
+    {
+      "key": "dietary_supplement",
+      "label": "Dietary supplement",
+      "group": "health",
+      "aliases": [
+        "supplement*",
+        "capsule*",
+        "tablet*",
+        "gummy",
+        "gummies",
+        "shot",
+        "beauty drink*",
+        "nutrition*",
+        "nutricosmetic*"
+      ]
+    },
+    {
+      "key": "pharmaceutical",
+      "label": "Pharmaceutical (topical)",
+      "group": "health",
+      "aliases": [
+        "pharmaceutical*",
+        "ointment*",
+        "topical",
+        "betamethasone",
+        "hydrocortisone",
+        "diclofenac",
+        "medicat*",
+        "dermatolog*",
+        "wound*"
+      ]
+    },
+    {
+      "key": "coatings",
+      "label": "Coatings & inks",
+      "group": "coatings",
+      "aliases": [
+        "paint*",
+        "coating*",
+        "latex",
+        "ink",
+        "inks",
+        "varnish*",
+        "adhesive*",
+        "coalescen*",
+        "gravure"
+      ]
+    },
+    {
+      "key": "skin_cream_lotion",
+      "label": "Skin cream / lotion",
+      "group": "skin_care",
+      "aliases": [
+        "cream*",
+        "lotion*",
+        "moisturi*",
+        "serum*",
+        "balm*",
+        "emulsion*",
+        "body milk*",
+        "body butter*",
+        "face mask*",
+        "facial mask*",
+        "sheet mask*",
+        "mask*",
+        "eye contour*",
+        "eye cream*",
+        "night care",
+        "day care",
+        "anti-aging",
+        "anti-ageing",
+        "toner*",
+        "essence*",
+        "gel cream*",
+        "hand cream*",
+        "foot cream*",
+        "body oil*",
+        "face oil*",
+        "scrub*",
+        "peel*",
+        "exfoliat*",
+        "mist*",
+        "fluid*",
+        "barrier*"
+      ]
+    }
+  ]
+}

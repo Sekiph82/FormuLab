@@ -4,6 +4,8 @@ import {
   createReferenceFormulationRecord,
   createReferenceFormulationSource,
   extractReferenceFormulationIdentity,
+  classifyProductFamily,
+  type ReferenceFormulationIdentityCandidate,
   extractReferenceFormulationIngredientLines,
   extractReferenceFormulationProcedure,
   extractReferenceFormulationTargets,
@@ -43,6 +45,8 @@ export interface SelectedReferenceFormulationPdf {
   type: string;
   size: number;
   arrayBuffer(): Promise<ArrayBuffer>;
+  /** Supplier folders the file was found in ("Croda/Hair Care"), used as product-family evidence. */
+  sourceCategories?: string[];
 }
 
 export interface ReferenceFormulationBulkImportMetadata {
@@ -274,6 +278,7 @@ async function buildAndPersistReferenceRecord(input: {
   bytes: Uint8Array;
   extraction: Awaited<ReturnType<typeof extractSupplierPdfText>>;
   signal?: AbortSignal;
+  sourceCategories: string[];
 }): Promise<{ recordId: string; acquisitionCode: string }> {
   if (input.extraction.status !== "extracted") throw new ImportFileFailure("invalid_pdf");
   const extraction = input.extraction;
@@ -292,6 +297,29 @@ async function buildAndPersistReferenceRecord(input: {
   return first!;
 }
 
+/**
+ * When the document itself names no product family, propose one (review-required) from the
+ * title, the first page's headings or the supplier's source folder, citing where it came from.
+ */
+function withProductFamily(candidates: ReferenceFormulationIdentityCandidate[], input: {
+  title: string; filename: string; sourceCategories: string[]; sourceDocumentHash: string;
+  pages: ReturnType<typeof pagesFromExtraction>;
+}): ReferenceFormulationIdentityCandidate[] {
+  if (candidates.some((candidate) => candidate.field === "product_family")) return candidates;
+  const textBlocks = input.pages.flatMap((page) => page.blocks.flatMap((block) => block.type === "text" ? [{ page: page.pageNumber, block }] : []));
+  const headings = textBlocks.filter(({ page }) => page === 1).slice(0, 4).map(({ block }) => block.text);
+  const match = classifyProductFamily({ title: input.title, headings, sourceCategories: input.sourceCategories });
+  if (!match) return candidates;
+  const cited = textBlocks.find(({ block }) => block.text === match.matchedText);
+  const evidence = cited
+    ? { sourceDocumentHash: input.sourceDocumentHash, pageNumber: cited.page, blockIndex: cited.block.blockIndex, excerpt: match.matchedText, source: cited.block.source }
+    : {
+      sourceDocumentHash: input.sourceDocumentHash, pageNumber: 1, blockIndex: 0, source: "unknown" as const,
+      excerpt: match.method === "source_category" ? `Supplier source folder: ${match.matchedText}` : `Source file name: ${input.filename}`,
+    };
+  return [...candidates, { field: "product_family", rawValue: match.label, extractionMethod: match.method, evidence: [evidence], reviewRequired: true }];
+}
+
 /** One reference record per printed formula; multi-formula documents get a variant suffix. */
 async function persistVariant(input: {
   job: ReferenceFormulationImportJob;
@@ -301,6 +329,7 @@ async function persistVariant(input: {
   ocrLines: Parameters<typeof pagesFromExtraction>[1];
   variant: number;
   variants: number;
+  sourceCategories: string[];
 }): Promise<{ recordId: string; acquisitionCode: string }> {
   const pages = pagesFromExtraction(input.extraction, input.ocrLines, input.variant);
   const variantSuffix = input.variants > 1 ? `-v${input.variant}` : "";
@@ -346,7 +375,10 @@ async function persistVariant(input: {
     id: `reference-formula-${recordKey}`,
     code: `reference-formula-${recordKey}`,
     source,
-    identityCandidates: identity.candidates,
+    identityCandidates: withProductFamily(identity.candidates, {
+      title: baseTitle, filename: input.item.originalFilename, pages, sourceCategories: input.sourceCategories,
+      sourceDocumentHash: input.acquisition.sha256,
+    }),
     identityMetadataComparisons: identity.metadataComparisons,
     identityWarnings: identity.warnings,
     ingredientLines: ingredients.lines,
@@ -432,7 +464,10 @@ async function processOneFile(input: {
   }
 
   try {
-    const saved = await buildAndPersistReferenceRecord({ job: input.job, item: input.item, acquisition, bytes, extraction, signal: input.signal });
+    const saved = await buildAndPersistReferenceRecord({
+      job: input.job, item: input.item, acquisition, bytes, extraction, signal: input.signal,
+      sourceCategories: input.selected.sourceCategories ?? [],
+    });
     return { status: "review_required", ...saved };
   } catch (error) {
     if (error instanceof ImportBatchPaused) throw error;
