@@ -8,14 +8,14 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: REF-01
 - Current Sprint: REF-01-S01
-- Current Task: REF-01.007 — Claude-attributed AI review of every extracted family and line, advisory-only, with human override
+- Current Task: REF-01.008 — Taxonomy-based product-family matching in the prior adapter and generation context
 - Current Task Status: IN_PROGRESS
-- Next Task: REF-01.008 — Taxonomy-based product-family matching in the prior adapter and generation context
+- Next Task: REF-01.012 — Import the 1,704 unique raw-material documents (SDS, TDS, specifications, GHS, regulatory, brochures) with SDS extraction and product-card links
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
 - Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
-- Blockers/Waits: Q-REF-01.004-1 (owner-run folder import), Q-REF-01.009-1
+- Blockers/Waits: Q-REF-01.004-1 (owner-run folder import; REF-01.007 review run waits on its records, mechanism shipped in 70f3522), Q-REF-01.009-1
 
 ## Progress
 
@@ -399,8 +399,8 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [!] REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
 - [x] REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
 - [x] REF-01.006 — Canonical-chemistry review items in the reference review screen
-- [~] REF-01.007 — Claude-attributed AI review of every extracted family and line, advisory-only, with human override
-- [ ] REF-01.008 — Taxonomy-based product-family matching in the prior adapter and generation context
+- [!] REF-01.007 — Claude-attributed AI review of every extracted family and line, advisory-only, with human override
+- [~] REF-01.008 — Taxonomy-based product-family matching in the prior adapter and generation context
 - [!] REF-01.009 — Link reviewed canonical chemistry to Material Master materials in the active data root
 - [ ] REF-01.010 — End-to-end acceptance: real supplier PDFs reach a New Request with eligibleFormulaCount above zero
 - [ ] REF-01.012 — Import the 1,704 unique raw-material documents (SDS, TDS, specifications, GHS, regulatory, brochures) with SDS extraction and product-card links
