@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: REF-01
 - Current Sprint: REF-01-S01
-- Current Task: REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
+- Current Task: REF-01.006 — Canonical-chemistry review items in the reference review screen
 - Current Task Status: IN_PROGRESS
-- Next Task: REF-01.006 — Canonical-chemistry review items in the reference review screen
+- Next Task: REF-01.007 — Claude-attributed AI review of every extracted family and line, advisory-only, with human override
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 213
-- Completed Tasks: 202
-- Remaining Tasks: 11
-- Completion: 94.8%
+- Completed Tasks: 203
+- Remaining Tasks: 10
+- Completion: 95.3%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -397,8 +397,8 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [x] REF-01.002 — Import structured supplier sources (Seppic JSON/CSV indexes) as evidence-backed reference records
 - [x] REF-01.003 — Shared product-family taxonomy and review-required family candidates from verified source categories
 - [!] REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
-- [~] REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
-- [ ] REF-01.006 — Canonical-chemistry review items in the reference review screen
+- [x] REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
+- [~] REF-01.006 — Canonical-chemistry review items in the reference review screen
 - [ ] REF-01.007 — Claude-attributed AI review of every extracted family and line, advisory-only, with human override
 - [ ] REF-01.008 — Taxonomy-based product-family matching in the prior adapter and generation context
 - [!] REF-01.009 — Link reviewed canonical chemistry to Material Master materials in the active data root
