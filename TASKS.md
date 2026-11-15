@@ -19,10 +19,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 212
+- Total Tasks: 213
 - Completed Tasks: 199
-- Remaining Tasks: 13
-- Completion: 93.9%
+- Remaining Tasks: 14
+- Completion: 93.4%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -69,6 +69,7 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 ## Owner Decisions
 
 <!-- Append processed dashboard answers here with their Q-ID and affected task before doing dependent work. -->
+- D-REF-01-2 | REF-01.014 | Owner (2026-11-15): "bu source dosyalarinin icinde yeralan formullerin hepsi sahada uygulanan gercek formuller. openalex icinde yaparak bulmaya calistigimiz formullerin hepsi aslinda burada var. o yuzden bence asil onceligimiz \"C:\Users\sekip\Downloads\Source\" klasorundeki formulasyonlar olmali. esas kaynak bu, openalex aramalari destek olarak kullanilmali." Applied as: reviewed supplier formulations drive architecture, ingredient selection and dosage ranges first; OpenAlex/literature evidence supports, explains or fills gaps. Supplier formulas stay reference evidence, not laboratory-measured validation, and Safety/Regulatory/compatibility hard gates still outrank them.
 - D-REF-01-1 | REF-01.007, REF-01.013 | Owner (2026-11-15): "insan tarafindan inceleme kismini sen yap. tum formul pdflerinden sadece formulleri cikarip bu uygulamada kullanabilecegimiz bir formata cevirmeliyiz. urun ailesi okuma isini cozmeliyiz. aktif malzeme listesini de bu formullerden cikarmaliyiz tek tek" Applied as: Claude reviews reference-formulation families and lines and records each decision as an AI review attributed to Claude, never to the owner or another human; AI-reviewed reference formulas feed only advisory reference priors and are labeled as such on cards; a human decision always overrides; regulated, safety and approval gates keep requiring a named human; materials derived from formulas enter Material Master as unverified candidates. Undownloadable supplier documents (Seppic professional access, Dow sign-in) are out of scope.
 - Q-FVL-11.005-1 | FVL-11.005 | Switch to the new formulation UI as the v1 default. Do not keep both UIs as a permanent user-selectable choice. Retain the existing/legacy UI only as a temporary compatibility bridge or redirect for historical deep links and workflows that are not yet fully mapped. After FVL-11 acceptance confirms feature parity and historical-project access, the new workspace-based UI should be the single default v1 experience. Do not delete historical data, audit evidence, or compatibility routes merely to simplify the UI.
 - Q-FVL-11.011-1 | FVL-11.011 | o exe dosyasi projenin en son guncel halini acmali her seferinde. buna gore ayarla
@@ -403,6 +404,7 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [ ] REF-01.010 — End-to-end acceptance: real supplier PDFs reach a New Request with eligibleFormulaCount above zero
 - [ ] REF-01.012 — Import the 1,704 unique raw-material documents (SDS, TDS, specifications, GHS, regulatory, brochures) with SDS extraction and product-card links
 - [ ] REF-01.013 — Unverified Material Master candidates built one by one from every extracted formula line, linked to raw-material documents
+- [ ] REF-01.014 — Make the supplier formulation corpus the primary source for formula architecture and dosage; literature search becomes supporting evidence
 - [ ] REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
 
 ## Historical Detail & Evidence
