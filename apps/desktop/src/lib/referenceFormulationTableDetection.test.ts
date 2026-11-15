@@ -191,6 +191,16 @@ describe("detectIngredientTables", () => {
     ]);
   });
 
+  it("keeps a phase-marked ingredient whose amount is not printed, with an empty amount", () => {
+    const [table] = detectIngredientTables([
+      line(453, [[38, "Phase"], [76, "Ingredient"], [316, "INCI"], [486, "Amount"]]),
+      line(437, [[38, "D"], [316, "Silk Amino Acids"], [486, "10 %"]]),
+      line(421, [[38, "E"], [316, "Citric Acid"]]),
+      line(405, [[38, "E"], [316, "Preservative"], [486, "0.5 %"]]),
+    ]);
+    expect(table!.rows.slice(1)).toEqual([["D", "", "Silk Amino Acids", "10 %"], ["E", "", "Citric Acid", ""], ["E", "", "Preservative", "0.5 %"]]);
+  });
+
   it("finds nothing on pages without a recognised ingredient header", () => {
     expect(detectIngredientTables([
       line(700, [[50, "Typical properties"]]),

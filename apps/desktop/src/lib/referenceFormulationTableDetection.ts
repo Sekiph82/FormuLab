@@ -175,13 +175,15 @@ export function detectIngredientTables(lines: PositionedLine[]): DetectedIngredi
       previousY = y;
       consumed = next;
     }
-    const dataRows = rows.filter((row) => row.amounts.some(Boolean) && (row.ingredient || row.inci));
+    // A row with its own phase marker but no printed amount (e.g. "E · Citric Acid") is a real
+    // ingredient whose amount is not stated; it is kept, never given an invented value.
+    const dataRows = rows.filter((row) => (row.ingredient || row.inci) && (row.amounts.some(Boolean) || row.phase));
     if (dataRows.length < 2) continue;
     const columns = (["phase", "ingredient", "inci", "function", "supplier"] as const)
       .filter((column) => header.some((cell) => cell.column === column) || (column === "phase" && dataRows.some((row) => row.phase)));
     amountCells.forEach((amountCell, slot) => {
-      const variantRows = dataRows.filter((row) => row.amounts[slot]);
-      if (variantRows.length < 2) return;
+      const variantRows = dataRows.filter((row) => row.amounts[slot] || (amountCells.length === 1 && !row.amounts.some(Boolean)));
+      if (variantRows.filter((row) => row.amounts[slot]).length < 2) return;
       tables.push({
         rows: [
           [...columns.map((column) => CANONICAL_HEADER[column]), CANONICAL_HEADER.amount],
