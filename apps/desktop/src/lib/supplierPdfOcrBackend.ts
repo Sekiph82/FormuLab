@@ -7,8 +7,12 @@ interface LoadedPdf {
   destroy(): Promise<void>;
 }
 
+type OcrBox = { x0: number; y0: number; x1: number; y1: number };
 interface LocalOcrWorker {
-  recognize(image: Blob): Promise<{ data: { lines: Array<{ text: string; confidence: number }> } }>;
+  // tesseract.js 6+ only returns line/word structure when `blocks` output is requested.
+  recognize(image: Blob, options: Record<string, never>, output: { blocks: true }): Promise<{ data: { blocks: Array<{
+    paragraphs: Array<{ lines: Array<{ text: string; confidence: number; words: Array<{ text: string; bbox: OcrBox }> }> }>;
+  }> | null } }>;
   terminate(): Promise<unknown>;
 }
 
@@ -94,9 +98,13 @@ export function createSupplierPdfOcrBackend(
       }
       const worker = await getWorker(languages);
       throwIfAborted(signal);
-      const result = await worker.recognize(new Blob([Uint8Array.from(bytes).buffer], { type: mimeType }));
+      const result = await worker.recognize(new Blob([Uint8Array.from(bytes).buffer], { type: mimeType }), {}, { blocks: true });
       throwIfAborted(signal);
-      return result.data.lines.map((line) => ({ text: line.text, confidence: line.confidence / 100 }));
+      return (result.data.blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines)).map((line) => ({
+        text: line.text,
+        confidence: line.confidence / 100,
+        words: line.words.map((word) => ({ text: word.text, x0: word.bbox.x0, x1: word.bbox.x1, y0: word.bbox.y0 })),
+      }));
     },
     async dispose() {
       if (disposed) return;

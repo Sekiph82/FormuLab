@@ -20,7 +20,8 @@ import {
 import { recordReferenceFormulation } from "./referenceFormulations";
 import { runConditionalReferenceFormulationOcr } from "./referenceFormulationOcr";
 import { extractSupplierPdfText } from "./supplierPdfTextExtraction";
-import { detectIngredientTables, headerColumn } from "./referenceFormulationTableDetection";
+import { detectIngredientTables, headerColumn, type PositionedLine } from "./referenceFormulationTableDetection";
+import type { OcrWord } from "./supplierPdfOcr";
 import { SUPPLIER_PDF_DEFAULT_MAX_BYTES } from "./supplierDocumentAdmission";
 import { recordSupplierDocumentAcquisition } from "./supplierDocumentAcquisitions";
 import { listRecords, nowIso, storeSupplierDocumentPdf, upsertRecords } from "./masterdata";
@@ -177,11 +178,42 @@ export async function startReferenceFormulationBulkImport(
   return resumeReferenceFormulationBulkImport(job.id, selectedFiles, signal);
 }
 
+type OcrLine = { pageNumber: number; text: string; confidence: number; source: "ocr"; words?: OcrWord[] };
+
+/** OCR word boxes as positioned rows: close words share a cell, wider gaps start a new column. */
+export function positionedOcrLines(ocrLines: OcrLine[], pageNumber: number): PositionedLine[] {
+  return ocrLines.filter((line) => line.pageNumber === pageNumber && line.words?.length).map((line) => {
+    const words = [...line.words!].sort((left, right) => left.x0 - right.x0);
+    const fragments: Array<{ text: string; x: number; width: number }> = [];
+    let end = Number.NEGATIVE_INFINITY;
+    for (const word of words) {
+      const current = fragments[fragments.length - 1];
+      if (current && word.x0 - end < 6) {
+        current.text = `${current.text} ${word.text}`;
+        current.width = word.x1 - current.x;
+      } else {
+        fragments.push({ text: word.text, x: word.x0, width: word.x1 - word.x0 });
+      }
+      end = word.x1;
+    }
+    // PDF y grows upwards; OCR y grows downwards.
+    return { text: line.text, position: { x: words[0]!.x0, y: -Math.min(...words.map((word) => word.y0)) }, fragments };
+  });
+}
+
+function pageTables(lines: PositionedLine[], ocrLines: OcrLine[], pageNumber: number) {
+  return [
+    ...detectIngredientTables(lines).map((table) => ({ table, source: "digital" as const })),
+    ...detectIngredientTables(positionedOcrLines(ocrLines, pageNumber)).map((table) => ({ table, source: "ocr" as const })),
+  ];
+}
+
 /** Number of formulas printed side by side in this document's ingredient tables (1 when there is one). */
 export function formulaVariantCount(
   extraction: Awaited<ReturnType<typeof extractSupplierPdfText>> & { status: "extracted" },
+  ocrLines: OcrLine[] = [],
 ): number {
-  return Math.max(1, ...extraction.pages.flatMap((page) => detectIngredientTables(page.lines).map((table) => table.variantCount)));
+  return Math.max(1, ...extraction.pages.flatMap((page) => pageTables(page.lines, ocrLines, page.pageNumber).map(({ table }) => table.variantCount)));
 }
 
 /**
@@ -191,7 +223,7 @@ export function formulaVariantCount(
  */
 export function pagesFromExtraction(
   extraction: Awaited<ReturnType<typeof extractSupplierPdfText>> & { status: "extracted" },
-  ocrLines: Array<{ pageNumber: number; text: string; confidence: number; source: "ocr" }>,
+  ocrLines: OcrLine[],
   variant = 1,
 ) {
   return extraction.pages.map((page) => {
@@ -199,13 +231,13 @@ export function pagesFromExtraction(
       type: "text"; blockIndex: number; text: string; source: "digital" | "ocr"; confidence?: number;
       position?: { x: number; y: number };
     };
-    type TableBlock = { type: "table"; blockIndex: number; rows: string[][]; source: "digital"; position?: { x: number; y: number } };
+    type TableBlock = { type: "table"; blockIndex: number; rows: string[][]; source: "digital" | "ocr"; position?: { x: number; y: number } };
     const positioned = [...page.lines].sort((left, right) => (right.position?.y ?? 0) - (left.position?.y ?? 0));
     const blocks: Array<TextBlock | TableBlock> = [];
     let nextIndex = 0;
-    for (const table of detectIngredientTables(positioned)) {
+    for (const { table, source } of pageTables(positioned, ocrLines, page.pageNumber)) {
       if ((table.variant ?? 1) !== variant) continue;
-      blocks.push({ type: "table", blockIndex: nextIndex++, rows: table.rows, source: "digital", ...(table.position ? { position: table.position } : {}) });
+      blocks.push({ type: "table", blockIndex: nextIndex++, rows: table.rows, source, ...(table.position && source === "digital" ? { position: table.position } : {}) });
     }
     const consumedProcedureLines = new Set<number>();
     for (let index = 0; index < positioned.length; index += 1) {
@@ -251,7 +283,7 @@ async function buildAndPersistReferenceRecord(input: {
     options: { languages: ["eng"], sourcePdfBytes: input.bytes },
   }, input.signal);
   if (ocr.status === "cancelled") throw new ImportBatchPaused();
-  const variants = formulaVariantCount(input.extraction);
+  const variants = formulaVariantCount(extraction, ocr.lines);
   let first: { recordId: string; acquisitionCode: string } | undefined;
   for (let variant = 1; variant <= variants; variant += 1) {
     const saved = await persistVariant({ ...input, extraction, ocrLines: ocr.lines, variant, variants });

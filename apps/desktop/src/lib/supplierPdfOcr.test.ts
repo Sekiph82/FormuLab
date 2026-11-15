@@ -89,13 +89,20 @@ describe("conditional supplier PDF OCR", () => {
   it("normalizes the real engine's 0..100 confidence scale and disposes local engines", async () => {
     const destroy = vi.fn(async () => undefined);
     const terminate = vi.fn(async () => undefined);
-    const recognize = vi.fn(async () => ({ data: { lines: [{ text: "SDS section", confidence: 87 }] } }));
+    // tesseract.js 7 shape: lines and word boxes exist only under blocks -> paragraphs.
+    const recognize = vi.fn(async () => ({ data: { blocks: [{ paragraphs: [{ lines: [{
+      text: "SDS section", confidence: 87,
+      words: [{ text: "SDS", bbox: { x0: 30, y0: 60, x1: 75, y1: 80 } }, { text: "section", bbox: { x0: 84, y0: 60, x1: 180, y1: 80 } }],
+    }] }] }] } }));
     const backend = createSupplierPdfOcrBackend(new Uint8Array([1]), {
       loadPdf: vi.fn(async () => ({ getPage: vi.fn(), destroy } as never)),
       createWorker: vi.fn(async () => ({ recognize, terminate })),
     });
     await expect(backend.recognize({ bytes: new Uint8Array([1]), mimeType: "image/png", languages: ["eng"] }))
-      .resolves.toEqual([{ text: "SDS section", confidence: 0.87 }]);
+      .resolves.toEqual([{ text: "SDS section", confidence: 0.87, words: [
+        { text: "SDS", x0: 30, x1: 75, y0: 60 }, { text: "section", x0: 84, x1: 180, y0: 60 },
+      ] }]);
+    expect(recognize).toHaveBeenCalledWith(expect.any(Blob), {}, { blocks: true });
     await backend.dispose?.();
     expect(terminate).toHaveBeenCalledOnce();
     expect(destroy).not.toHaveBeenCalled();

@@ -7,7 +7,11 @@ export interface SupplierPdfOcrLine {
   confidence: number;
   source: "ocr";
   reviewRequired: boolean;
+  /** Word boxes in PDF points from the page's top-left, when the OCR engine reports them. */
+  words?: OcrWord[];
 }
+
+export interface OcrWord { text: string; x0: number; x1: number; y0: number }
 
 export type SupplierPdfOcrWarning = SupplierPdfTextWarningCode
   | "ocr_unavailable"
@@ -21,7 +25,8 @@ export type SupplierPdfOcrWarning = SupplierPdfTextWarningCode
 
 export interface SupplierPdfOcrBackend {
   renderPage(input: { pageNumber: number; scale: number; maxPixels: number; signal?: AbortSignal }): Promise<{ bytes: Uint8Array; mimeType: "image/png" | "image/jpeg" }>;
-  recognize(input: { bytes: Uint8Array; mimeType: "image/png" | "image/jpeg"; languages: string[]; signal?: AbortSignal }): Promise<Array<{ text: string; confidence: number }>>;
+  /** Word boxes are in raster pixels of the rendered page. */
+  recognize(input: { bytes: Uint8Array; mimeType: "image/png" | "image/jpeg"; languages: string[]; signal?: AbortSignal }): Promise<Array<{ text: string; confidence: number; words?: OcrWord[] }>>;
   dispose?(): Promise<void>;
 }
 
@@ -173,7 +178,8 @@ export async function runConditionalSupplierPdfOcr(
           const text = item.text.replace(/\s+/g, " ").trim();
           if (!text || !Number.isFinite(item.confidence) || item.confidence < 0 || item.confidence > 1) continue;
           const reviewRequired = item.confidence < limits.minimumConfidence;
-          lines.push({ pageNumber, text, confidence: item.confidence, source: "ocr", reviewRequired });
+          const words = item.words?.map((word) => ({ text: word.text, x0: word.x0 / limits.scale, x1: word.x1 / limits.scale, y0: word.y0 / limits.scale }));
+          lines.push({ pageNumber, text, confidence: item.confidence, source: "ocr", reviewRequired, ...(words?.length ? { words } : {}) });
           extractedLine = true;
           if (reviewRequired) warnings.push("ocr_low_confidence");
         }

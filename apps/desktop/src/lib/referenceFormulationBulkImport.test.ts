@@ -227,6 +227,28 @@ describe("reference formulation bulk import", () => {
       .toContain("Use citric acid to adjust pH to ~7 EBC Crothix Liquid");
   });
 
+  it("builds an OCR table block from word boxes on a scanned page", () => {
+    const word = (text: string, x0: number, y0: number) => ({ text, x0, x1: x0 + text.length * 5, y0 });
+    const ocrLine = (words: ReturnType<typeof word>[]) => ({ pageNumber: 1, text: words.map((w) => w.text).join(" "), confidence: 0.9, source: "ocr" as const, words });
+    const extraction = {
+      status: "extracted" as const,
+      documentHash: "b".repeat(64), parserVersion: SUPPLIER_PDF_TEXT_PARSER_VERSION as typeof SUPPLIER_PDF_TEXT_PARSER_VERSION, pageCount: 1, warnings: [],
+      pages: [{ pageNumber: 1, lines: [{ lineNumber: 1, text: "Body Wash", position: { x: 29, y: 417 } }] }],
+    };
+    const ocr = [
+      ocrLine([word("Phase", 40, 100), word("Ingredient", 90, 100), word("INCI", 260, 100), word("%", 420, 100)]),
+      ocrLine([word("A", 40, 118), word("Water", 90, 118), word("Aqua", 260, 118), word("70.0", 420, 118)]),
+      ocrLine([word("A", 40, 136), word("Coco", 90, 136), word("Betaine", 115, 136), word("Cocamidopropyl", 260, 136), word("Betaine", 335, 136), word("30.0", 420, 136)]),
+    ];
+    const pages = pagesFromExtraction(extraction, ocr);
+    const table = pages[0]?.blocks.find((block) => block.type === "table");
+    expect(table).toMatchObject({ type: "table", source: "ocr", rows: [
+      ["Phase", "Ingredient", "INCI", "% w/w"],
+      ["A", "Water", "Aqua", "70.0"],
+      ["A", "Coco Betaine", "Cocamidopropyl Betaine", "30.0"],
+    ] });
+  });
+
   it("processes files independently, persists source-backed review records, and deduplicates repeated bytes", async () => {
     const bytes = await validPdf();
     const result = await startReferenceFormulationBulkImport([
