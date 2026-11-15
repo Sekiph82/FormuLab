@@ -189,7 +189,7 @@ async function extractTdsEvidence(acquisition: SupplierDocumentAcquisition, byte
   const extraction = await extractSupplierPdfText({ bytes, filename: acquisition.originalFilename, declaredMimeType: acquisition.mimeType });
   if (extraction.status !== "extracted") throw new Error(`TDS could not be extracted: ${extraction.reason}`);
   if (extraction.documentHash.toLowerCase() !== acquisition.sha256.toLowerCase()) throw new Error("Extracted TDS hash does not match its immutable acquisition.");
-  const ocr = await runConditionalSupplierPdfOcr(extraction, { languages: ["eng", "tur", "deu"], maxPages: 30, sourcePdfBytes: bytes });
+  const ocr = await runConditionalSupplierPdfOcr(extraction, { languages: ["eng", "tur", "deu"], maxPages: 20, sourcePdfBytes: bytes });
   const lines: EvidenceLine[] = [
     ...extraction.pages.flatMap((page) => page.lines.map((line) => ({ pageNumber: page.pageNumber, lineNumber: line.lineNumber, excerpt: line.text, source: "digital" as const, ...(line.position ? { position: line.position } : {}) }))),
     ...ocr.lines.map((line) => ({ pageNumber: line.pageNumber, excerpt: line.text, source: "ocr" as const, confidence: line.confidence })),

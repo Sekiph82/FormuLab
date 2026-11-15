@@ -74,4 +74,10 @@ describe("supplier TDS product identity extraction", () => {
     expect(claim?.evidence[0]).toMatchObject({ pageNumber: 1, lineNumber: 1 });
     expect(claim?.evidence[0]).not.toHaveProperty("position");
   });
+
+  it("asks OCR for no more pages than the OCR policy allows, so a TDS is not rejected outright", async () => {
+    await extractSupplierProductDocumentEvidence(acquisition as never, new Uint8Array([1]), "card-1");
+    const options = vi.mocked(runConditionalSupplierPdfOcr).mock.calls.at(-1)?.[1] as { maxPages?: number };
+    expect(options.maxPages).toBeLessThanOrEqual(20);
+  });
 });
