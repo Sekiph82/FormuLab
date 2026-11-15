@@ -24,9 +24,12 @@ const FAMILIES = taxonomy.families.map((family) => ({ ...family, patterns: famil
 const GROUPS = taxonomy.groups.map((group) => ({ ...group, patterns: group.aliases.map((alias) => [alias, aliasPattern(alias)] as const) }));
 const GROUP_LABEL = new Map(taxonomy.groups.map((group) => [group.key, group.label]));
 
+const COMBINING_DOT = new RegExp(String.fromCharCode(0x307), "g");
+
 /** "Anti_dandruff_Shampoo_EN_FORM_GEN_504249" -> "anti dandruff shampoo en form gen 504249" */
 function normalize(text: string): string {
-  return text.normalize("NFKC").toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  // "İ" lowercases to "i" plus a combining dot; drop the dot so Turkish capitals match.
+  return text.normalize("NFKC").toLowerCase().replace(COMBINING_DOT, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function familyIn(text: string, method: ProductFamilyMatch["method"]): ProductFamilyMatch | undefined {

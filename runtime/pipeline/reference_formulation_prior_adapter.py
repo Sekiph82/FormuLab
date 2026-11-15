@@ -14,6 +14,8 @@ import re
 import unicodedata
 from typing import Any
 
+from product_family_taxonomy import family_key, family_label
+
 
 INTERPRETATION = "reviewed_field_formula_appearance_is_advisory_not_suitability_safety_compatibility_or_efficacy"
 
@@ -113,9 +115,17 @@ def _quantile(values: list[float], probability: float) -> float:
 
 def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], materials: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Return validated, recomputed priors. The caller-supplied payload is ignored."""
-    family = _key(brief.get("targetProductType"))
-    if not family or not master_dir:
+    requested = _key(brief.get("targetProductType"))
+    if not requested or not master_dir:
         return None
+    # "Şampuan", "anti-dandruff shampoo" and a supplier's "Shampoo" are one family. Text that
+    # names no taxonomy family still matches only the identical family text.
+    requested_family = family_key(requested)
+    family = _key(family_label(requested_family)) if requested_family else requested
+
+    def same_family(raw: Any) -> bool:
+        candidate = _key(raw)
+        return bool(candidate) and (candidate == requested or (requested_family is not None and family_key(candidate) == requested_family))
     sources = _current(_array(master_dir, "reference_formulations"))
     normalizations = _array(master_dir, "reference_formulation_normalizations")
     reviews = _array(master_dir, "reference_formulation_reviews")
@@ -166,7 +176,7 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
             continue
         family_candidates = [item for item in source.get("identityCandidates", [])
                              if isinstance(item, dict) and item.get("field") == "product_family"]
-        if len(family_candidates) != 1 or _key(family_candidates[0].get("rawValue")) != family:
+        if len(family_candidates) != 1 or not same_family(family_candidates[0].get("rawValue")):
             continue
         raw_family = str(family_candidates[0].get("rawValue") or "")
         family_index = next(i for i, candidate in enumerate(source.get("identityCandidates", []))

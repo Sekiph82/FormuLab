@@ -60,6 +60,10 @@ const F_MASTER_MATERIALS_ADAPTER: &str =
     include_str!("../../../../runtime/pipeline/master_materials_adapter.py");
 const F_REFERENCE_FORMULATION_PRIOR_ADAPTER: &str =
     include_str!("../../../../runtime/pipeline/reference_formulation_prior_adapter.py");
+// REF-01.008: the prior adapter matches product families through the same
+// taxonomy file the desktop app uses.
+const F_PRODUCT_FAMILY_TAXONOMY: &str = include_str!("../../../../runtime/pipeline/product_family_taxonomy.py");
+const F_PRODUCT_FAMILIES_JSON: &str = include_str!("../../../../packages/shared/src/catalog/productFamilies.json");
 // Phase 14 Session 5 (Phase 15 zero-LLM round): pipeline.py now imports
 // manufacturing.py directly (Manufacturing Procedure/Critical Parameters/
 // Equipment intelligence, zero LLM) — same requirement as every module
@@ -191,6 +195,8 @@ fn materialize_pipeline_to(pipe_dir: &std::path::Path, skills_dir: &std::path::P
         ("materials.py", F_MATERIALS),
         ("master_materials_adapter.py", F_MASTER_MATERIALS_ADAPTER),
         ("reference_formulation_prior_adapter.py", F_REFERENCE_FORMULATION_PRIOR_ADAPTER),
+        ("product_family_taxonomy.py", F_PRODUCT_FAMILY_TAXONOMY),
+        ("product_families.json", F_PRODUCT_FAMILIES_JSON),
         ("manufacturing.py", F_MANUFACTURING),
         ("traceability.py", F_TRACEABILITY),
         ("validation_plan.py", F_VALIDATION_PLAN),

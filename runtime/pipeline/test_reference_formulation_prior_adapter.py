@@ -130,6 +130,21 @@ class AuthoritativeReferenceGuidanceTests(unittest.TestCase):
         result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [self.material])
         self.assertEqual(result["aiAdvisoryFormulaCount"], 0)
 
+    def test_family_is_matched_through_the_shared_taxonomy(self):
+        for request in ("Bulaşık deterjanı", "hand dishwashing liquid", "Hand dishwashing"):
+            result = build_authoritative_guidance(self.directory, {"targetProductType": request}, [self.material])
+            self.assertEqual((result["eligibleFormulaCount"], result["productFamilyKey"]), (1, "hand dishwashing"), request)
+        self.assertEqual(build_authoritative_guidance(self.directory, {"targetProductType": "Şampuan"}, [self.material])["eligibleFormulaCount"], 0)
+
+    def test_python_taxonomy_agrees_with_the_shared_one(self):
+        from product_family_taxonomy import family_key
+        cases = {"3_in_1_Treatment_Concentrate_Anti_Dandruff_Shampoo_EN_FORM_GEN_504249_en_US": "shampoo",
+                 "110-00874-01-glass-cleaner": "hard_surface_cleaner", "Fabric conditioner with 3-in-1 protection": "fabric_softener",
+                 "Premium Automatic Dishwasher Tablets": "dishwash_automatic", "SAÇ KREMİ": "conditioner",
+                 "Bulaşık makinesi deterjanı": "dishwash_automatic", "Duş jeli": "body_wash", "110-00797-01-acetal": None}
+        for text, expected in cases.items():
+            self.assertEqual(family_key(text), expected, text)
+
 
 if __name__ == "__main__":
     unittest.main()

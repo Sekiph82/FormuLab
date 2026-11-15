@@ -1,13 +1,15 @@
 {
   "version": "formulab-product-families-v1",
-  "note": "Ordered by priority: the first family with a matching alias wins, so specific families come before generic ones. An alias ending in * matches as a word prefix; others match whole words. Shared by the desktop app (TypeScript) and the Python generation pipeline.",
+  "note": "Ordered by priority: the first family with a matching alias wins, so specific families come before generic ones. An alias ending in * matches as a word prefix; others match whole words. Shared by the desktop app (TypeScript) and the Python generation pipeline. Turkish aliases let owners type the product type in Turkish.",
   "groups": [
     {
       "key": "hair_care",
       "label": "Hair care",
       "aliases": [
         "hair care",
-        "hair"
+        "hair",
+        "saç bakım*",
+        "saç"
       ]
     },
     {
@@ -24,7 +26,9 @@
         "men's care",
         "mens care",
         "nail care",
-        "personal hygiene"
+        "personal hygiene",
+        "cilt bakım*",
+        "vücut bakım*"
       ]
     },
     {
@@ -83,7 +87,9 @@
         "footwear care",
         "shoe polish",
         "carpet cleaners",
-        "bottle cleaning"
+        "bottle cleaning",
+        "ev bakım*",
+        "ev temizli*"
       ]
     },
     {
@@ -91,7 +97,8 @@
       "label": "Laundry care",
       "aliases": [
         "laundry care",
-        "laundry"
+        "laundry",
+        "çamaşır bakım*"
       ]
     },
     {
@@ -99,7 +106,8 @@
       "label": "Dishwashing",
       "aliases": [
         "dishwashing",
-        "dishwash"
+        "dishwash",
+        "bulaşık"
       ]
     },
     {
@@ -157,7 +165,9 @@
         "wc",
         "rim gel",
         "rim block",
-        "bowl cleaner"
+        "bowl cleaner",
+        "tuvalet*",
+        "klozet*"
       ]
     },
     {
@@ -170,7 +180,10 @@
         "dishwasher*",
         "machine dish*",
         "rinse aid",
-        "adw"
+        "adw",
+        "bulaşık makinesi*",
+        "bulaşık makina*",
+        "makine bulaşık*"
       ]
     },
     {
@@ -184,7 +197,11 @@
         "washing-up",
         "washing up",
         "manual dish*",
-        "hand dishwashing"
+        "hand dishwashing",
+        "elde bulaşık*",
+        "sıvı bulaşık*",
+        "bulaşık deterjan*",
+        "bulaşık*"
       ]
     },
     {
@@ -200,7 +217,9 @@
         "fabric care",
         "ironing",
         "starch",
-        "fabric protect*"
+        "fabric protect*",
+        "yumuşatıcı*",
+        "çamaşır yumuşatıcı*"
       ]
     },
     {
@@ -219,7 +238,11 @@
         "prespotter",
         "pre-wash",
         "prewash",
-        "laundry pod*"
+        "laundry pod*",
+        "çamaşır*",
+        "toz deterjan*",
+        "sıvı deterjan*",
+        "leke çıkarıcı*"
       ]
     },
     {
@@ -237,7 +260,10 @@
         "windshield*",
         "wheel cleaner*",
         "bug remover*",
-        "car wash"
+        "car wash",
+        "oto",
+        "araç*",
+        "araba*"
       ]
     },
     {
@@ -247,7 +273,10 @@
       "aliases": [
         "insect*",
         "repellen*",
-        "mosquito*"
+        "mosquito*",
+        "sinek*",
+        "sivrisinek*",
+        "böcek*"
       ]
     },
     {
@@ -263,7 +292,10 @@
         "reed diffuser*",
         "diffuser*",
         "candle*",
-        "freshener*"
+        "freshener*",
+        "oda kokusu*",
+        "hava tazeleyici*",
+        "koku giderici*"
       ]
     },
     {
@@ -275,7 +307,9 @@
         "sanitiz*",
         "sanitis*",
         "biocid*",
-        "antibacterial surface"
+        "antibacterial surface",
+        "dezenfekt*",
+        "antibakteriyel yüzey*"
       ]
     },
     {
@@ -295,7 +329,9 @@
         "food processing",
         "alkaline metal*",
         "acid metal*",
-        "greasy soil*"
+        "greasy soil*",
+        "endüstriyel*",
+        "sanayi*"
       ]
     },
     {
@@ -338,7 +374,14 @@
         "cleaning*",
         "grill*",
         "power clean*",
-        "bucket dilutable*"
+        "bucket dilutable*",
+        "yüzey temizleyici*",
+        "genel temizlik*",
+        "çok amaçlı*",
+        "cam temizleyici*",
+        "yağ çözücü*",
+        "kireç çözücü*",
+        "temizleyici*"
       ]
     },
     {
@@ -355,7 +398,10 @@
         "gingival",
         "denture*",
         "oral care",
-        "tooth gel"
+        "tooth gel",
+        "diş macun*",
+        "ağız bakım*",
+        "gargara*"
       ]
     },
     {
@@ -369,7 +415,8 @@
         "anti-perspirant*",
         "ap-deo",
         "roll-on",
-        "roll on"
+        "roll on",
+        "terleme önleyici*"
       ]
     },
     {
@@ -390,7 +437,8 @@
         "sun milk",
         "uv protect*",
         "self tan*",
-        "self-tan*"
+        "self-tan*",
+        "güneş*"
       ]
     },
     {
@@ -403,7 +451,8 @@
         "2 in 1",
         "anti-dandruff",
         "dandruff",
-        "co-wash"
+        "co-wash",
+        "şampuan*"
       ]
     },
     {
@@ -415,7 +464,9 @@
         "conditioning rinse",
         "hair rinse",
         "detangl*",
-        "cream rinse"
+        "cream rinse",
+        "saç kremi*",
+        "saç bakım kremi*"
       ]
     },
     {
@@ -432,7 +483,11 @@
         "mousse",
         "curl*",
         "heat protect*",
-        "hair fix*"
+        "hair fix*",
+        "saç jöle*",
+        "jöle*",
+        "saç spreyi*",
+        "saç şekillendirici*"
       ]
     },
     {
@@ -449,7 +504,11 @@
         "scalp*",
         "hair colo*",
         "hair dye*",
-        "hair repair"
+        "hair repair",
+        "saç maske*",
+        "saç serum*",
+        "saç bakım yağı*",
+        "saç boya*"
       ]
     },
     {
@@ -460,7 +519,9 @@
         "shav*",
         "after shave",
         "aftershave*",
-        "beard*"
+        "beard*",
+        "tıraş*",
+        "traş*"
       ]
     },
     {
@@ -474,7 +535,10 @@
         "soap bar*",
         "bar soap*",
         "hand cleanser*",
-        "soap"
+        "soap",
+        "el sabun*",
+        "sıvı sabun*",
+        "sabun*"
       ]
     },
     {
@@ -493,7 +557,11 @@
         "face cleans*",
         "cleansing gel*",
         "cleansing balm*",
-        "cleansing foam*"
+        "cleansing foam*",
+        "yüz temizle*",
+        "yüz yıkama*",
+        "makyaj temizle*",
+        "misel*"
       ]
     },
     {
@@ -515,7 +583,11 @@
         "cleansing bar*",
         "syndet*",
         "intimate wash*",
-        "intimate"
+        "intimate",
+        "duş jel*",
+        "duş kremi*",
+        "banyo köpüğü*",
+        "vücut yıkama*"
       ]
     },
     {
@@ -527,7 +599,8 @@
         "lip care",
         "lip scrub*",
         "lip oil*",
-        "lip mask*"
+        "lip mask*",
+        "dudak*"
       ]
     },
     {
@@ -561,7 +634,13 @@
         "loose powder",
         "color corrector*",
         "colour corrector*",
-        "stick foundation"
+        "stick foundation",
+        "makyaj*",
+        "ruj*",
+        "fondöten*",
+        "maskara*",
+        "oje*",
+        "allık*"
       ]
     },
     {
@@ -573,7 +652,9 @@
         "kids",
         "diaper*",
         "nappy",
-        "infant*"
+        "infant*",
+        "bebek*",
+        "çocuk*"
       ]
     },
     {
@@ -587,7 +668,10 @@
         "cat",
         "cats",
         "paw*",
-        "animal*"
+        "animal*",
+        "evcil*",
+        "köpek*",
+        "kedi*"
       ]
     },
     {
@@ -603,7 +687,9 @@
         "shot",
         "beauty drink*",
         "nutrition*",
-        "nutricosmetic*"
+        "nutricosmetic*",
+        "takviye*",
+        "gıda takviye*"
       ]
     },
     {
@@ -619,7 +705,9 @@
         "diclofenac",
         "medicat*",
         "dermatolog*",
-        "wound*"
+        "wound*",
+        "merhem*",
+        "ilaç*"
       ]
     },
     {
@@ -635,7 +723,11 @@
         "varnish*",
         "adhesive*",
         "coalescen*",
-        "gravure"
+        "gravure",
+        "boya*",
+        "vernik*",
+        "mürekkep*",
+        "yapıştırıcı*"
       ]
     },
     {
@@ -673,7 +765,13 @@
         "exfoliat*",
         "mist*",
         "fluid*",
-        "barrier*"
+        "barrier*",
+        "krem*",
+        "losyon*",
+        "nemlendirici*",
+        "yüz kremi*",
+        "el kremi*",
+        "vücut losyon*"
       ]
     }
   ]

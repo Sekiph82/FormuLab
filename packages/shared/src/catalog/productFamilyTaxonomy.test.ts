@@ -37,4 +37,16 @@ describe("product family taxonomy", () => {
     expect(productFamilyForRequest("Shampoo")?.key).toBe("shampoo");
     expect(productFamilyForRequest("hand dishwashing liquid")?.key).toBe("dishwash_hand");
   });
+
+  it("maps Turkish product types", () => {
+    expect(productFamilyForRequest("Şampuan")?.key).toBe("shampoo");
+    expect(productFamilyForRequest("SAÇ KREMİ")?.key).toBe("conditioner");
+    expect(productFamilyForRequest("Bulaşık makinesi deterjanı")?.key).toBe("dishwash_automatic");
+    expect(productFamilyForRequest("Elde bulaşık deterjanı")?.key).toBe("dishwash_hand");
+    expect(productFamilyForRequest("Çamaşır yumuşatıcısı")?.key).toBe("fabric_softener");
+    expect(productFamilyForRequest("Sıvı çamaşır deterjanı")?.key).toBe("laundry_detergent");
+    expect(productFamilyForRequest("Duş jeli")?.key).toBe("body_wash");
+    expect(productFamilyForRequest("Güneş kremi")?.key).toBe("sunscreen");
+    expect(productFamilyForRequest("Yüzey temizleyici")?.key).toBe("hard_surface_cleaner");
+  });
 });

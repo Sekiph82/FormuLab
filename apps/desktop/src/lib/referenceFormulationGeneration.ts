@@ -1,5 +1,6 @@
 import {
   calculateReferenceFormulationCooccurrence,
+  productFamilyForRequest,
   calculateReferenceFormulationContributionDistributions,
   calculateReferenceFormulationDosageDistributions,
   calculateReferenceFormulationIngredientFrequencyPriors,
@@ -23,7 +24,11 @@ import { listReferenceFormulations } from "./referenceFormulations";
 import { isClaudeAdvisoryReview, withClaudeAdvisoryReviews } from "./referenceFormulationReviews";
 
 function familyKey(value: string): string {
-  return value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
+  // Imported formulas carry the taxonomy label ("Shampoo"), so a request such as "Şampuan"
+  // or "anti-dandruff shampoo" is keyed by that label. ponytail: families extracted as free
+  // text from a PDF field still need identical text; normalize them in the shared engine if that matters.
+  const label = productFamilyForRequest(value)?.label ?? value;
+  return label.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
 }
 
 /** Source-retention permissions are evaluated when guidance is requested, not
