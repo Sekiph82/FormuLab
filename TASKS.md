@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: REF-01
 - Current Sprint: REF-01-S01
-- Current Task: REF-01.003 — Shared product-family taxonomy and review-required family candidates from verified source categories
+- Current Task: REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
 - Current Task Status: IN_PROGRESS
-- Next Task: REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
+- Next Task: REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 213
-- Completed Tasks: 201
-- Remaining Tasks: 12
-- Completion: 94.4%
+- Completed Tasks: 202
+- Remaining Tasks: 11
+- Completion: 94.8%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -394,8 +394,8 @@ Owner instruction (2026-11-12): merge V01 completely into `main`, make `main` th
 Owner request (2026-11-15, extended same day to all raw-material documents and every formula PDF not yet in the system): import the new supplier formulas in `C:\Users\sekip\Downloads\Source` and make the whole reference-formulation path work. Verified state: 4,872 imported records, only 2 have ingredient lines (15 lines, both Croda); no normalizations, no reviews; New Request reports `eligibleFormulaCount: 0`. The human-review gate stays: software proposes, a named reviewer accepts (batch tools reduce effort, they do not decide).
 - [x] REF-01.001 — Extract ingredient tables from Dow, Croda, Evonik, Clariant and Seppic formulation PDFs, proven on real PDF fixtures
 - [x] REF-01.002 — Import structured supplier sources (Seppic JSON/CSV indexes) as evidence-backed reference records
-- [~] REF-01.003 — Shared product-family taxonomy and review-required family candidates from verified source categories
-- [ ] REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
+- [x] REF-01.003 — Shared product-family taxonomy and review-required family candidates from verified source categories
+- [~] REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
 - [ ] REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
 - [ ] REF-01.006 — Canonical-chemistry review items in the reference review screen
 - [ ] REF-01.007 — Claude-attributed AI review of every extracted family and line, advisory-only, with human override
