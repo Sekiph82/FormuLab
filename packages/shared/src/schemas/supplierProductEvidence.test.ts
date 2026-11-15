@@ -110,8 +110,8 @@ describe("supplier product evidence persistence records", () => {
       { recordType: "card_version", schemaVersion: "1.0", id: "pair-v2", productCardId: "pair-card", version: 2, tradeName: "Paired Product", market: "US", language: "en", identityStatus: "provisional", evidenceRecordIds: ["pair-tds-doc", "pair-sds-doc"], claimIds: [pairedActiveClaim.id, pairedIdentityClaim.id], conflicts: [], createdAt: "2026-10-28T08:01:00Z" },
       { recordType: "claim_review", schemaVersion: "1.0", id: "paired-review", productCardId: "pair-card", sourceEvidenceId: "pair-tds-doc", claimId: pairedActiveClaim.id, claimSnapshot: pairedActiveClaim, decision: "accepted", evidenceRefs: ["f".repeat(64) + ":p3"], reviewedBy: "owner-1", reviewerRole: "administrator", reviewedAt: "2026-10-28T08:02:00Z" },
     ];
-    const restored = JSON.parse(JSON.stringify(records)).map((record: unknown) => supplierProductEvidenceRecordSchema.parse(record));
-    expect(restored.filter((record) => record.recordType === "card_version" && record.productCardId === "pair-card").map((record) => record.version)).toEqual([1, 2]);
+    const restored = (JSON.parse(JSON.stringify(records)) as unknown[]).map((record) => supplierProductEvidenceRecordSchema.parse(record));
+    expect(restored.flatMap((record) => record.recordType === "card_version" && record.productCardId === "pair-card" ? [record.version] : [])).toEqual([1, 2]);
     expect(restored.find((record) => record.recordType === "document" && record.id === "sds-doc")?.recordType).toBe("document");
     expect(restored.find((record) => record.recordType === "document" && record.id === "tds-doc")?.recordType).toBe("document");
     expect(restored.find((record) => record.recordType === "claim_review")?.evidenceRefs).toEqual(["f".repeat(64) + ":p3"]);
