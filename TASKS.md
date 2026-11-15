@@ -8,14 +8,14 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: REF-01
 - Current Sprint: REF-01-S01
-- Current Task: REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
+- Current Task: REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
 - Current Task Status: IN_PROGRESS
-- Next Task: REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
+- Next Task: REF-01.006 — Canonical-chemistry review items in the reference review screen
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
 - Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
-- Blockers/Waits: None
+- Blockers/Waits: Q-REF-01.004-1 (owner-run folder import), Q-REF-01.009-1
 
 ## Progress
 
@@ -63,6 +63,7 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 ## Questions for Şekip
 
 <!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
+- Q-REF-01.004-1 | The folder import is ready in the app, but importing supplier PDFs needs a signed-in person to confirm the internal-research rights, which Claude cannot do for you. Please open FormuLab, sign in, go to Reference Formulations, click "Choose folder", select `C:\Users\sekip\Downloads\Source`, tick the rights confirmation, then run "Import formulation PDFs" and "Store SDS/TDS PDFs". Reply "done" when it has finished; Claude then measures coverage. | TASK: REF-01.004
 - Q-REF-01.009-1 | An older data folder, `Desktop\FormuLab\data\master`, holds 44 collections (laboratory trials, regulatory dossiers, DOE studies, label reviews, 2 materials) that the app has not shown since August, because it now uses `Desktop\FormuLab\data\data\master`. Should Claude merge those records into the active folder (no overwrites; conflicts listed for you), or leave them archived? | TASK: REF-01.009
 
 
@@ -395,8 +396,8 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [x] REF-01.001 — Extract ingredient tables from Dow, Croda, Evonik, Clariant and Seppic formulation PDFs, proven on real PDF fixtures
 - [x] REF-01.002 — Import structured supplier sources (Seppic JSON/CSV indexes) as evidence-backed reference records
 - [x] REF-01.003 — Shared product-family taxonomy and review-required family candidates from verified source categories
-- [~] REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
-- [ ] REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
+- [!] REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
+- [~] REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
 - [ ] REF-01.006 — Canonical-chemistry review items in the reference review screen
 - [ ] REF-01.007 — Claude-attributed AI review of every extracted family and line, advisory-only, with human override
 - [ ] REF-01.008 — Taxonomy-based product-family matching in the prior adapter and generation context
