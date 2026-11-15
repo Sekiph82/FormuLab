@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: None
-- Current Sprint: None
-- Current Task: None
-- Current Task Status: COMPLETE
-- Next Task: None
+- Current Milestone: REF-01
+- Current Sprint: REF-01-S01
+- Current Task: REF-01.001 — Extract ingredient tables from Dow, Croda, Evonik, Clariant and Seppic formulation PDFs, proven on real PDF fixtures
+- Current Task Status: IN_PROGRESS
+- Next Task: REF-01.002 — Import structured supplier sources (Seppic JSON/CSV indexes) as evidence-backed reference records
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -19,17 +19,17 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 199
+- Total Tasks: 210
 - Completed Tasks: 199
-- Remaining Tasks: 0
-- Completion: 100%
+- Remaining Tasks: 11
+- Completion: 94.8%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
 ## Claude Ownership
 
 - Claude is the primary and default executor for all future FormuLab implementation work on branch `main`.
-- Current canonical backlog is empty: this ledger has 199/199 completed tasks and no open task (MERGE-01 closed 2026-11-12).
+- Active backlog: REF-01 supplier reference formulations (owner request 2026-11-15).
 - The completed supplier/reference-intelligence plan in `tasks.v01.md` has 164/164 completed tasks and is retained as completed V01 evidence/history.
 - New implementation tasks must be added to this root `TASKS.md` on branch `main`, must name `CLAUDE` as Required Actor unless the owner explicitly overrides it, and must not create a competing task ledger.
 - Claude may autonomously implement, test, review, commit, push, and advance ordered tasks under `AGENTS.md` and `CLAUDE.md`.
@@ -63,6 +63,7 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 ## Questions for Şekip
 
 <!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
+- Q-REF-01.009-1 | An older data folder, `Desktop\FormuLab\data\master`, holds 44 collections (laboratory trials, regulatory dossiers, DOE studies, label reviews, 2 materials) that the app has not shown since August, because it now uses `Desktop\FormuLab\data\data\master`. Should Claude merge those records into the active folder (no overwrites; conflicts listed for you), or leave them archived? | TASK: REF-01.009
 
 
 ## Owner Decisions
@@ -384,6 +385,22 @@ Owner instruction (2026-11-12): port the REV-01 defect fixes to `main`, the inve
 ## Sprint MERGE-01-S01 — Consolidate V01 into main
 Owner instruction (2026-11-12): merge V01 completely into `main`, make `main` the active branch, and leave V01 ready for the owner to delete manually.
 - [x] MERGE-01.001 — Merge V01 into main, repoint governance to main, and leave V01 safe to delete
+
+# REF-01
+
+## Sprint REF-01-S01 — Supplier reference formulations reach generation
+Owner request (2026-11-15): import the new supplier formulas in `C:\Users\sekip\Downloads\Source` and make the whole reference-formulation path work. Verified state: 4,872 imported records, only 2 have ingredient lines (15 lines, both Croda); no normalizations, no reviews; New Request reports `eligibleFormulaCount: 0`. The human-review gate stays: software proposes, a named reviewer accepts (batch tools reduce effort, they do not decide).
+- [~] REF-01.001 — Extract ingredient tables from Dow, Croda, Evonik, Clariant and Seppic formulation PDFs, proven on real PDF fixtures
+- [ ] REF-01.002 — Import structured supplier sources (Seppic JSON/CSV indexes) as evidence-backed reference records
+- [ ] REF-01.003 — Shared product-family taxonomy and review-required family candidates from verified source categories
+- [ ] REF-01.004 — Import Downloads Source into the active data root, re-parse existing records by hash, and report corpus coverage
+- [ ] REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
+- [ ] REF-01.006 — Canonical-chemistry review items in the reference review screen
+- [ ] REF-01.007 — Named-reviewer batch review for verified-category families and exact single-candidate lines
+- [ ] REF-01.008 — Taxonomy-based product-family matching in the prior adapter and generation context
+- [!] REF-01.009 — Link reviewed canonical chemistry to Material Master materials in the active data root
+- [ ] REF-01.010 — End-to-end acceptance: real supplier PDFs reach a New Request with eligibleFormulaCount above zero
+- [ ] REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
 
 ## Historical Detail & Evidence
 
