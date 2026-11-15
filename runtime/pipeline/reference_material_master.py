@@ -46,6 +46,14 @@ def material_functions(printed: list[str]) -> list[str]:
     return found
 
 
+# Printed rows that are page furniture, not raw materials: copyright and trademark
+# notes, supplier lists, continuation fragments ("(and) Xanthan Gum", "/ Dow").
+_NOT_A_MATERIAL = re.compile(
+    r"©|\ball rights reserved|\btrademark\b|\bsuppliers?\s*:|^\s*(?:\(and\)|and\b|/|[^\w(])",
+    re.I,
+)
+
+
 def _cell(line: dict[str, Any], field: str) -> str:
     item = line.get(field)
     return str(item.get("rawValue") or "").strip() if isinstance(item, dict) else ""
@@ -98,8 +106,11 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
         for line in source.get("ingredientLines", []):
             name = _cell(line, "ingredientName") or _cell(line, "inciOrChemicalName")
             key = inci_chemistry_id(_cell(line, "inciOrChemicalName")) or inci_chemistry_id(name)
-            if not key or key in known or not re.search(r"[A-Za-z]{3}", name) or len(name) > 80:
+            if (not key or key in known or not re.search(r"[A-Za-z]{3}", name) or len(name) > 80
+                    or _NOT_A_MATERIAL.search(name)):
                 continue
+            # U+FFFD is a trademark sign the PDF font did not map; the printed name reads without it.
+            name = re.sub(r"\s+", " ", name.replace("\ufffd", "")).strip()
             names[key][name] += 1
             if _cell(line, "function"):
                 functions[key].append(_cell(line, "function"))

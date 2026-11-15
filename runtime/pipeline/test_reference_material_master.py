@@ -35,6 +35,12 @@ class ReferenceMaterialMasterTests(unittest.TestCase):
             self.assertNotIn("inciName", added["Crodamol GTCC"])
             self.assertEqual(m.append_materials(directory)["added"], 0)
 
+    def test_page_furniture_rows_are_not_materials(self):
+        noise = ["© 2019 The Dow Chemical Company. All rights reserved.", "(and) Cetearyl Alcohol", "/ Dow",
+                 "Sodium metasilicate pentahydrate Suppliers: 1. Croda", " DOW CORNING 556 FLUID"]
+        kept = ["sodium lauryl sulfate", "1,2-Hexanediol", "(3-methoxy-3-methyl-1-butanol)", "Crodamol GTCC"]
+        self.assertEqual([name for name in noise + kept if not m._NOT_A_MATERIAL.search(name)], kept)
+
 
 if __name__ == "__main__":
     unittest.main()
