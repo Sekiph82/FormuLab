@@ -1,6 +1,5 @@
 /* eslint-disable i18next/no-literal-string -- this workflow has a compact bilingual fallback so folder import remains usable in every shipped locale. */
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type InputHTMLAttributes } from "react";
-import { useBlocker } from "react-router-dom";
+import { useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type InputHTMLAttributes } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, FolderOpen, LoaderCircle, Upload } from "lucide-react";
 import { admitSupplierPdf, SUPPLIER_PDF_DEFAULT_MAX_BYTES } from "@/lib/supplierDocumentAdmission";
@@ -121,29 +120,34 @@ function asSelectedPdf(file: File, sourceCategories: string[]) {
   return { name: file.name, type: file.type, size: file.size, arrayBuffer: () => file.arrayBuffer(), sourceCategories };
 }
 
+// An import outlives the page: its status lives here, so leaving Reference Formulas and
+// coming back shows the running import's progress and Pause button again.
+type ImportStatus = { running: boolean; progress: string; error: string; result: string };
+let importStatus: ImportStatus = { running: false, progress: "", error: "", result: "" };
+const importStatusListeners = new Set<() => void>();
+const abortController: { current: AbortController | null } = { current: null };
+function updateImportStatus(patch: Partial<ImportStatus>) {
+  importStatus = { ...importStatus, ...patch };
+  importStatusListeners.forEach((listener) => listener());
+}
+function subscribeImportStatus(listener: () => void) {
+  importStatusListeners.add(listener);
+  return () => { importStatusListeners.delete(listener); };
+}
+const setRunning = (running: boolean) => updateImportStatus({ running });
+const setProgress = (progress: string) => updateImportStatus({ progress });
+const setError = (error: string) => updateImportStatus({ error });
+const setResult = (result: string) => updateImportStatus({ result });
+
 export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor | null; onImported: () => void }) {
   const { i18n } = useTranslation("session");
   const input = useRef<HTMLInputElement>(null);
-  const abortController = useRef<AbortController | null>(null);
   const [files, setFiles] = useState<FolderFile[]>([]);
   const [pathFilter, setPathFilter] = useState("");
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [market, setMarket] = useState("unknown");
   const [language, setLanguage] = useState("unknown");
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState("");
-  const [error, setError] = useState("");
-  const [result, setResult] = useState("");
-  // An import keeps running when the page is left, but its progress and Pause button vanish
-  // and a second run could start; ask before leaving while one runs.
-  const blocker = useBlocker(running);
-  useEffect(() => {
-    if (blocker.state !== "blocked") return;
-    const leave = window.confirm(i18n.language.startsWith("tr")
-      ? "İçe aktarım sürüyor. Sayfadan çıkarsanız aktarım duraklatılır. Çıkılsın mı?"
-      : "An import is running. Leaving this page pauses it. Leave anyway?");
-    if (leave) { abortController.current?.abort(); blocker.proceed(); } else blocker.reset();
-  }, [blocker, i18n.language]);
+  const { running, progress, error, result } = useSyncExternalStore(subscribeImportStatus, () => importStatus);
   const tr = i18n.resolvedLanguage?.startsWith("tr") ?? false;
   const text = (en: string, turkish: string) => tr ? turkish : en;
 
