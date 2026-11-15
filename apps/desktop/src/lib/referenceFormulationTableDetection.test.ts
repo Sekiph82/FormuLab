@@ -38,7 +38,7 @@ describe("detectIngredientTables", () => {
     expect(table!.rows[0]).toEqual(["Phase", "Ingredient", "INCI", "Supplier", "% w/w"]);
     expect(table!.rows[2]).toEqual(["A", "Blend B", "Ceramide NG; Olea Europaea (Olive) Fruit Oil; Ricinus communis (Castor) Seed Oil", "Evonik", "1.00"]);
     expect(table!.rows[3]).toEqual(["B", "Glycerin", "", "various", "2.00"]);
-    expect(table!.rows.at(-1)).toEqual(["C", "Lactic Acid, 10% in water", "2-Hydroxypropionic acid", "various", "q.s."]);
+    expect(table!.rows[table!.rows.length - 1]).toEqual(["C", "Lactic Acid, 10% in water", "2-Hydroxypropionic acid", "various", "q.s."]);
   });
 
   it("reads INCI-only rows when the trade-name cell is empty", () => {
@@ -117,6 +117,64 @@ describe("detectIngredientTables", () => {
       line(555, [[60, "Oil"], [300, "80"], [360, "80"]]),
     ]);
     expect(tables.map((table) => table.rows.slice(1).map((row) => row[0]))).toEqual([["Repellent A", "Oil"], ["Repellent B", "Oil"]]);
+  });
+
+  it("reads a header split over two lines (Dose (% / W/W))", () => {
+    const [table] = detectIngredientTables([
+      line(600, [[40, "Phase"], [80, "Ingredients"], [400, "Dose (%"]]),
+      line(590, [[400, "W/W)"]]),
+      line(575, [[40, "A"], [80, "Aluminum Chlorohydrate"], [405, "30.00"]]),
+      line(560, [[40, "B"], [80, "Water"], [405, "70.00"]]),
+    ]);
+    expect(table!.rows.slice(1)).toEqual([["A", "Aluminum Chlorohydrate", "30.00"], ["B", "Water", "70.00"]]);
+  });
+
+  it("ignores unread header columns and keeps the Ingredient column over a Trade Name column", () => {
+    const [table] = detectIngredientTables([
+      { ...line(638, [[19, "Phase"], [62, "Order"], [104, "Ingredient"], [246, "INCI Name"], [388, "Wt%"], [430, "Supplier"], [515, "Trade Name"]]) },
+      line(617, [[32, "A"], [62, "1"], [104, "Neo Filter AV"], [246, "Ethylhexyl Methoxycinnamate"], [388, "5"], [430, "SupplierCo"], [515, "Filter AV"]]),
+      line(595, [[32, "A"], [104, "Butyl"], [246, "Butyl"], [388, "5"]]),
+      line(584, [[104, "Methoxydibenzoylmethane"], [246, "Methoxydibenzoylmethane"]]),
+      line(562, [[32, "B"], [104, "Glycerin"], [246, "Glycerin"], [388, "10"]]),
+    ]);
+    expect(table!.rows[0]).toEqual(["Phase", "Ingredient", "INCI", "Supplier", "% w/w"]);
+    expect(table!.rows.slice(1)).toEqual([
+      ["A", "Neo Filter AV", "Ethylhexyl Methoxycinnamate", "SupplierCo", "5"],
+      ["A", "Butyl Methoxydibenzoylmethane", "Butyl Methoxydibenzoylmethane", "", "5"],
+      ["B", "Glycerin", "Glycerin", "", "10"],
+    ]);
+  });
+
+  it("splits a merged 'Phase Trade name / supplier' header and drops procedure text printed beside the table", () => {
+    const [table] = detectIngredientTables([
+      { text: "Phase Trade name / supplier INCI name % Wt.", position: { x: 15, y: 260 }, fragments: [
+        { text: "Phase Trade name / supplier", x: 15, width: 100 }, { text: "INCI name", x: 146, width: 35 }, { text: "% Wt.", x: 268, width: 20 },
+      ] },
+      line(251, [[32, "Fluid 2 cSt / Dow"], [146, "Dimethicone"], [269, "5.00"], [306, "Mix phase A ingredients"]]),
+      line(229, [[32, "Shea Butter / BASF"], [146, "Butyrospermum Parkii"], [269, "2.00"], [297, "2."], [306, "In a separate vessel"]]),
+    ]);
+    expect(table!.rows).toEqual([
+      ["Phase", "Ingredient", "INCI", "% w/w"],
+      ["", "Fluid 2 cSt / Dow", "Dimethicone", "5.00"],
+      ["", "Shea Butter / BASF", "Butyrospermum Parkii", "2.00"],
+    ]);
+  });
+
+  it("applies 'Phase A' section lines to the rows below and reads a Trade Name/Supplier column as supplier", () => {
+    const [table] = detectIngredientTables([
+      line(516, [[231, "Ingredient"], [424, "Weight (%)"], [482, "Trade Name/Supplier"]]),
+      line(501, [[231, "Phase A"]]),
+      line(486, [[229, "1. Silicone Wax"], [444, "2.0"], [521, "Dow"]]),
+      line(471, [[230, "2. Lanolin"], [444, "2.0"]]),
+      line(456, [[231, "Phase B"]]),
+      line(441, [[230, "3. Water"], [441, "96.0"]]),
+    ]);
+    expect(table!.rows).toEqual([
+      ["Phase", "Ingredient", "Supplier", "% w/w"],
+      ["A", "1. Silicone Wax", "Dow", "2.0"],
+      ["A", "2. Lanolin", "", "2.0"],
+      ["B", "3. Water", "", "96.0"],
+    ]);
   });
 
   it("finds nothing on pages without a recognised ingredient header", () => {

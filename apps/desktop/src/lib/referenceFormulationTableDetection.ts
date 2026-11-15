@@ -21,12 +21,14 @@ const CANONICAL_HEADER: Record<DetectedColumn, string> = {
 
 const HEADER_PATTERNS: Array<[DetectedColumn, RegExp]> = [
   ["phase", /^(phase|step|stage)$/],
-  ["amount", /^(%|% ?w\/?w|w\/?w ?%|wt\.? ?%|% ?wt|amount|quantity|dosage|dose|dose \(% ?w\/?w\)|concentration|percentage|percent|weight percent|(#?\d+ )?percentage \(%\)|% active|parts|parts by weight|composition %|weight ?\(?%\)?|wt\.? ?%|% by weight|% ?\(w\/w\)|weight %)$/],
+  ["amount", /^(%|% ?w\/?w|w\/?w ?%|wt\.? ?%|% ?wt\.?|amount|quantity|dosage|dose|dose \(%?|dose \(% ?w\/?w\)?|concentration|percentage|percent|weight percent|(#?\d+ )?percentage \(%\)|% active|parts|parts by weight|composition %|weight ?\(?%\)?|% by weight|% ?\(w\/w\)|weight %)$/],
   ["inci", /^(inci|inci name|inci names?|chemical name|chemical description|chemical identity|chemical)$/],
   ["function", /^(function|functionality|role|purpose|benefit)$/],
   ["supplier", /^(supplier|manufacturer|vendor|source)$/],
-  ["ingredient", /^(ingredients?|ingredient ?\/ ?inci name|product|products|product name|component|components|raw materials?|trade ?name|commercial product|material|composition|[a-z]+ product ?\/ ?ingredient|formulation|formula)$/],
+  ["ingredient", /^(ingredients?|ingredient ?\/ ?inci name|product|products|product name|component|components|raw materials?|trade ?names?|trade ?names? ?\/ ?suppliers?|commercial product|material|composition|[a-z]+ product ?\/ ?ingredient|formulation|formula)$/],
 ];
+/** Preferred name column when a header has several ("Ingredient" and "Trade Name"). */
+const PRIMARY_NAME = /^(ingredients?|component|components|product|products|composition|raw materials?)/;
 
 const STOP_HEADING = /^(method|procedure|procedures|processing|preparation|manufacturing( procedure| process)?|specifications?|technical characteristics|properties|physical properties|characteristics|notes?:?|additional information|description|stability|recommended operative method|directions?|instructions?|results?|performance)\b/i;
 const PHASE_CELL = /^(?:[A-H]|[IVX]{1,4})\.?$/;
@@ -40,7 +42,8 @@ export function headerColumn(text: string): DetectedColumn | undefined {
   return HEADER_PATTERNS.find(([, pattern]) => pattern.test(normalized))?.[0];
 }
 
-interface HeaderCell { column: DetectedColumn; x: number; label: string }
+/** "ignore" marks a header cell the table prints but FormuLab does not read (e.g. "Order"). */
+interface HeaderCell { column: DetectedColumn | "ignore"; x: number; width?: number; label: string }
 
 function fragmentsOf(line: PositionedLine): PositionedFragment[] {
   if (line.fragments?.length) return line.fragments.filter((fragment) => fragment.text.trim());
@@ -50,13 +53,27 @@ function fragmentsOf(line: PositionedLine): PositionedFragment[] {
 function detectHeader(line: PositionedLine): HeaderCell[] | undefined {
   const cells: HeaderCell[] = [];
   for (const fragment of fragmentsOf(line)) {
-    const column = headerColumn(fragment.text);
-    if (!column) return undefined;
-    cells.push({ column, x: fragment.x, label: fragment.text.trim() });
+    const label = fragment.text.trim();
+    const width = fragment.width;
+    const column = headerColumn(label);
+    // "Phase Trade name / supplier" printed as one fragment.
+    const split = !column && /^phase\s+(.+)$/i.exec(label);
+    if (split && headerColumn(split[1]!)) {
+      cells.push({ column: "phase", x: fragment.x, width: 0, label: "Phase" });
+      cells.push({ column: headerColumn(split[1]!)!, x: fragment.x + 1, width, label: split[1]! });
+      continue;
+    }
+    cells.push({ column: column ?? "ignore", x: fragment.x, width, label });
   }
-  const amountCount = cells.filter((cell) => cell.column === "amount").length;
-  const ingredient = cells.filter((cell) => cell.column === "ingredient").length;
-  if (ingredient !== 1 || amountCount < 1) return undefined;
+  const names = cells.filter((cell) => cell.column === "ingredient");
+  if (names.length > 1) {
+    const primary = names.find((cell) => PRIMARY_NAME.test(normalizeHeader(cell.label))) ?? names[0]!;
+    for (const cell of names) if (cell !== primary) cell.column = /supplier/i.test(cell.label) ? "supplier" : "ignore";
+  }
+  const known = cells.filter((cell) => cell.column !== "ignore").length;
+  const hasIngredient = cells.some((cell) => cell.column === "ingredient");
+  const hasAmount = cells.some((cell) => cell.column === "amount");
+  if (!hasIngredient || !hasAmount || known < 2 || known < cells.length - known) return undefined;
   return cells.sort((left, right) => left.x - right.x);
 }
 
@@ -87,6 +104,10 @@ export function detectIngredientTables(lines: PositionedLine[]): DetectedIngredi
     type Row = Partial<Record<DetectedColumn, string>> & { amounts: string[] };
     const amountCells = header.filter((cell) => cell.column === "amount");
     const rows: Row[] = [];
+    const last = header[header.length - 1]!;
+    // Text right of the last header (e.g. a procedure printed beside the table) is not a cell.
+    const rightEdge = last.width === undefined ? Number.POSITIVE_INFINITY : last.x + Math.max(last.width, 15) + 8;
+    let sectionPhase: string | undefined;
     let previousY = ordered[index]!.position?.y ?? 0;
     let consumed = index;
     for (let next = index + 1; next < ordered.length; next += 1) {
@@ -98,11 +119,13 @@ export function detectIngredientTables(lines: PositionedLine[]): DetectedIngredi
       const row: Row = { amounts: amountCells.map(() => "") };
       for (const fragment of fragmentsOf(line)) {
         const text = fragment.text.trim();
+        if (fragment.x > rightEdge) continue;
         if (!hasPhase && fragment.x < firstX - 4 && PHASE_CELL.test(text)) { row.phase = text; continue; }
         // Nearest header start: headers are often centred over their column, so a
         // cell can begin left of its own header.
         const cell = header.reduce<HeaderCell>((best, candidate) =>
           Math.abs(candidate.x - fragment.x) < Math.abs(best.x - fragment.x) ? candidate : best, header[0]!);
+        if (cell.column === "ignore") continue;
         if (cell.column === "amount") {
           // A dash means "not in this formula" in side-by-side tables.
           if (/^[-–—]$/.test(text)) continue;
@@ -113,6 +136,10 @@ export function detectIngredientTables(lines: PositionedLine[]): DetectedIngredi
         }
       }
       const hasAmount = row.amounts.some(Boolean);
+      // A "Phase A" line inside the table labels the rows below it.
+      const sectionLabel = !hasAmount && /^phase\s+([A-Z0-9]{1,3})\.?$/i.exec((row.ingredient ?? "").trim());
+      if (sectionLabel) { sectionPhase = sectionLabel[1]!.toUpperCase(); previousY = y; consumed = next; continue; }
+      if (hasAmount && !row.phase && sectionPhase) row.phase = sectionPhase;
       const hasName = Boolean(row.ingredient || row.inci);
       if (!hasAmount && !hasName && !row.function) { previousY = y; continue; }
       const previous = rows[rows.length - 1];
