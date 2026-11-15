@@ -177,6 +177,20 @@ describe("detectIngredientTables", () => {
     ]);
   });
 
+  it("moves a name spilling under the amount header back to its column and ignores step numbers beside the table", () => {
+    const [table] = detectIngredientTables([
+      { text: "", position: { x: 50, y: 600 }, fragments: [{ text: "Ingredient", x: 50, width: 40 }, { text: "INCI", x: 200, width: 20 }, { text: "% w/w", x: 400, width: 30 }] },
+      line(585, [[50, "Thickener X"], [200, "Acrylates/C10-30 Alkyl Acrylate"], [380, "Crosspolymer) 0.50"]]),
+      line(570, [[50, "Water"], [200, "Aqua"], [405, "99.50"], [420, "1."]]),
+      line(555, [[50, "Salt"], [200, "Sodium Chloride"], [405, "0 .5"]]),
+    ]);
+    expect(table!.rows.slice(1)).toEqual([
+      ["Thickener X", "Acrylates/C10-30 Alkyl Acrylate Crosspolymer)", "0.50"],
+      ["Water", "Aqua", "99.50"],
+      ["Salt", "Sodium Chloride", "0.5"],
+    ]);
+  });
+
   it("finds nothing on pages without a recognised ingredient header", () => {
     expect(detectIngredientTables([
       line(700, [[50, "Typical properties"]]),

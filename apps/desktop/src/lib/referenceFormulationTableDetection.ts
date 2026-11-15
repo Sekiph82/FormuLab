@@ -32,6 +32,13 @@ const PRIMARY_NAME = /^(ingredients?|component|components|product|products|compo
 
 const STOP_HEADING = /^(method|procedure|procedures|processing|preparation|manufacturing( procedure| process)?|specifications?|technical characteristics|properties|physical properties|characteristics|notes?:?|additional information|description|stability|recommended operative method|directions?|instructions?|results?|performance)\b/i;
 const PHASE_CELL = /^(?:[A-H]|[IVX]{1,4})\.?$/;
+/** Words that legitimately appear in an amount cell ("q.s.", "to pH 5.5", "Ad. 100", "100 mg"). */
+const AMOUNT_WORDS = /\b(?:q\.?\s*s\.?|qsp|up|to|ad|add|balance|rest|remainder|as|required|desired|needed|suit|ph|adj(?:ust)?\.?|approx|ca|e\.?q\.?|mg|g|ppm|range|formulation|dependent|too|sufficient|quantum|satis|parts?)\b/gi;
+
+/** Text with words that are not amount vocabulary, e.g. "Crosspolymer)". */
+function isNameText(text: string): boolean {
+  return /[A-Za-z]{3,}/.test(text.replace(AMOUNT_WORDS, ""));
+}
 
 function normalizeHeader(text: string): string {
   return text.normalize("NFKC").toLowerCase().replace(/[®™©*^]/g, "").replace(/\s+/g, " ").trim();
@@ -125,12 +132,26 @@ export function detectIngredientTables(lines: PositionedLine[]): DetectedIngredi
         // cell can begin left of its own header.
         const cell = header.reduce<HeaderCell>((best, candidate) =>
           Math.abs(candidate.x - fragment.x) < Math.abs(best.x - fragment.x) ? candidate : best, header[0]!);
+        if (cell.column === "amount" && isNameText(text)) {
+          // The tail of a long name that spilled under the amount header belongs to the column on its left;
+          // a trailing number in the same fragment stays the amount.
+          const left = [...header].reverse().find((candidate) => candidate.x < cell.x && candidate.column !== "ignore" && candidate.column !== "amount");
+          const split = /^(.*\S)\s+(\d+(?:[.,]\d+)?\s*%?)$/.exec(text);
+          if (left && left.column !== "ignore" && left.column !== "amount") {
+            const nameText = split ? split[1]! : text;
+            row[left.column] = [row[left.column], nameText].filter(Boolean).join(" ");
+            if (!split) continue;
+            const slot = amountCells.indexOf(cell);
+            row.amounts[slot] = [row.amounts[slot], split[2]!].filter(Boolean).join(" ");
+            continue;
+          }
+        }
         if (cell.column === "ignore") continue;
         if (cell.column === "amount") {
-          // A dash means "not in this formula" in side-by-side tables.
-          if (/^[-–—]$/.test(text)) continue;
+          // A dash means "not in this formula"; "1." is a procedure step number printed beside the table.
+          if (/^[-–—]$/.test(text) || /^\d{1,2}\.$/.test(text)) continue;
           const slot = amountCells.indexOf(cell);
-          row.amounts[slot] = [row.amounts[slot], text].filter(Boolean).join(" ");
+          row.amounts[slot] = [row.amounts[slot], text].filter(Boolean).join(" ").replace(/(\d) \.(\d)/g, "$1.$2");
         } else {
           row[cell.column] = [row[cell.column], text].filter(Boolean).join(" ");
         }
