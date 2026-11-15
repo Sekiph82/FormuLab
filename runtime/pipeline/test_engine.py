@@ -155,6 +155,33 @@ class CandidatePoolTests(unittest.TestCase):
         self.assertLessEqual(dosage.value, 5.0)
         self.assertIn("reference-a", dosage.note)
 
+    def test_supplier_field_formulas_lead_selection_and_dosage_over_literature(self):
+        """Owner decision D-REF-01-2, also for a request typed in Turkish."""
+        material = {"code": "MAT-001", "inci": "Cocamidopropyl Betaine", "name": "CAPB", "function": "primary surfactant", "active": True}
+        guidance = {
+            "schemaVersion": "formulab-new-request-reference-priors-v1", "productFamilyKey": "hand dishwashing",
+            "eligibleFormulaCount": 4, "supplierCount": 2,
+            "ingredientPriors": [{
+                "materialCode": "MAT-001", "materialName": "CAPB", "canonicalChemistryId": "chem-capb",
+                "formulaCount": 1, "eligibleFormulaCount": 4, "supplierCount": 1,
+                "formulaWeightedFrequency": 0.25, "supplierNeutralFrequency": 0.25, "sourceRecordIds": ["reference-a"],
+                "dosageGuidance": [{"formulaCount": 1, "supplierCount": 1,
+                                    "observedRangePercent": {"lower": 3.0, "upper": 5.0},
+                                    "typicalRangePercent": {"lower": 3.0, "upper": 5.0}, "sourceRecordIds": ["reference-a"]}],
+            }],
+            "interpretation": "reviewed_field_formula_appearance_is_advisory_not_suitability_safety_compatibility_or_efficacy",
+        }
+        brief = {"target": "bulaşık deterjanı", "targetProductType": "Elde bulaşık deterjanı", "referenceFormulationGuidance": guidance}
+        guided = engine.build_candidate_pool(brief, derive_constraints(brief), [], [material], reference_formulation_guidance=guidance)
+        selected = guided.candidates[normalize_ingredient_key("Cocamidopropyl Betaine")]
+        self.assertIn(engine.ORIGIN_REFERENCE_FORMULATION, selected.origins)
+        # A class-A scientific formulation architecture with the preferred-architecture bonus scores at most 850.
+        self.assertGreater(engine._selection_score(selected), 850.0)
+        selected.scientific_formulation_ref = {"source_amount_pct": 12.0, "evidence_class": "A"}
+        dosage = engine.resolve_concentration(selected, "primary_surfactant", [], "balanced")
+        self.assertEqual(dosage.source_type, "supplier_reference_formulation")
+        self.assertTrue(3.0 <= dosage.value <= 5.0)
+
     def test_field_formula_prior_never_bypasses_family_identity_or_hard_exclusion(self):
         material = {"code": "MAT-SLES", "inci": "Sodium Laureth Sulfate", "name": "SLES", "function": "primary surfactant", "active": True}
         guidance = {

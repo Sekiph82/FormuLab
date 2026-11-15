@@ -52,6 +52,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import evidence as evidence_mod
+import product_family_taxonomy
 import traceability
 from evidence import (
     EvidenceRecord,
@@ -731,10 +732,16 @@ def build_candidate_pool(
     # user brief itself is untrusted and is never an evidence authority.
     guidance = reference_formulation_guidance
     requested_family = re.sub(r"\s+", " ", str(brief.get("targetProductType", "")).strip().lower())
+    # The adapter keys a request by its taxonomy family label ("Şampuan" -> "shampoo").
+    requested_family_key = product_family_taxonomy.family_key(requested_family)
+    accepted_family_keys = {requested_family}
+    if requested_family_key:
+        requested_family = re.sub(r"\s+", " ", (product_family_taxonomy.family_label(requested_family_key) or requested_family).strip().lower())
+        accepted_family_keys.add(requested_family)
     if (isinstance(guidance, dict)
             and guidance.get("schemaVersion") == "formulab-new-request-reference-priors-v1"
             and guidance.get("interpretation") == "reviewed_field_formula_appearance_is_advisory_not_suitability_safety_compatibility_or_efficacy"
-            and guidance.get("productFamilyKey") == requested_family
+            and guidance.get("productFamilyKey") in accepted_family_keys
             and isinstance(guidance.get("eligibleFormulaCount"), int)
             and guidance.get("eligibleFormulaCount", 0) > 0
             and isinstance(guidance.get("ingredientPriors"), list)):
@@ -962,6 +969,28 @@ def _resolve_concentration_tiers(
     ranked_evidence: List[EvidenceRecord],
     strategy_type: str,
 ) -> ConcentrationResolution:
+    # Owner decision D-REF-01-2: reviewed supplier field formulas set dosage first;
+    # literature (Tier 0 and Tier 1-3 below) supports or fills gaps.
+    # Reviewed field-formula dosage is family-specific empirical precedent.
+    # Use only the centrally observed range from exact-identity reviewed
+    # formulas, never as validation or a hard constraint.
+    field_ref = candidate.reference_formulation_evidence or {}
+    dosage = field_ref.get("dosage_guidance")
+    if isinstance(dosage, dict):
+        typical = dosage.get("typical_range_percent") or {}
+        low, high = typical.get("lower"), typical.get("upper")
+        if (isinstance(low, (int, float)) and isinstance(high, (int, float))
+                and low <= high and _is_plausible(role, low, "%") and _is_plausible(role, high, "%")):
+            value = _pick_within_range(float(low), float(high), strategy_type)
+            return ConcentrationResolution(
+                value=value, unit="%", basis="formulation", source_type="supplier_reference_formulation",
+                note=(f"within the reviewed typical range {low}-{high}% observed in "
+                      f"{dosage['formula_count']} {field_ref['product_family_key']} field formulas "
+                      f"from {dosage['supplier_count']} supplier(s); sources: "
+                      f"{', '.join(dosage['source_record_ids'])}. Appearance precedent only, "
+                      "not a validated recommendation"),
+            )
+
     # Tier 0 (FormuLab v1 correction, FVL-03): a real amount reported
     # inside a complete scientific formulation architecture — real, whole-
     # formula context Tier 1-3's own isolated evidence mentions do not
@@ -982,26 +1011,6 @@ def _resolve_concentration_tiers(
                 value=pct, unit="%", basis="formulation", source_type="scientific_evidence",
                 note=f"as reported in {label} of {doi} — a complete scientific formulation "
                      f"architecture, not an isolated evidence mention",
-            )
-
-    # Reviewed field-formula dosage is family-specific empirical precedent.
-    # Use only the centrally observed range from exact-identity reviewed
-    # formulas, never as validation or a hard constraint.
-    field_ref = candidate.reference_formulation_evidence or {}
-    dosage = field_ref.get("dosage_guidance")
-    if isinstance(dosage, dict):
-        typical = dosage.get("typical_range_percent") or {}
-        low, high = typical.get("lower"), typical.get("upper")
-        if (isinstance(low, (int, float)) and isinstance(high, (int, float))
-                and low <= high and _is_plausible(role, low, "%") and _is_plausible(role, high, "%")):
-            value = _pick_within_range(float(low), float(high), strategy_type)
-            return ConcentrationResolution(
-                value=value, unit="%", basis="formulation", source_type="supplier_reference_formulation",
-                note=(f"within the reviewed typical range {low}-{high}% observed in "
-                      f"{dosage['formula_count']} {field_ref['product_family_key']} field formulas "
-                      f"from {dosage['supplier_count']} supplier(s); sources: "
-                      f"{', '.join(dosage['source_record_ids'])}. Appearance precedent only, "
-                      "not a validated recommendation"),
             )
 
     # Tier 1-3: evidence. Strict comparable stats first (Session 4's own
@@ -1158,10 +1167,12 @@ def _selection_score(candidate: IngredientCandidate) -> float:
     if candidate.reference_formulation_evidence:
         ref = candidate.reference_formulation_evidence
         prevalence = (ref["formula_weighted_frequency"] + ref["supplier_neutral_frequency"]) / 2
-        # Strong, bounded architecture preference over generic supplier/rule
-        # ties. It remains below explicit user choice and reviewed scientific
-        # formulation architecture, and does not represent product suitability.
-        score += 700.0 + 200.0 * prevalence
+        # Owner decision D-REF-01-2: reviewed supplier field formulas are the
+        # primary source for ingredient selection, so this outranks scientific
+        # formulation architecture (at most 850) and evidence mentions, and
+        # stays below an explicit user requirement (1000). It is precedent,
+        # not product suitability, and hard gates still exclude candidates.
+        score += 860.0 + 100.0 * prevalence
     return score
 
 
