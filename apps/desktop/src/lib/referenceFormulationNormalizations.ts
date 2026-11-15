@@ -19,6 +19,7 @@ import {
   type ReferenceFormulationQueryRecord,
   type ReferenceFormulationLocalIndex,
   currentReferenceFormulations,
+  referenceFormulationCanonicalChemistryCandidates,
 } from "@formulab/shared";
 import { appendReferenceFormulationNormalizationRecord, listRecords, nowIso } from "./masterdata";
 
@@ -87,6 +88,35 @@ export async function rebuildReferenceFormulationCorpusIndex(): Promise<{
     return createReferenceFormulationQueryRecord({ source, normalization: latest });
   });
   return { queryRecords, index: buildReferenceFormulationLocalIndex(queryRecords) };
+}
+
+/**
+ * Give every current imported formula that has ingredient lines its first normalization version,
+ * with canonical-chemistry candidates read from the printed INCI names. Candidates stay
+ * review-required; existing normalization histories are never touched. Returns how many were added.
+ */
+export async function ensureReferenceFormulationNormalizations(): Promise<number> {
+  const [sourceRows, versionRows, sdsRows] = await Promise.all([
+    listRecords("reference_formulations"),
+    listRecords("reference_formulation_normalizations"),
+    listRecords("supplier_sds_product_evidence"),
+  ]);
+  const normalized = new Set(versionRows.map((record) => referenceFormulationNormalizationVersionSchema.parse(record).referenceFormulationRecordId));
+  const sdsEvidence = sdsRows.map((record) => supplierSdsProductEvidenceRecordSchema.parse(record));
+  let added = 0;
+  for (const source of currentReferenceFormulations(sourceRows.map((record) => referenceFormulationRecordSchema.parse(record)))) {
+    if (normalized.has(source.id) || source.ingredientLines.length === 0) continue;
+    await appendReferenceFormulationNormalizationRecord(createReferenceFormulationNormalizationVersion({
+      id: `normalization-auto-${source.id}`,
+      source,
+      version: 1,
+      canonicalChemicalCandidates: referenceFormulationCanonicalChemistryCandidates(source),
+      supplierSdsEvidenceRecords: sdsEvidence,
+      createdAt: nowIso(),
+    }));
+    added += 1;
+  }
+  return added;
 }
 
 /** Append a new candidate-only normalization version without modifying the source formula or RawMaterial. */

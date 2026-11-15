@@ -20,6 +20,7 @@ import {
   type ReferenceFormulationRights,
 } from "@formulab/shared";
 import { recordReferenceFormulation } from "./referenceFormulations";
+import { ensureReferenceFormulationNormalizations } from "./referenceFormulationNormalizations";
 import { runConditionalReferenceFormulationOcr } from "./referenceFormulationOcr";
 import { extractSupplierPdfText } from "./supplierPdfTextExtraction";
 import { detectIngredientTables, headerColumn, type PositionedLine } from "./referenceFormulationTableDetection";
@@ -680,5 +681,6 @@ export async function resumeReferenceFormulationBulkImport(
 
   job = summarizeReferenceFormulationImport(job, files, nowIso());
   await upsertRecords("reference_formulation_import_jobs", [job]);
+  await ensureReferenceFormulationNormalizations();
   return { job, files };
 }

@@ -17,7 +17,7 @@ import {
 import { supplierDocumentAcquisitionSchema } from "@formulab/shared";
 import { createReferenceFormulationSource } from "@formulab/shared";
 import { createReferenceFormulationRecord } from "@formulab/shared";
-import { appendReferenceFormulationNormalization, listReferenceFormulationNormalizations, rebuildReferenceFormulationCorpusIndex } from "./referenceFormulationNormalizations";
+import { appendReferenceFormulationNormalization, ensureReferenceFormulationNormalizations, listReferenceFormulationNormalizations, rebuildReferenceFormulationCorpusIndex } from "./referenceFormulationNormalizations";
 import { createReferenceFormulationNormalizationVersion } from "@formulab/shared";
 import { appendReferenceFormulationNormalizationRecord, listRecords } from "./masterdata";
 import { getReferenceFormulationCorpusReviewData } from "./referenceFormulationCorpusReview";
@@ -278,5 +278,26 @@ describe("reference formulation normalization persistence", () => {
     expect(rebuilt.index.schemaVersion).toBe("formulab-reference-formulation-local-index-v1");
     sdsRows = [sdsEvidence, { ...sdsEvidence, acquisitionCode: "duplicate-sds-acquisition" }];
     await expect(rebuildReferenceFormulationCorpusIndex()).rejects.toThrow(/duplicate immutable SDS evidence IDs/);
+  });
+});
+
+describe("automatic first normalization after import", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("adds one version 1 per current formula with lines and never touches an existing history", async () => {
+    const source = sourceRecord();
+    let versions: unknown[] = [];
+    vi.mocked(listRecords).mockImplementation(async (collection) =>
+      (collection === "reference_formulations" ? [source] : collection === "reference_formulation_normalizations" ? versions : []) as never);
+    vi.mocked(appendReferenceFormulationNormalizationRecord).mockImplementation(async (record) => record);
+
+    await expect(ensureReferenceFormulationNormalizations()).resolves.toBe(1);
+    const saved = vi.mocked(appendReferenceFormulationNormalizationRecord).mock.calls[0]![0];
+    expect(saved).toMatchObject({ id: `normalization-auto-${source.id}`, version: 1, referenceFormulationRecordId: source.id });
+    expect(saved.lines.every((line) => line.canonicalChemistry.status === "unresolved")).toBe(true);
+
+    versions = [saved];
+    await expect(ensureReferenceFormulationNormalizations()).resolves.toBe(0);
+    expect(appendReferenceFormulationNormalizationRecord).toHaveBeenCalledTimes(1);
   });
 });
