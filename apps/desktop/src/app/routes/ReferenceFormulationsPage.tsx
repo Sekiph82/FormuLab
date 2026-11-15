@@ -94,7 +94,11 @@ export function ReferenceFormulationsPage() {
       return normalized.includes(needle);
     });
   }, [records, queryBySourceId, searchText, supplierFilter]);
-  const items = useMemo(() => selected ? buildReferenceFormulationReviewItems(selected) : [], [selected]);
+  const items = useMemo(() => {
+    if (!selected) return [];
+    const versions = traceData?.source.id === selected.id ? traceData.versions : [];
+    return buildReferenceFormulationReviewItems(selected, versions[versions.length - 1]?.version);
+  }, [selected, traceData]);
   useEffect(() => {
     pdfReadToken.current += 1;
     setSourcePdf(null);

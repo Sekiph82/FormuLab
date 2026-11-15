@@ -746,7 +746,8 @@ pub async fn append_reference_formulation_review(
     if bytes.len() as u64 != acquisition["byteSize"].as_u64().unwrap_or(0) {
         return Err("review source PDF failed its persisted byte-size check".to_string());
     }
-    validate_review_evidence(&review, source)?;
+    let normalizations = read_array(&collection_path(&app, "reference_formulation_normalizations")?)?;
+    validate_review_evidence(&review, source, &normalizations)?;
     if review["id"].as_str() != Some(reference_formulation_review_id(&review)?.as_str()) {
         return Err("review id and code must match the deterministic decision idempotency key".to_string());
     }
@@ -2653,9 +2654,14 @@ fn ensure_generic_collection_write_allowed(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_review_evidence(review: &serde_json::Value, source: &serde_json::Value) -> Result<(), String> {
+fn validate_review_evidence(
+    review: &serde_json::Value,
+    source: &serde_json::Value,
+    normalizations: &[serde_json::Value],
+) -> Result<(), String> {
     let target_key = review["targetKey"].as_str().unwrap_or_default();
     let expected = expected_reference_formulation_evidence(target_key, source)
+        .or_else(|| expected_canonical_chemistry_evidence(target_key, source, normalizations))
         .ok_or_else(|| "review target does not exist in the immutable source snapshot".to_string())?;
     for field in ["targetType", "targetKey", "fieldPath", "sourceValue", "evidenceExcerpt", "pageNumber", "blockIndex", "rowIndex", "cellIndex"] {
         if review.get(field) != expected.get(field) {
@@ -2663,6 +2669,40 @@ fn validate_review_evidence(review: &serde_json::Value, source: &serde_json::Val
         }
     }
     Ok(())
+}
+
+/// A canonical-chemistry decision targets one candidate of one persisted normalization line:
+/// `normalization:{id}:line:{lineId}:canonicalChemistry:{chemistryId}`. Its evidence is the
+/// source line's printed INCI cell (or name cell when no INCI was printed).
+fn expected_canonical_chemistry_evidence(
+    target_key: &str,
+    source: &serde_json::Value,
+    normalizations: &[serde_json::Value],
+) -> Option<serde_json::Value> {
+    let (normalization_id, rest) = target_key.strip_prefix("normalization:")?.split_once(":line:")?;
+    let (line_id, chemistry_id) = rest.split_once(":canonicalChemistry:")?;
+    let normalization = normalizations.iter().find(|row| row.get("id").and_then(|v| v.as_str()) == Some(normalization_id)
+        && row.get("referenceFormulationRecordId").is_some()
+        && row.get("referenceFormulationRecordId") == source.get("id"))?;
+    let normalized_line = normalization.get("lines")?.as_array()?.iter()
+        .find(|line| line.get("sourceLineId").and_then(|v| v.as_str()) == Some(line_id))?;
+    if !normalized_line.get("canonicalChemistry")?.get("candidateIds")?.as_array()?.iter()
+        .any(|candidate| candidate.as_str() == Some(chemistry_id)) {
+        return None;
+    }
+    let line = source.get("ingredientLines")?.as_array()?.iter()
+        .find(|line| line.get("id").and_then(|v| v.as_str()) == Some(line_id))?;
+    let evidence = line.get("inciOrChemicalName").or_else(|| line.get("ingredientName"))?.get("evidence")?;
+    Some(serde_json::json!({
+        "targetType": "ingredient", "targetKey": target_key,
+        "fieldPath": format!("normalizations[{normalization_id}].lines[{line_id}].canonicalChemistry"),
+        "sourceValue": chemistry_id,
+        "evidenceExcerpt": line.get("rawRow")?.as_array()?.iter().map(|v| v.as_str().unwrap_or_default()).collect::<Vec<_>>().join(" | "),
+        "pageNumber": evidence.get("pageNumber")?,
+        "blockIndex": evidence.get("blockIndex")?,
+        "rowIndex": evidence.get("rowIndex")?,
+        "cellIndex": evidence.get("cellIndex")?,
+    }))
 }
 
 fn expected_reference_formulation_evidence(target_key: &str, source: &serde_json::Value) -> Option<serde_json::Value> {
@@ -3663,7 +3703,7 @@ mod tests {
                 "evidence": [{ "excerpt": "Formulation HC/DW/22", "pageNumber": 1, "blockIndex": 4 }]
             }]
         });
-        validate_review_evidence(&stamped, &source).unwrap();
+        validate_review_evidence(&stamped, &source, &[]).unwrap();
         let phase_source = serde_json::json!({
             "identityCandidates": [],
             "ingredientLines": [],
@@ -3680,12 +3720,45 @@ mod tests {
             "fieldPath": "procedureSteps[step-1].phase", "sourceValue": "A", "evidenceExcerpt": "Phase A",
             "pageNumber": 2, "blockIndex": 5, "rowIndex": 3, "cellIndex": 1
         });
-        validate_review_evidence(&phase_review, &phase_source).unwrap();
+        validate_review_evidence(&phase_review, &phase_source, &[]).unwrap();
         let mut forged = stamped.clone();
         forged["evidenceExcerpt"] = serde_json::json!("invented evidence");
-        assert!(validate_review_evidence(&forged, &source).unwrap_err().contains("immutable source evidence"));
+        assert!(validate_review_evidence(&forged, &source, &[]).unwrap_err().contains("immutable source evidence"));
         assert!(ensure_generic_collection_write_allowed("reference_formulation_reviews").is_err());
         assert!(ensure_generic_collection_write_allowed("reference_formulations").is_err());
+    }
+
+    #[test]
+    fn canonical_chemistry_review_must_cite_a_persisted_normalization_candidate() {
+        let source = serde_json::json!({
+            "id": "reference-1", "identityCandidates": [], "procedureSteps": [], "targetCandidates": [],
+            "ingredientLines": [{
+                "id": "line-1", "rawRow": ["Texapon N 70", "Sodium Laureth Sulfate", "10"],
+                "inciOrChemicalName": { "rawValue": "Sodium Laureth Sulfate", "evidence": {
+                    "pageNumber": 1, "blockIndex": 2, "rowIndex": 1, "cellIndex": 1
+                } }
+            }]
+        });
+        let normalization = serde_json::json!({
+            "id": "normalization-auto-1", "referenceFormulationRecordId": "reference-1",
+            "lines": [{ "sourceLineId": "line-1", "canonicalChemistry": {
+                "status": "proposed", "candidateIds": ["inci:sodium-laureth-sulfate"]
+            } }]
+        });
+        let review = serde_json::json!({
+            "targetType": "ingredient",
+            "targetKey": "normalization:normalization-auto-1:line:line-1:canonicalChemistry:inci:sodium-laureth-sulfate",
+            "fieldPath": "normalizations[normalization-auto-1].lines[line-1].canonicalChemistry",
+            "sourceValue": "inci:sodium-laureth-sulfate",
+            "evidenceExcerpt": "Texapon N 70 | Sodium Laureth Sulfate | 10",
+            "pageNumber": 1, "blockIndex": 2, "rowIndex": 1, "cellIndex": 1
+        });
+        validate_review_evidence(&review, &source, &[normalization.clone()]).unwrap();
+        assert!(validate_review_evidence(&review, &source, &[]).is_err());
+        let mut invented = review.clone();
+        invented["targetKey"] = serde_json::json!("normalization:normalization-auto-1:line:line-1:canonicalChemistry:inci:glycerin");
+        invented["sourceValue"] = serde_json::json!("inci:glycerin");
+        assert!(validate_review_evidence(&invented, &source, &[normalization]).is_err());
     }
 
     #[test]

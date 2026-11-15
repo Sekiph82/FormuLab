@@ -1,4 +1,4 @@
-import type { ReferenceFormulationRecord } from "@formulab/shared";
+import type { ReferenceFormulationNormalizationVersion, ReferenceFormulationRecord } from "@formulab/shared";
 
 export interface ReferenceFormulationReviewItem {
   targetType: "identity" | "ingredient" | "procedure" | "target";
@@ -15,7 +15,10 @@ export interface ReferenceFormulationReviewItem {
   confidence?: number;
 }
 
-export function buildReferenceFormulationReviewItems(record: ReferenceFormulationRecord): ReferenceFormulationReviewItem[] {
+export function buildReferenceFormulationReviewItems(
+  record: ReferenceFormulationRecord,
+  normalization?: ReferenceFormulationNormalizationVersion,
+): ReferenceFormulationReviewItem[] {
   const items: ReferenceFormulationReviewItem[] = [];
   record.identityCandidates.forEach((candidate, index) => {
     const evidence = candidate.evidence[0]!;
@@ -44,6 +47,23 @@ export function buildReferenceFormulationReviewItems(record: ReferenceFormulatio
         rowIndex: evidence.rowIndex, cellIndex: evidence.cellIndex, sourceKind: evidence.source, confidence: evidence.confidence,
       });
     });
+    // One decision per canonical-chemistry candidate of the latest normalization; the native
+    // append command checks the same key, path and INCI-cell evidence against the persisted version.
+    const normalizedLine = normalization?.referenceFormulationRecordId === record.id
+      ? normalization.lines.find((candidate) => candidate.sourceLineId === line.id) : undefined;
+    const cell = line.inciOrChemicalName ?? line.ingredientName;
+    if (normalization && normalizedLine && cell) {
+      normalizedLine.canonicalChemistry.candidateIds.forEach((chemistryId) => {
+        items.push({
+          targetType: "ingredient",
+          targetKey: `normalization:${normalization.id}:line:${line.id}:canonicalChemistry:${chemistryId}`,
+          fieldPath: `normalizations[${normalization.id}].lines[${line.id}].canonicalChemistry`,
+          label: "Canonical chemistry", sourceValue: chemistryId,
+          evidenceExcerpt: line.rawRow.join(" | "), pageNumber: cell.evidence.pageNumber, blockIndex: cell.evidence.blockIndex,
+          rowIndex: cell.evidence.rowIndex, cellIndex: cell.evidence.cellIndex, sourceKind: cell.evidence.source, confidence: cell.evidence.confidence,
+        });
+      });
+    }
   });
 
   record.procedureSteps.forEach((step) => {
