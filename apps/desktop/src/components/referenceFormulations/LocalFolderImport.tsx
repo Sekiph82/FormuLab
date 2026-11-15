@@ -7,6 +7,8 @@ import { startReferenceFormulationBulkImport } from "@/lib/referenceFormulationB
 import { recordSupplierDocumentAcquisitionBatch } from "@/lib/supplierDocumentAcquisitions";
 import { appendSupplierProductEvidenceUpdate, listRecords, nowIso, storeSupplierDocumentPdf } from "@/lib/masterdata";
 import { extractSupplierProductDocumentEvidence } from "@/lib/supplierProductExtraction";
+import { referenceMaterialCandidatesCsvFromLocalRecords } from "@/lib/referenceMaterialCandidates";
+import { saveTextWithFeedback } from "@/lib/download";
 import { createSupplierProductCardVersion, deriveSupplierProductCardId } from "@/lib/supplierProductCards";
 import type { TrustedActor } from "@/lib/currentActor";
 import { supplierProductEvidenceRecordSchema, type NewSupplierDocumentAcquisition, type ReferenceFormulationRights } from "@formulab/shared";
@@ -195,6 +197,17 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
     } finally { abortController.current = null; setRunning(false); setProgress(""); }
   };
 
+  const exportMaterialCandidates = async () => {
+    setError("");
+    try {
+      const { csv, count } = await referenceMaterialCandidatesCsvFromLocalRecords();
+      await saveTextWithFeedback("reference-material-candidates.csv", csv, "text/csv");
+      setResult(text(`${count} unverified material candidates exported.`, `${count} doğrulanmamış hammadde adayı dışa aktarıldı.`));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
   const importProductDocuments = async () => {
     if (!actor) return;
     const documents = files.filter((entry) => entry.kind === "SDS" || entry.kind === "TDS" || entry.kind === "PRODUCT_DOC");
@@ -314,6 +327,10 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
       {running && <p role="status" className="mt-3 flex items-center gap-2 text-xs text-muted"><LoaderCircle size={13} className="animate-spin" />{progress}</p>}
       {error && <p role="alert" className="mt-3 flex items-start gap-2 text-xs text-error"><AlertCircle size={14} />{error}</p>}
       {result && <p role="status" className="mt-3 text-xs text-success">{result}</p>}
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border-faint pt-3 text-xs text-muted">
+        <button type="button" disabled={running} onClick={() => void exportMaterialCandidates()} className="inline-flex items-center gap-2 rounded border border-border px-3 py-2 text-xs text-text disabled:opacity-50"><Upload size={13} />{text("Material candidates (CSV)", "Hammadde adayları (CSV)")}</button>
+        <span>{text("Raw materials printed in imported formulas but missing from Material Master, as unverified Data Exchange rows. Preview and commit them in Data Exchange; nothing is added automatically.", "İçe aktarılan formüllerde geçen ama Material Master'da olmayan hammaddeler, doğrulanmamış Data Exchange satırları olarak. Data Exchange'de önizleyip onaylayın; hiçbir şey otomatik eklenmez.")}</span>
+      </div>
     </section>
   );
 }
