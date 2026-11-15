@@ -16,6 +16,15 @@ describe("local folder import paths", () => {
     expect(classify("Source/Croda/Hair Care/Croda_17_Formulation.pdf")).toBe("FORMULATION");
   });
 
+  it("reads Croda formula codes as formulations", () => {
+    expect(classify("Source/Croda/Dishwash/HC-DW-01_Automatic_Dishwash_Liquid_Bleach.pdf")).toBe("FORMULATION");
+    expect(classify("Source/Croda/Hard Surface Care/Acid Cleaners/HI-578-1_Thickened_Glycolic_Acid_Cleaner.pdf")).toBe("FORMULATION");
+    expect(classify("Source/Croda/Dishwash/KC06_Automatic_Dishwashing_Rinse_Aid.pdf")).toBe("FORMULATION");
+    expect(classify("Source/Croda/Hard Surface Care/Surface Wipes/WW12_Antistatic_Wipe.pdf")).toBe("FORMULATION");
+    expect(classify("Source/Croda/Products/Brij CS20/HC-DW-01_x.pdf")).toBe("PRODUCT_DOC");
+    expect(classify("Source/Clariant/Hair Care/Clariant_Brochure Heritage Bloom.pdf")).toBe("OTHER");
+  });
+
   it("reads raw-material documents by their product folder", () => {
     expect(classify("Source/Croda/Products/Brij CS20/SDS/ET43067_BRIJ CS20-SO-(MH)_USENSDS.pdf")).toBe("SDS");
     expect(classify("Source/Croda/Products/Brij CS20/Data Sheet/3079_DI007-Brij.pdf")).toBe("TDS");

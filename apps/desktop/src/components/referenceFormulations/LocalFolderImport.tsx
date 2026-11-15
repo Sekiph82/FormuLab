@@ -80,6 +80,8 @@ export function classify(path: string): Kind {
   if (productDocument) return /^product[ _-]*information$/iu.test(productDocument.folder ?? "") ? "TDS" : "PRODUCT_DOC";
   if (/(?:formulations?|formula[ _-]*(?:card|booklet|sheet)|recipes?)/iu.test(value)
     || /(?:^|[\\/])croda_\d{1,5}_/iu.test(value)
+    // Croda formula codes at the start of a file name: HC-DW-01_, HI-578-1_, KC06_, WW12_.
+    || /(?:^|[\\/])(?:hc-[a-z]{2}-\d{1,3}|hi-\d{3}-\d|kc\d{2}|ww\d{2})_[^\\/]*$/iu.test(value)
     || /(?:^|[_ .-])form_gen(?:[_ .-]|$)/iu.test(value)) return "FORMULATION";
   return "OTHER";
 }
