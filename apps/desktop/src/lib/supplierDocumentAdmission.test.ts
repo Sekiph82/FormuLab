@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName } from "pdf-lib";
 import { admitSupplierPdf, SUPPLIER_PDF_DEFAULT_MAX_BYTES } from "./supplierDocumentAdmission";
 import { extractSupplierPdfText, SUPPLIER_PDF_TEXT_PARSER_VERSION } from "./supplierPdfTextExtraction";
 
@@ -102,4 +102,16 @@ describe("supplier PDF admission and quarantine", () => {
     expect(result.pages.flatMap(({ lines }) => lines).map(({ text }) => text).join("").length).toBeLessThanOrEqual(6);
     expect(result.warnings).toContain("text_limit_reached");
   });
+  it("scans a content stream with many escaped backslashes in a non-text array in linear time", async () => {
+    // Regression: an array like "[\\...] 0 d" made the TJ pattern backtrack exponentially and froze the import.
+    const document = await PDFDocument.create();
+    const page = document.addPage();
+    const content = `[${"\\\\".repeat(40)}] 0 d BT 72 720 Td (Formula) Tj ET`;
+    page.node.set(PDFName.of("Contents"), document.context.register(document.context.stream(content)));
+    const started = Date.now();
+    const result = await extractSupplierPdfText({ bytes: await document.save(), filename: "slow.pdf", declaredMimeType: "application/pdf" });
+    expect(Date.now() - started).toBeLessThan(3_000);
+    expect(result.status).toBe("extracted");
+    if (result.status === "extracted") expect(result.pages[0]?.lines.map(({ text }) => text).join(" ")).toContain("Formula");
+  }, 10_000);
 });

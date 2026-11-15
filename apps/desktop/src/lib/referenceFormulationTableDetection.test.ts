@@ -98,6 +98,27 @@ describe("detectIngredientTables", () => {
     expect(tables[2]!.rows.slice(1).map((row) => row[0])).toEqual(["Glycol ether PnP", "Monoethanolamine", "Water"]);
   });
 
+  it("accepts weight-percent header spellings", () => {
+    for (const header of ["Weight (%)", "wt%", "% by weight", "% (w/w)"]) {
+      const [table] = detectIngredientTables([
+        line(600, [[60, "Component"], [300, header]]),
+        line(585, [[60, "Glycol ether"], [300, "10"]]),
+        line(570, [[60, "Water"], [300, "90"]]),
+      ]);
+      expect(table?.amountHeader).toBe(header);
+    }
+  });
+
+  it("treats a dash as 'not in this formula' rather than an amount", () => {
+    const tables = detectIngredientTables([
+      line(600, [[60, "Ingredient"], [300, "% w/w"], [360, "% w/w"]]),
+      line(585, [[60, "Repellent A"], [300, "20"], [360, "-"]]),
+      line(570, [[60, "Repellent B"], [300, "-"], [360, "20"]]),
+      line(555, [[60, "Oil"], [300, "80"], [360, "80"]]),
+    ]);
+    expect(tables.map((table) => table.rows.slice(1).map((row) => row[0]))).toEqual([["Repellent A", "Oil"], ["Repellent B", "Oil"]]);
+  });
+
   it("finds nothing on pages without a recognised ingredient header", () => {
     expect(detectIngredientTables([
       line(700, [[50, "Typical properties"]]),

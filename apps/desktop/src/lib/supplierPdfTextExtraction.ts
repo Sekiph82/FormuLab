@@ -10,6 +10,7 @@ import { admitSupplierPdf } from "./supplierDocumentAdmission";
 
 export const SUPPLIER_PDF_TEXT_PARSER_VERSION = "formulab-pdf-text-v2+pdfjs-legacy-positioned";
 export const SUPPLIER_PDF_TEXT_MAX_CHARS = 500_000;
+const PDFJS_TIME_LIMIT_MS = 20_000;
 
 export type SupplierPdfTextWarningCode =
   | "no_text_layer"
@@ -46,7 +47,7 @@ export type SupplierPdfTextExtractionResult =
 type ContentToken = { kind: "text"; value: string } | { kind: "position"; operator: string; values: number[] };
 
 // eslint-disable-next-line no-useless-escape -- escaped brackets make PDF array delimiters explicit.
-const CONTENT_OPERATORS = /\(((?:\\.|[^\\()])*)\)\s*Tj|\[((?:\\.|[^\[\]])*)\]\s*TJ|<([\da-f\s]+)>\s*Tj|-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+Tm|-?[\d.]+\s+-?[\d.]+\s+T[dD]|-?[\d.]+\s+TL|T\*/gi;
+const CONTENT_OPERATORS = /\(((?:\\.|[^\\()])*)\)\s*Tj|\[((?:\\.|[^\\[\]])*)\]\s*TJ|<([\da-f\s]+)>\s*Tj|-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+Tm|-?[\d.]+\s+-?[\d.]+\s+T[dD]|-?[\d.]+\s+TL|T\*/gi;
 const LITERAL_PARTS = /\(((?:\\.|[^\\()])*)\)|<([\da-f\s]+)>/gi;
 
 function decodeLiteral(value: string): Uint8Array {
@@ -232,6 +233,9 @@ async function extractPdfJsPages(bytes: Uint8Array, maxPages: number): Promise<S
     pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
   }
   const loadingTask = pdfjs.getDocument({ data: Uint8Array.from(bytes).buffer });
+  // Some fonts send PDF.js into a never-ending parse; destroying the task
+  // rejects whatever is pending so one file cannot stall a whole import.
+  const watchdog = setTimeout(() => { void loadingTask.destroy(); }, PDFJS_TIME_LIMIT_MS);
   try {
     const document = await loadingTask.promise;
     const pages: SupplierPdfTextPage[] = [];
@@ -264,6 +268,7 @@ async function extractPdfJsPages(bytes: Uint8Array, maxPages: number): Promise<S
     }
     return pages;
   } finally {
+    clearTimeout(watchdog);
     await loadingTask.destroy();
   }
 }

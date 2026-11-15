@@ -21,7 +21,7 @@ const CANONICAL_HEADER: Record<DetectedColumn, string> = {
 
 const HEADER_PATTERNS: Array<[DetectedColumn, RegExp]> = [
   ["phase", /^(phase|step|stage)$/],
-  ["amount", /^(%|% ?w\/?w|w\/?w ?%|wt\.? ?%|% ?wt|amount|quantity|dosage|dose|dose \(% ?w\/?w\)|concentration|percentage|percent|weight percent|(#?\d+ )?percentage \(%\)|% active|parts|composition %)$/],
+  ["amount", /^(%|% ?w\/?w|w\/?w ?%|wt\.? ?%|% ?wt|amount|quantity|dosage|dose|dose \(% ?w\/?w\)|concentration|percentage|percent|weight percent|(#?\d+ )?percentage \(%\)|% active|parts|parts by weight|composition %|weight ?\(?%\)?|wt\.? ?%|% by weight|% ?\(w\/w\)|weight %)$/],
   ["inci", /^(inci|inci name|inci names?|chemical name|chemical description|chemical identity|chemical)$/],
   ["function", /^(function|functionality|role|purpose|benefit)$/],
   ["supplier", /^(supplier|manufacturer|vendor|source)$/],
@@ -104,6 +104,8 @@ export function detectIngredientTables(lines: PositionedLine[]): DetectedIngredi
         const cell = header.reduce<HeaderCell>((best, candidate) =>
           Math.abs(candidate.x - fragment.x) < Math.abs(best.x - fragment.x) ? candidate : best, header[0]!);
         if (cell.column === "amount") {
+          // A dash means "not in this formula" in side-by-side tables.
+          if (/^[-–—]$/.test(text)) continue;
           const slot = amountCells.indexOf(cell);
           row.amounts[slot] = [row.amounts[slot], text].filter(Boolean).join(" ");
         } else {
