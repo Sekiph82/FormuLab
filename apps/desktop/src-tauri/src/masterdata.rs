@@ -140,7 +140,7 @@ static REFERENCE_FORMULATION_SOURCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 107] = [
+const COLLECTIONS: [(&str, bool); 108] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -394,6 +394,9 @@ const COLLECTIONS: [(&str, bool); 107] = [
     // Human parser decisions are separate append-only review events; they
     // never mutate the source snapshot or promote data into production.
     ("reference_formulation_reviews", true),
+    // Claude's advisory review decisions (owner decision D-REF-01-1) stay apart from
+    // human decisions, are read-only to the app and never count as a human review.
+    ("reference_formulation_ai_reviews", true),
     // Versioned product/chemistry links remain separate from original source lines.
     ("reference_formulation_normalizations", true),
     // Bulk source ingestion progress is mutable operational state; source documents,
@@ -2648,7 +2651,7 @@ fn stamp_reference_formulation_review(
 }
 
 fn ensure_generic_collection_write_allowed(name: &str) -> Result<(), String> {
-    if matches!(name, "supplier_document_acquisitions" | "reference_formulations" | "reference_formulation_reviews" | "reference_formulation_normalizations" | "supplier_sds_product_evidence" | "supplier_product_evidence" | "identity_field_reviews") {
+    if matches!(name, "supplier_document_acquisitions" | "reference_formulations" | "reference_formulation_reviews" | "reference_formulation_ai_reviews" | "reference_formulation_normalizations" | "supplier_sds_product_evidence" | "supplier_product_evidence" | "identity_field_reviews") {
         return Err("immutable supplier evidence must use its dedicated validated append command".to_string());
     }
     Ok(())
@@ -3394,7 +3397,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 107);
+        assert_eq!(COLLECTIONS.len(), 108);
     }
 
     #[test]

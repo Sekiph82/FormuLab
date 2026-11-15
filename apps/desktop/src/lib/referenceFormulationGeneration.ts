@@ -20,6 +20,7 @@ import {
 import { listRecords } from "./masterdata";
 import { rebuildReferenceFormulationCorpusIndex } from "./referenceFormulationNormalizations";
 import { listReferenceFormulations } from "./referenceFormulations";
+import { isClaudeAdvisoryReview, withClaudeAdvisoryReviews } from "./referenceFormulationReviews";
 
 function familyKey(value: string): string {
   return value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
@@ -90,15 +91,21 @@ export function summarizeReferenceFormulationSupport(input: {
 export async function loadReferenceFormulationGenerationContext(productFamilyCode: string): Promise<{
   context: ReferenceFormulationGenerationContext;
   supportQuality: ReferenceFormulationSupportQuality;
+  /** Eligible formulas whose decisions include Claude's advisory reviews (D-REF-01-1). */
+  aiAdvisorySourceRecordIds: string[];
 }> {
   const productFamilyKey = familyKey(productFamilyCode);
   if (!productFamilyKey) throw new Error("A product-family code is required for reference guidance.");
-  const [{ queryRecords }, sourceRecords, reviewRows] = await Promise.all([
+  const [{ queryRecords }, sourceRecords, reviewRows, aiReviewRows] = await Promise.all([
     rebuildReferenceFormulationCorpusIndex(),
     listReferenceFormulations(),
     listRecords("reference_formulation_reviews"),
+    listRecords("reference_formulation_ai_reviews"),
   ]);
-  const reviews = reviewRows.map((row) => referenceFormulationReviewSchema.parse(row));
+  const reviews = withClaudeAdvisoryReviews(
+    reviewRows.map((row) => referenceFormulationReviewSchema.parse(row)),
+    aiReviewRows.map((row) => referenceFormulationReviewSchema.parse(row)),
+  );
   const asOf = referenceFormulationEvaluationTimestamp();
   const metricsInput = { queryRecords, sourceRecords, reviews, asOf };
   const ingredientPriors = calculateReferenceFormulationIngredientFrequencyPriors(metricsInput);
@@ -145,8 +152,11 @@ export async function loadReferenceFormulationGenerationContext(productFamilyCod
     contributionDistributions,
     processPatterns,
   });
+  const aiReviewedSources = new Set(reviews.filter(isClaudeAdvisoryReview).map((review) => review.referenceFormulationRecordId));
   return {
     context,
+    aiAdvisorySourceRecordIds: [...new Set(eligibility.eligible.map((record) => record.sourceRecordId))]
+      .filter((id) => aiReviewedSources.has(id)).sort(),
     supportQuality: summarizeReferenceFormulationSupport({
       queryRecords,
       decisions: eligibility.decisions,
@@ -160,7 +170,7 @@ export async function loadReferenceFormulationGenerationContext(productFamilyCod
  * Only reviewed family priors mapped through a named human's latest accepted
  * RawMaterial canonical-identity review are eligible to influence selection. */
 export async function loadNewRequestReferenceFormulationPriors(productFamilyCode: string) {
-  const { context, supportQuality } = await loadReferenceFormulationGenerationContext(productFamilyCode);
+  const { context, supportQuality, aiAdvisorySourceRecordIds } = await loadReferenceFormulationGenerationContext(productFamilyCode);
   const [materialRows, reviewRows] = await Promise.all([
     listRecords("materials"),
     listRecords("identity_field_reviews"),
@@ -223,6 +233,7 @@ export async function loadNewRequestReferenceFormulationPriors(productFamilyCode
     productFamilyKey: context.productFamilyKey,
     eligibleFormulaCount: context.eligibleFormulaCount,
     supplierCount: context.supplierCount,
+    aiAdvisoryFormulaCount: aiAdvisorySourceRecordIds.length,
     ingredientPriors,
     supportQuality,
     interpretation: "reviewed_field_formula_appearance_is_advisory_not_suitability_safety_compatibility_or_efficacy" as const,

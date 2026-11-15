@@ -116,6 +116,7 @@ describe("NewFormulationRequestPage", () => {
       productFamilyKey: "hand dishwash",
       eligibleFormulaCount: 3,
       supplierCount: 2,
+      aiAdvisoryFormulaCount: 0,
       ingredientPriors: [{
         materialCode: "MAT-001", materialName: "Reviewed surfactant", canonicalChemistryId: "chem-1",
         formulaCount: 2, eligibleFormulaCount: 3, supplierCount: 2, formulaWeightedFrequency: 2 / 3,

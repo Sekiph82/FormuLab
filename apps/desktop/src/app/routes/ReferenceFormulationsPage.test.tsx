@@ -12,6 +12,8 @@ vi.mock("@/lib/referenceFormulations", () => ({ listReferenceFormulations: () =>
 vi.mock("@/lib/referenceFormulationNormalizations", () => ({ rebuildReferenceFormulationCorpusIndex: () => bridge.index() }));
 vi.mock("@/lib/referenceFormulationReviews", () => ({
   listReferenceFormulationReviews: (...args: [string]) => bridge.listReviews(...args),
+  listReferenceFormulationAiReviews: async () => [],
+  withClaudeAdvisoryReviews: (human: unknown[]) => human,
   appendReferenceFormulationReview: (...args: [unknown]) => bridge.appendReview(...args),
 }));
 vi.mock("@/lib/referenceFormulationCorpusReview", () => ({ getReferenceFormulationCorpusReviewData: (...args: [string]) => bridge.trace(...args) }));

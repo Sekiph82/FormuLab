@@ -9,6 +9,28 @@ export type NewReferenceFormulationReview = Omit<ReferenceFormulationReview,
   "schemaVersion" | "id" | "code" | "reviewedAt"
 >;
 
+/** Claude's reviews are attributed to an "ai:" reviewer id; they never count as a person's decision. */
+export function isClaudeAdvisoryReview(review: Pick<ReferenceFormulationReview, "reviewer">): boolean {
+  return review.reviewer.userId.startsWith("ai:");
+}
+
+/**
+ * Human decisions plus Claude's advisory decisions (owner decision D-REF-01-1) for targets no
+ * human has decided. Any human decision on a target, including a rejection, overrides Claude.
+ */
+export function withClaudeAdvisoryReviews(human: ReferenceFormulationReview[], ai: ReferenceFormulationReview[]): ReferenceFormulationReview[] {
+  const people = human.filter((review) => !isClaudeAdvisoryReview(review));
+  const decided = new Set(people.map((review) => `${review.referenceFormulationRecordId}\u0000${review.targetKey}`));
+  return [...people, ...ai.filter((review) => isClaudeAdvisoryReview(review)
+    && !decided.has(`${review.referenceFormulationRecordId}\u0000${review.targetKey}`))];
+}
+
+export async function listReferenceFormulationAiReviews(recordId: string): Promise<ReferenceFormulationReview[]> {
+  const rows = await listRecords("reference_formulation_ai_reviews");
+  return rows.map((row) => referenceFormulationReviewSchema.parse(row))
+    .filter((review) => review.referenceFormulationRecordId === recordId && isClaudeAdvisoryReview(review));
+}
+
 export async function listReferenceFormulationReviews(recordId: string): Promise<ReferenceFormulationReview[]> {
   const [records, decisions] = await Promise.all([
     listRecords("reference_formulations"),

@@ -102,6 +102,34 @@ class AuthoritativeReferenceGuidanceTests(unittest.TestCase):
         self.assertEqual(result["eligibleFormulaCount"], 1)
         self.assertEqual(result["ingredientPriors"], [])
 
+    def _as_ai(self, rows):
+        return [{**row, "id": "ai-" + row["id"], "reviewer": {"userId": "ai:claude-opus-5-5", "displayName": "Claude (AI review, advisory)"}}
+                for row in rows]
+
+    def test_claude_reviews_count_as_advisory_and_are_labelled(self):
+        self._write("reference_formulation_reviews", [])
+        self._write("reference_formulation_ai_reviews", self._as_ai(self.reviews))
+        result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [self.material])
+        self.assertEqual((result["eligibleFormulaCount"], result["aiAdvisoryFormulaCount"]), (1, 1))
+        self.assertEqual(result["ingredientPriors"][0]["aiAdvisoryFormulaCount"], 1)
+
+    def test_a_human_decision_overrides_claude(self):
+        rejected = {**self.reviews[0], "id": "human-reject", "decision": "rejected"}
+        self._write("reference_formulation_reviews", [rejected])
+        self._write("reference_formulation_ai_reviews", self._as_ai(self.reviews))
+        result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [self.material])
+        self.assertEqual((result["eligibleFormulaCount"], result["aiAdvisoryFormulaCount"]), (0, 0))
+
+    def test_rows_in_the_ai_collection_without_an_ai_reviewer_are_ignored(self):
+        self._write("reference_formulation_reviews", [])
+        self._write("reference_formulation_ai_reviews", self.reviews)
+        result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [self.material])
+        self.assertEqual(result["eligibleFormulaCount"], 0)
+
+    def test_human_reviewed_formulas_are_not_labelled_ai(self):
+        result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [self.material])
+        self.assertEqual(result["aiAdvisoryFormulaCount"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

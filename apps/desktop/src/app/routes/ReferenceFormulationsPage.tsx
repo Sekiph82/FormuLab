@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Check, ClipboardCheck, Edit3, Eye, RotateCcw, X } from "lucide-react";
 import type { ReferenceFormulationQueryRecord, ReferenceFormulationRecord, ReferenceFormulationReview } from "@formulab/shared";
 import { useTrustedActor } from "@/lib/currentActor";
-import { appendReferenceFormulationReview, listReferenceFormulationReviews } from "@/lib/referenceFormulationReviews";
+import { appendReferenceFormulationReview, listReferenceFormulationAiReviews, listReferenceFormulationReviews, withClaudeAdvisoryReviews } from "@/lib/referenceFormulationReviews";
 import { listReferenceFormulations } from "@/lib/referenceFormulations";
 import { rebuildReferenceFormulationCorpusIndex } from "@/lib/referenceFormulationNormalizations";
 import { buildReferenceFormulationReviewItems, type ReferenceFormulationReviewItem } from "@/lib/referenceFormulationReviewItems";
@@ -30,6 +30,7 @@ export function ReferenceFormulationsPage() {
   const [searchText, setSearchText] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   const [reviews, setReviews] = useState<ReferenceFormulationReview[]>([]);
+  const [aiReviews, setAiReviews] = useState<ReferenceFormulationReview[]>([]);
   const [traceData, setTraceData] = useState<ReferenceFormulationCorpusReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,15 +49,18 @@ export function ReferenceFormulationsPage() {
       const available = await listReferenceFormulations();
       setRecords(available.sort((left, right) => left.source.title.localeCompare(right.source.title)));
       if (recordId) {
-        const [reviewHistory, trace] = await Promise.all([
+        const [reviewHistory, trace, claudeReviews] = await Promise.all([
           listReferenceFormulationReviews(recordId), getReferenceFormulationCorpusReviewData(recordId),
+          listReferenceFormulationAiReviews(recordId),
         ]);
         setReviews(reviewHistory);
+        setAiReviews(claudeReviews);
         setTraceData(trace);
       } else {
         const corpus = await rebuildReferenceFormulationCorpusIndex();
         setQueryRecords(corpus.queryRecords);
         setReviews([]);
+        setAiReviews([]);
         setTraceData(null);
       }
     } catch (cause) {
@@ -127,9 +131,10 @@ export function ReferenceFormulationsPage() {
   };
   const latestByTarget = useMemo(() => {
     const latest = new Map<string, ReferenceFormulationReview>();
-    for (const review of reviews) latest.set(review.targetKey, review);
+    // A person's decision on a target always replaces Claude's advisory one (D-REF-01-1).
+    for (const review of withClaudeAdvisoryReviews(reviews, aiReviews)) latest.set(review.targetKey, review);
     return latest;
-  }, [reviews]);
+  }, [reviews, aiReviews]);
 
   const saveDecision = async (item: ReferenceFormulationReviewItem, decision: Decision, reviewedValue?: string, note?: string) => {
     if (!selected || !actor) return;

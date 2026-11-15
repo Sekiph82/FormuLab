@@ -212,6 +212,7 @@ interface CollectionTypes {
   identity_field_reviews: IdentityFieldReview;
   reference_formulations: ReferenceFormulationRecord;
   reference_formulation_reviews: ReferenceFormulationReview;
+  reference_formulation_ai_reviews: ReferenceFormulationReview;
   reference_formulation_normalizations: ReferenceFormulationNormalizationVersion;
   reference_formulation_import_jobs: ReferenceFormulationImportJob;
   reference_formulation_import_files: ReferenceFormulationImportFile;

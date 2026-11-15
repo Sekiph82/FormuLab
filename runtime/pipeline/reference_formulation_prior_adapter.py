@@ -119,16 +119,32 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
     sources = _current(_array(master_dir, "reference_formulations"))
     normalizations = _array(master_dir, "reference_formulation_normalizations")
     reviews = _array(master_dir, "reference_formulation_reviews")
+    # Claude's advisory decisions (D-REF-01-1) count only where no human decided the same target.
+    ai_reviews = [row for row in _array(master_dir, "reference_formulation_ai_reviews")
+                  if str(row.get("reviewer", {}).get("userId") or "").startswith("ai:")]
     identity_reviews = _array(master_dir, "identity_field_reviews")
-    latest_reviews = _latest(reviews, "referenceFormulationRecordId", "targetKey")
+    human_reviews = _latest([row for row in reviews if not str(row.get("reviewer", {}).get("userId") or "").startswith("ai:")],
+                            "referenceFormulationRecordId", "targetKey")
+    latest_ai = _latest(ai_reviews, "referenceFormulationRecordId", "targetKey")
+    ai_used: set[str] = set()
+
+    def review_for(source_id: str, target_key: str) -> dict[str, Any] | None:
+        review = human_reviews.get((source_id, target_key))
+        if review is None:
+            review = latest_ai.get((source_id, target_key))
+            if review is not None and review.get("decision") == "accepted":
+                ai_used.add(source_id)
+        return review
+
     latest_identity = _latest(identity_reviews, "targetRecordId", "field")
 
     # Ambiguous append-only history is not a valid evidence basis.
     if (len({str(row.get("id") or "") for row in sources}) != len(sources)
             or len({str(row.get("id") or "") for row in reviews}) != len(reviews)
+            or len({str(row.get("id") or "") for row in ai_reviews}) != len(ai_reviews)
             or len({str(row.get("id") or "") for row in identity_reviews}) != len(identity_reviews)):
         return {"schemaVersion": "formulab-new-request-reference-priors-v1", "productFamilyKey": family,
-                "eligibleFormulaCount": 0, "supplierCount": 0, "ingredientPriors": [], "interpretation": INTERPRETATION}
+                "eligibleFormulaCount": 0, "supplierCount": 0, "aiAdvisoryFormulaCount": 0, "ingredientPriors": [], "interpretation": INTERPRETATION}
 
     norm_by_source: dict[str, dict[str, Any]] = {}
     ambiguous_normalizations: set[str] = set()
@@ -153,18 +169,13 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
         if len(family_candidates) != 1 or _key(family_candidates[0].get("rawValue")) != family:
             continue
         raw_family = str(family_candidates[0].get("rawValue") or "")
-        family_reviewed = any(
-            review.get("targetType") == "identity" and review.get("decision") == "accepted"
-            and review.get("sourceDocumentHash", "").lower() == digest
-            and review.get("reviewer", {}).get("userId") and review.get("reviewer", {}).get("displayName")
-            and review.get("sourceValue") == raw_family
-            and review.get("fieldPath") == f"identityCandidates[{i}].product_family"
-            for (review_source, target), review in latest_reviews.items()
-            for i, candidate in enumerate(source.get("identityCandidates", []))
-            if review_source == source_id and target == f"identity:product_family:{i}"
-            and candidate is family_candidates[0]
-        )
-        if not family_reviewed:
+        family_index = next(i for i, candidate in enumerate(source.get("identityCandidates", []))
+                            if candidate is family_candidates[0])
+        review = review_for(source_id, f"identity:product_family:{family_index}")
+        if not (review and review.get("sourceDocumentHash", "").lower() == digest and _accepted(
+                review, field_path=f"identityCandidates[{family_index}].product_family",
+                source_value=raw_family, target_type="identity")):
+            ai_used.discard(source_id)
             continue
         normalization = norm_by_source.get(source_id)
         if (not normalization or source_id in ambiguous_normalizations
@@ -191,7 +202,7 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
                 if not isinstance(evidence, dict) or evidence.get("sourceDocumentHash", "").lower() != digest:
                     continue
                 key = f"ingredient:{line_id}:{field}"
-                review = latest_reviews.get((source_id, key))
+                review = review_for(source_id, key) if value else None
                 if value and review and review.get("sourceDocumentHash", "").lower() == digest and _accepted(
                     review, field_path=f"ingredientLines[{line_id}].{field}", source_value=value, target_type="ingredient"):
                     identity_reviewed = True
@@ -203,7 +214,7 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
                 break
             chemistry_id = str(ids[0])
             target_key = f"normalization:{normalization.get('id')}:line:{line_id}:canonicalChemistry:{chemistry_id}"
-            review = latest_reviews.get((source_id, target_key))
+            review = review_for(source_id, target_key)
             if not review or review.get("sourceDocumentHash", "").lower() != digest or not _accepted(
                 review, field_path=f"normalizations[{normalization.get('id')}].lines[{line_id}].canonicalChemistry",
                 source_value=chemistry_id, target_type="ingredient"):
@@ -213,11 +224,13 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
         if valid:
             eligible.append({"id": source_id, "supplier": str(source.get("source", {}).get("supplierId") or ""),
                              "lines": validated_lines, "source": source})
+        else:
+            ai_used.discard(source_id)
 
     eligible = [row for row in eligible if row["supplier"]]
     if not eligible:
         return {"schemaVersion": "formulab-new-request-reference-priors-v1", "productFamilyKey": family,
-                "eligibleFormulaCount": 0, "supplierCount": 0, "ingredientPriors": [], "interpretation": INTERPRETATION}
+                "eligibleFormulaCount": 0, "supplierCount": 0, "aiAdvisoryFormulaCount": 0, "ingredientPriors": [], "interpretation": INTERPRETATION}
 
     family_ids = {row["id"] for row in eligible}
     all_suppliers = {row["supplier"] for row in eligible}
@@ -269,7 +282,7 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
                 for field in ("amount", "unit", "basis"):
                     item = line.get(field)
                     value = str(item.get("rawValue") or "") if isinstance(item, dict) else ""
-                    review = latest_reviews.get((row["id"], f"ingredient:{line_id}:{field}"))
+                    review = review_for(row["id"], f"ingredient:{line_id}:{field}")
                     if (not value or not review or review.get("sourceDocumentHash", "").lower() != row["source"].get("sourceDocumentHash", "").lower()
                             or not _accepted(review, field_path=f"ingredientLines[{line_id}].{field}",
                                              source_value=value, target_type="ingredient")):
@@ -307,8 +320,10 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
             "formulaCount": len(source_ids), "eligibleFormulaCount": len(family_ids),
             "supplierCount": len(supplier_counts), "formulaWeightedFrequency": len(source_ids) / len(family_ids),
             "supplierNeutralFrequency": supplier_neutral, "sourceRecordIds": source_ids,
+            "aiAdvisoryFormulaCount": sum(1 for source_id in source_ids if source_id in ai_used),
             "dosageGuidance": dosage_guidance,
         })
     return {"schemaVersion": "formulab-new-request-reference-priors-v1", "productFamilyKey": family,
             "eligibleFormulaCount": len(family_ids), "supplierCount": len(all_suppliers),
+            "aiAdvisoryFormulaCount": len(family_ids & ai_used),
             "ingredientPriors": priors, "interpretation": INTERPRETATION}

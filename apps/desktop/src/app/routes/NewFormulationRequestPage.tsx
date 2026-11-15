@@ -118,7 +118,7 @@ export function NewFormulationRequestPage() {
         const guidance = await loadNewRequestReferenceFormulationPriors(referenceFamily);
         const mapped = guidance.ingredientPriors.length;
         setReferenceGuidanceNotice(guidance.eligibleFormulaCount > 0 && mapped > 0
-          ? `${guidance.eligibleFormulaCount} reviewed ${guidance.productFamilyKey} field formula(s) were found in the local corpus. The generation engine rechecks source rights, field reviews and material identity before use; source precedent is not a safety, compatibility, efficacy or lab result.`
+          ? `${guidance.eligibleFormulaCount} reviewed ${guidance.productFamilyKey} field formula(s) were found in the local corpus${guidance.aiAdvisoryFormulaCount > 0 ? ` (${guidance.aiAdvisoryFormulaCount} reviewed only by Claude, AI and advisory)` : ""}. The generation engine rechecks source rights, field reviews and material identity before use; source precedent is not a safety, compatibility, efficacy or lab result.`
           : `No eligible ${guidance.productFamilyKey} field-formula evidence is currently mapped to reviewed active RawMaterials. The generation engine independently checks the canonical local records before applying any reference.`);
       } catch {
         setReferenceGuidanceNotice("Field-formula evidence could not be loaded for this request. Generation will continue without it.");

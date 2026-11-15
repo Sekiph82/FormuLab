@@ -59,6 +59,8 @@ export interface FormulationBrief {
     productFamilyKey: string;
     eligibleFormulaCount: number;
     supplierCount: number;
+    /** Formulas whose reviews include Claude's advisory decisions (D-REF-01-1), not a person's. */
+    aiAdvisoryFormulaCount?: number;
     ingredientPriors: Array<{
       materialCode: string;
       materialName: string;

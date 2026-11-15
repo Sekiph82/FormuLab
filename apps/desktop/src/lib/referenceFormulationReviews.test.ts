@@ -19,7 +19,7 @@ vi.mock("./masterdata", () => ({
   nowIso: nowIsoMock,
 }));
 
-import { appendReferenceFormulationReview } from "./referenceFormulationReviews";
+import { appendReferenceFormulationReview, withClaudeAdvisoryReviews } from "./referenceFormulationReviews";
 
 const reviewInput = {
   referenceFormulationRecordId: "reference-1",
@@ -72,5 +72,22 @@ describe("reference formulation review retry idempotency", () => {
     expect(retry.id).toBe(first.id);
     expect(reviews).toHaveLength(1);
     expect(retry.note).toBe("same note");
+  });
+});
+
+describe("Claude advisory reviews", () => {
+  const decision = (userId: string, targetKey: string, decision: "accepted" | "rejected") => ({
+    referenceFormulationRecordId: "formula-1", targetKey, decision, reviewer: { userId, displayName: userId },
+  }) as never;
+
+  it("fill only targets no person decided, and a person's rejection wins", () => {
+    const merged = withClaudeAdvisoryReviews(
+      [decision("chemist-1", "identity:product_family:0", "rejected"), decision("ai:forged", "ingredient:a:amount", "accepted")],
+      [decision("ai:claude-opus-5-5", "identity:product_family:0", "accepted"), decision("ai:claude-opus-5-5", "ingredient:a:ingredientName", "accepted"),
+        decision("chemist-2", "ingredient:a:unit", "accepted")],
+    ) as Array<{ targetKey: string; reviewer: { userId: string } }>;
+    expect(merged.map((row) => `${row.reviewer.userId} ${row.targetKey}`)).toEqual([
+      "chemist-1 identity:product_family:0", "ai:claude-opus-5-5 ingredient:a:ingredientName",
+    ]);
   });
 });
