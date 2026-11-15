@@ -282,7 +282,7 @@ export async function extractSupplierPdfText(input: {
   bytes: Uint8Array;
   filename: string;
   declaredMimeType: string;
-}, options: { maxChars?: number; maxPages?: number } = {}): Promise<SupplierPdfTextExtractionResult> {
+}, options: { maxChars?: number; maxPages?: number; preferPositionedLayout?: boolean } = {}): Promise<SupplierPdfTextExtractionResult> {
   const admission = await admitSupplierPdf(input, { maxPages: options.maxPages });
   if (admission.status === "quarantined") {
     return { status: "quarantined", reason: admission.reason, parserVersion: SUPPLIER_PDF_TEXT_PARSER_VERSION };
@@ -303,7 +303,9 @@ export async function extractSupplierPdfText(input: {
     }
   }
   if (hasLikelyCorruptText(pages)) warnings.add("unsupported_character_encoding");
-  if (warnings.has("unsupported_character_encoding")) {
+  // Table-shaped documents need PDF.js fragment geometry: the lightweight
+  // decoder keeps text but not reliable cell positions.
+  if (warnings.has("unsupported_character_encoding") || options.preferPositionedLayout) {
     try {
       const recovered = await extractPdfJsPages(input.bytes, admission.pageCount);
       if (recovered.some((page) => page.lines.length > 0)) {

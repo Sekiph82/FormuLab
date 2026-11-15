@@ -20,6 +20,7 @@ import {
 import { recordReferenceFormulation } from "./referenceFormulations";
 import { runConditionalReferenceFormulationOcr } from "./referenceFormulationOcr";
 import { extractSupplierPdfText } from "./supplierPdfTextExtraction";
+import { detectIngredientTables, headerColumn } from "./referenceFormulationTableDetection";
 import { SUPPLIER_PDF_DEFAULT_MAX_BYTES } from "./supplierDocumentAdmission";
 import { recordSupplierDocumentAcquisition } from "./supplierDocumentAcquisitions";
 import { listRecords, nowIso, storeSupplierDocumentPdf, upsertRecords } from "./masterdata";
@@ -176,9 +177,22 @@ export async function startReferenceFormulationBulkImport(
   return resumeReferenceFormulationBulkImport(job.id, selectedFiles, signal);
 }
 
+/** Number of formulas printed side by side in this document's ingredient tables (1 when there is one). */
+export function formulaVariantCount(
+  extraction: Awaited<ReturnType<typeof extractSupplierPdfText>> & { status: "extracted" },
+): number {
+  return Math.max(1, ...extraction.pages.flatMap((page) => detectIngredientTables(page.lines).map((table) => table.variantCount)));
+}
+
+/**
+ * Page blocks for the shared layout analyzer. `variant` selects one formula
+ * when a table prints several side by side; omitted, single-formula tables
+ * (and the first variant of multi-formula tables) are used.
+ */
 export function pagesFromExtraction(
   extraction: Awaited<ReturnType<typeof extractSupplierPdfText>> & { status: "extracted" },
   ocrLines: Array<{ pageNumber: number; text: string; confidence: number; source: "ocr" }>,
+  variant = 1,
 ) {
   return extraction.pages.map((page) => {
     type TextBlock = {
@@ -187,53 +201,22 @@ export function pagesFromExtraction(
     };
     type TableBlock = { type: "table"; blockIndex: number; rows: string[][]; source: "digital"; position?: { x: number; y: number } };
     const positioned = [...page.lines].sort((left, right) => (right.position?.y ?? 0) - (left.position?.y ?? 0));
-    const headerIndex = positioned.findIndex((line) => line.fragments?.some((fragment) => /ingredient\s*\/\s*inci\s*name/i.test(fragment.text))
-      && line.fragments.some((fragment) => /functionality|function/i.test(fragment.text))
-      && line.fragments.some((fragment) => /%\s*w\s*\/\s*w|weight\s*percent/i.test(fragment.text)));
-    let table: TableBlock | undefined;
-    if (headerIndex >= 0) {
-      const headerLine = positioned[headerIndex]!;
-      const columns = headerLine.fragments!.filter((fragment) => fragment.text.trim()).map((fragment) => ({
-        x: fragment.x,
-        header: fragment.text.trim(),
-      })).sort((left, right) => left.x - right.x);
-      if (columns.length >= 3) {
-        const rows: string[][] = [columns.map((column) => column.header)];
-        let previousY = headerLine.position?.y ?? 0;
-        for (const line of positioned.slice(headerIndex + 1)) {
-          const y = line.position?.y ?? previousY;
-          if (previousY - y > 24) break;
-          if (!line.fragments?.length) continue;
-          const cells = columns.map(() => "");
-          for (const fragment of line.fragments) {
-            const columnIndex = columns.reduce((best, column, index) => column.x <= fragment.x ? index : best, 0);
-            cells[columnIndex] = [cells[columnIndex], fragment.text.trim()].filter(Boolean).join(" ");
-          }
-          if (cells.some(Boolean)) rows.push(cells);
-          previousY = y;
-          if (/^viscosity\b/i.test(cells[0] ?? "")) break;
-        }
-        if (rows.length > 1) table = {
-          type: "table", blockIndex: 0, rows, source: "digital",
-          ...(headerLine.position ? { position: headerLine.position } : {}),
-        };
-      }
-    }
     const blocks: Array<TextBlock | TableBlock> = [];
-    const consumedProcedureLines = new Set<number>();
     let nextIndex = 0;
+    for (const table of detectIngredientTables(positioned)) {
+      if ((table.variant ?? 1) !== variant) continue;
+      blocks.push({ type: "table", blockIndex: nextIndex++, rows: table.rows, source: "digital", ...(table.position ? { position: table.position } : {}) });
+    }
+    const consumedProcedureLines = new Set<number>();
     for (let index = 0; index < positioned.length; index += 1) {
-      if (index === headerIndex) {
-        if (table) { table.blockIndex = nextIndex; blocks.push(table); nextIndex += 1; }
-        continue;
-      }
       const line = positioned[index]!;
       if (consumedProcedureLines.has(line.lineNumber)) continue;
       let combinedText = line.text;
       if (/^procedure\s*:/i.test(line.text) && line.position) {
         let previousY = line.position.y;
         for (const continuation of positioned.slice(index + 1)) {
-          if (continuation === positioned[headerIndex] || !continuation.position || previousY - continuation.position.y > 24) break;
+          if (!continuation.position || previousY - continuation.position.y > 24) break;
+          if (continuation.fragments?.some((fragment) => headerColumn(fragment.text))) break;
           if (consumedProcedureLines.has(continuation.lineNumber)) continue;
           combinedText += ` ${continuation.text}`;
           consumedProcedureLines.add(continuation.lineNumber);
@@ -261,23 +244,45 @@ async function buildAndPersistReferenceRecord(input: {
   signal?: AbortSignal;
 }): Promise<{ recordId: string; acquisitionCode: string }> {
   if (input.extraction.status !== "extracted") throw new ImportFileFailure("invalid_pdf");
+  const extraction = input.extraction;
   const ocr = await runConditionalReferenceFormulationOcr({
     acquisition: input.acquisition,
     extraction: input.extraction,
     options: { languages: ["eng"], sourcePdfBytes: input.bytes },
   }, input.signal);
   if (ocr.status === "cancelled") throw new ImportBatchPaused();
-  const pages = pagesFromExtraction(input.extraction, ocr.lines);
+  const variants = formulaVariantCount(input.extraction);
+  let first: { recordId: string; acquisitionCode: string } | undefined;
+  for (let variant = 1; variant <= variants; variant += 1) {
+    const saved = await persistVariant({ ...input, extraction, ocrLines: ocr.lines, variant, variants });
+    first ??= saved;
+  }
+  return first!;
+}
+
+/** One reference record per printed formula; multi-formula documents get a variant suffix. */
+async function persistVariant(input: {
+  job: ReferenceFormulationImportJob;
+  item: ReferenceFormulationImportFile;
+  acquisition: Awaited<ReturnType<typeof recordSupplierDocumentAcquisition>>;
+  extraction: Awaited<ReturnType<typeof extractSupplierPdfText>> & { status: "extracted" };
+  ocrLines: Parameters<typeof pagesFromExtraction>[1];
+  variant: number;
+  variants: number;
+}): Promise<{ recordId: string; acquisitionCode: string }> {
+  const pages = pagesFromExtraction(input.extraction, input.ocrLines, input.variant);
+  const variantSuffix = input.variants > 1 ? `-v${input.variant}` : "";
   const layout = analyzeReferenceFormulationLayout({ sourceDocumentHash: input.acquisition.sha256, pages });
   const identity = extractReferenceFormulationIdentity({ acquisition: input.acquisition, pages });
-  const sourceTitle = identity.candidates.find((candidate) => candidate.field === "formulation_title")?.rawValue
+  const baseTitle = identity.candidates.find((candidate) => candidate.field === "formulation_title")?.rawValue
     ?? input.item.originalFilename.replace(/\.pdf$/iu, "");
+  const sourceTitle = input.variants > 1 ? `${baseTitle} (formula ${input.variant} of ${input.variants})` : baseTitle;
   const sourceRevision = identity.candidates.find((candidate) => candidate.field === "revision_identifier")?.rawValue;
   const revisionDate = identity.candidates.find((candidate) => candidate.field === "revision_date")?.rawValue;
   const publicationDate = identity.candidates.find((candidate) => candidate.field === "publication_date")?.rawValue;
   const formulationCode = identity.candidates.find((candidate) => candidate.field === "formulation_code")?.rawValue;
   const source = createReferenceFormulationSource({
-    id: `reference-source-${input.acquisition.sha256}-${layout.parserVersion.replace(/[^a-z0-9-]/giu, "-").toLocaleLowerCase("en-US")}`,
+    id: `reference-source-${input.acquisition.sha256}-${layout.parserVersion.replace(/[^a-z0-9-]/giu, "-").toLocaleLowerCase("en-US")}${variantSuffix}`,
     acquisition: input.acquisition,
     ...(publicationDate ? { publicationDate } : {}),
     ...(revisionDate ? { revisionDate } : {}),
@@ -304,7 +309,7 @@ async function buildAndPersistReferenceRecord(input: {
     products,
     supplierDocuments: acquisitions,
   });
-  const recordKey = `${input.acquisition.sha256}-${layout.parserVersion.replace(/[^a-z0-9-]/giu, "-").toLocaleLowerCase("en-US")}`;
+  const recordKey = `${input.acquisition.sha256}-${layout.parserVersion.replace(/[^a-z0-9-]/giu, "-").toLocaleLowerCase("en-US")}${variantSuffix}`;
   const record = createReferenceFormulationRecord({
     id: `reference-formula-${recordKey}`,
     code: `reference-formula-${recordKey}`,
@@ -346,7 +351,7 @@ async function processOneFile(input: {
     bytes,
     filename: input.selected.name,
     declaredMimeType: input.selected.type || "application/octet-stream",
-  });
+  }, { preferPositionedLayout: true });
   if (extraction.status !== "extracted") throw new ImportFileFailure("invalid_pdf");
   if (extraction.documentHash !== digest) throw new ImportFileFailure("source_unavailable");
 
