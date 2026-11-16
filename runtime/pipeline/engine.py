@@ -787,6 +787,13 @@ def build_candidate_pool(
                 "supplier_neutral_frequency": float(supplier_frequency),
                 "source_record_count": len(source_ids),
                 "source_record_ids": source_ids[:20],
+                # The candidate key the result card uses for this ingredient's origins and evidence.
+                "ingredient_key": key,
+                "source_formulas": [
+                    {field: item.get(field) for field in ("id", "title", "supplierId", "originalFilename",
+                                                          "printedName", "printedAmount", "pageNumber")}
+                    for item in prior.get("sourceFormulas", []) if isinstance(item, dict) and item.get("id") in source_ids
+                ][:50],
                 "interpretation": "reviewed_formula_appearance_only_not_suitability_safety_compatibility_or_efficacy",
             }
             dosage = raw_dosage[0] if raw_dosage else None
@@ -1455,12 +1462,12 @@ def build_formula_for_strategy(
     has_water = any(s.concentration.source_type == "qs_closure" for s in solved)
     for s in solved:
         if s.concentration.source_type == "qs_closure":
-            ingredients_json.append({"inci": s.display_name, "function": "Solvent", "weight_pct": "q.s. 100",
+            ingredients_json.append({"inci": s.display_name, "key": s.key, "function": "Solvent", "weight_pct": "q.s. 100",
                                       "material_code": s.material_code,
                                       "supplier_product_card_evidence": s.supplier_product_card_evidence or []})
         else:
             ingredients_json.append({
-                "inci": s.display_name, "function": s.role.replace("_", " ").title(),
+                "inci": s.display_name, "key": s.key, "function": s.role.replace("_", " ").title(),
                 "weight_pct": f"{s.concentration.value:g}",
                 "material_code": s.material_code,
                 "supplier_product_card_evidence": s.supplier_product_card_evidence or [],

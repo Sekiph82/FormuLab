@@ -138,6 +138,20 @@ def _quantile(values: list[float], probability: float) -> float:
 HANDBOOK_SUPPLIER_PREFIX = "supplier-handbook-"
 
 
+def _source_formula(row: dict[str, Any], chemistry_id: str) -> dict[str, Any]:
+    """Title, supplier, file and the printed line of one formula that contains `chemistry_id`."""
+    source = row["source"].get("source", {})
+    line = next((line for line, line_chemistry in row["lines"] if line_chemistry == chemistry_id), {})
+
+    def raw(field: str) -> str:
+        item = line.get(field)
+        return str(item.get("rawValue") or "") if isinstance(item, dict) else ""
+    return {"id": row["id"], "title": str(source.get("title") or ""), "supplierId": row["supplier"],
+            "originalFilename": str(source.get("originalFilename") or ""),
+            "printedName": raw("ingredientName") or raw("inciOrChemicalName"),
+            "printedAmount": raw("amount"), "pageNumber": line.get("pageNumber")}
+
+
 def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], materials: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Return validated, recomputed priors. The caller-supplied payload is ignored."""
     requested = _key(brief.get("targetProductType"))
@@ -370,6 +384,9 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
             })
         material = mapped[0]
         priors.append({
+            # Which formula PDFs printed this ingredient, so a result can name them.
+            "sourceFormulas": [_source_formula(row, chemistry_id) for row in sorted(rows, key=lambda row: row["id"])
+                               if row["id"] in source_ids][:50],
             "materialCode": str(material.get("code") or material.get("material_code")),
             "materialName": str(material.get("name") or material.get("inci") or ""),
             "canonicalChemistryId": chemistry_id,

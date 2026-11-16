@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -23,9 +23,9 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import { createAlternativeRankingRecord, displayMoney, newId, rankAlternatives, type AlternativeRankingRecord, type CostSnapshot, type RankedAlternative } from "@formulab/shared";
+import { createAlternativeRankingRecord, displayMoney, newId, rankAlternatives, type AlternativeRankingRecord, type CostSnapshot, type RankedAlternative, type RawMaterial } from "@formulab/shared";
 import { readSession, type ArchitectureBasis, type ExperimentalOutcome, type FormulationCard, type LiteratureDocument, type ManufacturingPlan, type ResearchCorpusSummary, type ScientificFormulationRecord, type ScientificFormulationSummary, type SessionDetail } from "@/lib/formulationV2";
-import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
+import { asGeneratedFormula, cardIngredientKey, ingredientId, normalizeIngredientKey, referenceEvidenceFor, totalWeightPct, type GeneratedFormula, type ReferenceFormulationEvidence } from "@/lib/generatedFormula";
 import { downloadFormulationReport } from "@/lib/formulationReport";
 import { shareFormulationResult } from "@/lib/formulationShare";
 import { costGeneratedFormula } from "@/lib/generatedFormulaCost";
@@ -553,6 +553,7 @@ export function FormulationResultPage() {
               <IngredientEvidencePanel
                 card={card}
                 formula={formula}
+                materials={costData.materials}
                 selectedIndex={selectedIngredient}
                 onClose={() => setSelectedIngredient(null)}
                 t={t}
@@ -1077,7 +1078,7 @@ function FormulaTab({
               // origin, when this session has them; falls back to the
               // honest "—"/not-yet-linked placeholder for a pre-Session-3/4
               // session exactly as before.
-              const key = normalizeIngredientKey(ing.inci);
+              const key = cardIngredientKey(ing, card.ingredient_origins);
               const rowLinks = (card.evidence_links ?? []).filter((l) => l.ingredient_key === key);
               const strongestClass = rowLinks.length > 0
                 ? rowLinks.map((l) => l.evidence_class).sort((a, b) => CLASS_RANK[a] - CLASS_RANK[b])[0]
@@ -1209,15 +1210,99 @@ function ArchitectureBasisNotice({ basis, t }: { basis: ArchitectureBasis; t: TF
 
 // ------------------------------------------------------ right panel ---
 
+/** The Material Master row this line resolved to: what it is, where it came
+ *  from, and the SDS/TDS and formula PDFs it links to. */
+function MaterialRecordEvidence({ material, t }: { material: RawMaterial; t: TFunction<readonly ["session", "common"]> }) {
+  return (
+    <EvidenceSection title={t("formulationResult.evidencePanel.materialRecord")}>
+      <p className="text-[11.5px] text-text">
+        {material.displayName}
+        <span className="text-muted"> · {material.code}</span>
+      </p>
+      {(material.inciName || material.casNumbers.length > 0) && (
+        <p className="text-[11px] text-muted">
+          {[material.inciName && `INCI: ${material.inciName}`, material.casNumbers.length > 0 && `CAS: ${material.casNumbers.join(", ")}`].filter(Boolean).join(" · ")}
+        </p>
+      )}
+      {material.notes && <p className="mt-1 text-[11px] leading-relaxed text-muted">{material.notes}</p>}
+      {material.documents.length > 0 && (
+        <ul className="mt-1.5 space-y-1">
+          {material.documents.map((document) => (
+            <li key={document.location} className="text-[11px]">
+              {document.location.startsWith("reference-formulations/") ? (
+                <Link to={`/reference-formulations/${encodeURIComponent(document.location.slice("reference-formulations/".length))}`} className="text-accent hover:underline">
+                  {document.title}
+                </Link>
+              ) : (
+                <span className="text-text">
+                  <span className="mr-1 rounded-input bg-surface-2 px-1 py-0.5 text-[9px] font-semibold uppercase text-muted">{document.kind}</span>
+                  {document.title}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </EvidenceSection>
+  );
+}
+
+/** Which imported supplier formula PDFs printed this ingredient, with a link to
+ *  each reviewed formula. Precedent only, never suitability or validation. */
+function FieldFormulaEvidence({ evidence, t }: { evidence: ReferenceFormulationEvidence; t: TFunction<readonly ["session", "common"]> }) {
+  const shown = evidence.source_formulas ?? [];
+  const total = evidence.source_record_ids?.length ?? evidence.formula_count;
+  return (
+    <EvidenceSection title={t("formulationResult.evidencePanel.fieldFormulas")}>
+      <p className="text-[11.5px] leading-relaxed text-text">
+        {t("formulationResult.evidencePanel.fieldFormulasSummary", {
+          count: evidence.formula_count, eligible: evidence.eligible_formula_count,
+          family: evidence.product_family_key ?? "", suppliers: evidence.supplier_count,
+        })}
+      </p>
+      {shown.length > 0 ? (
+        <ul className="mt-1.5 space-y-1">
+          {shown.map((source) => (
+            <li key={source.id} className="text-[11px]">
+              <Link to={`/reference-formulations/${encodeURIComponent(source.id)}`} className="text-accent hover:underline">
+                {source.title || source.originalFilename || source.id}
+              </Link>
+              <span className="text-muted">
+                {" · "}{source.supplierId ?? "—"}
+                {source.pageNumber ? ` · ${t("formulationResult.evidencePanel.fieldFormulaPage", { page: source.pageNumber })}` : ""}
+                {source.printedName || source.printedAmount ? ` · "${[source.printedName, source.printedAmount].filter(Boolean).join(" ")}"` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (evidence.source_record_ids ?? []).length > 0 ? (
+        <ul className="mt-1.5 space-y-1">
+          {(evidence.source_record_ids ?? []).map((id) => (
+            <li key={id} className="text-[11px]">
+              <Link to={`/reference-formulations/${encodeURIComponent(id)}`} className="text-accent hover:underline">{id.replace(/^reference-formula-/u, "").slice(0, 16)}…</Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {total > shown.length && shown.length > 0 && (
+        <p className="mt-1 text-[10px] text-muted">{t("formulationResult.evidencePanel.fieldFormulasMore", { count: total - shown.length })}</p>
+      )}
+      <p className="mt-1.5 text-[10px] italic text-muted">{t("formulationResult.evidencePanel.fieldFormulasLimit")}</p>
+    </EvidenceSection>
+  );
+}
+
 function IngredientEvidencePanel({
   card,
   formula,
+  materials,
   selectedIndex,
   onClose,
   t,
 }: {
   card: FormulationCard | undefined;
   formula: GeneratedFormula | undefined;
+  materials: RawMaterial[];
   selectedIndex: number | null;
   onClose: () => void;
   t: TFunction<readonly ["session", "common"]>;
@@ -1236,15 +1321,18 @@ function IngredientEvidencePanel({
   // normalized ingredient key Python computed. Absent on a pre-Session-3
   // session — every section below falls back to its honest "not yet
   // available" wording exactly as before, never fabricated.
-  const key = normalizeIngredientKey(ing.inci);
+  const key = cardIngredientKey(ing, card?.ingredient_origins);
+  const displayKey = normalizeIngredientKey(ing.inci);
   const links = (card?.evidence_links ?? []).filter((l) => l.ingredient_key === key);
-  const alignment = card?.concentration_alignment?.[key];
+  const alignment = card?.concentration_alignment?.[displayKey] ?? card?.concentration_alignment?.[key];
+  const fieldFormulas = referenceEvidenceFor(formula, key);
+  const material = ing.material_code ? materials.find((row) => row.code === ing.material_code) : undefined;
   const strongest = links.length > 0 ? links.slice().sort((a, b) => CLASS_RANK[a.evidence_class] - CLASS_RANK[b.evidence_class])[0] : undefined;
   // Phase 14 Session 4 — real, strictly-comparable statistics
   // (`evidence.py::compute_comparable_stats()`) when the session has them;
   // `null`/absent means the pipeline itself judged the evidence not
   // strictly comparable enough (§8) — never a fabricated range.
-  const stats = card?.comparable_stats?.[key];
+  const stats = card?.comparable_stats?.[key] ?? card?.comparable_stats?.[displayKey];
   const origins = card?.ingredient_origins?.[key] ?? [];
   const isAiOnly = origins.length === 1 && origins[0] === "ai_formulation_inference";
 
@@ -1283,6 +1371,9 @@ function IngredientEvidencePanel({
         </EvidenceSection>
       )}
 
+      {fieldFormulas && <FieldFormulaEvidence evidence={fieldFormulas} t={t} />}
+      {material && <MaterialRecordEvidence material={material} t={t} />}
+
       <EvidenceSection title={t("formulationResult.evidencePanel.whyThisIngredient")}>
         <p className="text-[11.5px] leading-relaxed text-muted">
           {ing.function
@@ -1313,6 +1404,14 @@ function IngredientEvidencePanel({
               </div>
             </div>
           </div>
+        ) : fieldFormulas?.dosage_guidance ? (
+          <p className="text-[11.5px] leading-relaxed text-text">
+            {t("formulationResult.evidencePanel.fieldFormulaDosage", {
+              count: fieldFormulas.dosage_guidance.formula_count,
+              lower: fieldFormulas.dosage_guidance.typical_range_percent.lower,
+              upper: fieldFormulas.dosage_guidance.typical_range_percent.upper,
+            })}
+          </p>
         ) : alignment === "evidence_supported" && strongest ? (
           <p className="text-[11.5px] leading-relaxed text-text">
             {t("formulationResult.evidencePanel.evidenceSupported", {
@@ -1360,20 +1459,8 @@ function IngredientEvidencePanel({
             </ul>
           </>
         ) : formula.references && formula.references.length > 0 ? (
-          <>
-            <p className="mb-1.5 text-[10px] text-muted">{t("formulationResult.evidencePanel.sourcesScopeNote")}</p>
-            <ul className="space-y-1">
-              {formula.references.slice(0, 5).map((r, i) => (
-                <li key={i} className="text-[11px] text-text">
-                  {t("formulationResult.evidencePanel.sourceLine", {
-                    author: r.author || t("formulationResult.evidencePanel.unknownAuthor"),
-                    year: r.year || "",
-                    doi: r.doi || t("formulationResult.evidencePanel.noDoi"),
-                  })}
-                </li>
-              ))}
-            </ul>
-          </>
+          // Articles cited for the whole formula are not evidence for this one ingredient.
+          <p className="text-[11.5px] text-muted">{t("formulationResult.evidencePanel.noIngredientSource", { count: formula.references.length })}</p>
         ) : (
           <p className="text-[11.5px] text-muted">{t("formulationResult.evidencePanel.noSources")}</p>
         )}

@@ -509,6 +509,7 @@
         "malformed": "One or more ingredient percentages could not be parsed."
       },
       "origins": {
+        "reviewed_reference_formulation": "Chosen because reviewed supplier formula PDFs use it",
         "scientific_evidence": "Supported by linked scientific evidence",
         "supplier_data": "From supplier technical data",
         "internal_formulab_data": "From FormuLab internal data",
@@ -517,6 +518,7 @@
         "ai_formulation_inference": "AI formulation inference — no direct supporting evidence found. Laboratory validation required."
       },
       "originsShort": {
+        "reviewed_reference_formulation": "Formula PDF",
         "scientific_evidence": "Evidence",
         "supplier_data": "Supplier",
         "internal_formulab_data": "Internal",
@@ -542,6 +544,14 @@
       "rationaleNotItemized": "A per-ingredient rationale is not yet itemized for this candidate.",
       "whyThisConcentration": "Why {{pct}}?",
       "insufficientEvidence": "Insufficient comparable evidence. Laboratory validation required.",
+      "materialRecord": "Raw material record",
+      "noIngredientSource": "No article is linked to this ingredient. The {{count}} article(s) cited for the whole formula are on the Evidence & Sources tab.",
+      "fieldFormulas": "Supplier formula PDFs",
+      "fieldFormulasSummary": "Printed in {{count}} of {{eligible}} reviewed {{family}} field formulas from {{suppliers}} supplier(s). This raised its rank when ingredients were chosen.",
+      "fieldFormulaDosage": "Typical amount in {{count}} reviewed field formula(s): {{lower}}–{{upper}}%. Laboratory validation still required.",
+      "fieldFormulaPage": "page {{page}}",
+      "fieldFormulasMore": "+{{count}} more formula(s) not listed.",
+      "fieldFormulasLimit": "Field formulas show where suppliers used this ingredient; they are precedent, not proof of suitability, safety or performance.",
       "decisionFactors": "FormuLab Decision Factors",
       "decisionFactorsNotComputed": "Decision factors are not yet computed for individual ingredients.",
       "supportingSources": "Supporting Scientific Sources",

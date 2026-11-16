@@ -125,11 +125,23 @@ def _product_evidence(master_dir: str) -> dict[str, dict[str, Any]]:
     return by_key
 
 
+_GENERATED_NOTE = "From supplier field formulas:"
+_TRADEMARK = re.compile("[®™�]")
+
+
+def _generated(material: dict[str, Any]) -> bool:
+    """A row this tool wrote and nobody has edited since."""
+    return (str(material.get("code") or "").startswith("REF-") and str(material.get("notes") or "").startswith(_GENERATED_NOTE)
+            and material.get("updatedAt") == material.get("createdAt"))
+
+
 def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
-    existing = _array(master_dir, "materials")
+    """Rows for every printed raw material Material Master lacks; this tool's own unedited rows are rebuilt."""
+    existing = [material for material in _array(master_dir, "materials") if not _generated(material)]
     known = {key for material in existing
              for key in (inci_chemistry_id(material.get(field)) for field in ("inciName", "tradeName", "displayName")) if key}
     used_codes = {material.get("code") for material in existing}
+    titles: dict[str, str] = {}
     names: dict[str, Counter[str]] = defaultdict(Counter)
     functions: dict[str, list[str]] = defaultdict(list)
     suppliers: dict[str, set[str]] = defaultdict(set)
@@ -141,6 +153,11 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
             if (not key or key in known or not re.search(r"[A-Za-z]{3}", name) or len(name) > 80
                     or _NOT_A_MATERIAL.search(name)):
                 continue
+            # Two trademark signs mean the PDF merged two rows ("Dongbaek Oil ® Hostapon SCI 85 ®");
+            # the line's own INCI cell then names it.
+            if len(_TRADEMARK.findall(name)) >= 2 and _cell(line, "inciOrChemicalName"):
+                name = _cell(line, "inciOrChemicalName")
+            titles[str(source.get("id"))] = str(source.get("source", {}).get("title") or source.get("id"))
             # U+FFFD is a trademark sign the PDF font did not map; the printed name reads without it.
             name = re.sub(r"\s+", " ", name.replace("\ufffd", "")).strip()
             names[key][name] += 1
@@ -166,7 +183,11 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
             "schemaVersion": "1.0", "code": code, "displayName": display,
             "casNumbers": found.get("cas", [])[:20], "ecNumbers": [],
             "activeMatterState": "missing", "functions": material_functions(functions.get(key, [])),
-            "documents": found.get("documents", [])[:20], "regulatoryStatuses": [], "hazardClassifications": [],
+            # The formula PDFs that print it, so a material links back to its sources.
+            "documents": (found.get("documents", []) + [
+                {"kind": "other", "title": f"Supplier field formula: {titles.get(formula_id, formula_id)}",
+                 "location": f"reference-formulations/{formula_id}"}
+                for formula_id in sorted(formulas.get(key, ()))])[:20], "regulatoryStatuses": [], "hazardClassifications": [],
             "allergens": [], "incompatibilities": [], "substituteCodes": [], "active": True,
             "notes": (f"From supplier field formulas: {len(formulas.get(key, ()))} formula(s), suppliers "
                       f"{', '.join(sorted(s for s in suppliers.get(key, set()) | set(found.get('supplierIds', [])) if s))}. "
@@ -191,13 +212,26 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
 def append_materials(master_dir: str) -> dict[str, int]:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     existing = _array(master_dir, "materials")
-    fresh = build_materials(master_dir, now)
-    if fresh:
+    built = {row["code"]: row for row in build_materials(master_dir, now)}
+    rows, repaired = [], 0
+    for material in existing:
+        row = built.pop(material.get("code"), None) if _generated(material) else None
+        if row is None:
+            rows.append(material)
+            continue
+        # Keep the row's identity and creation time; take the rebuilt name and sources.
+        row = {**row, "createdAt": material.get("createdAt"), "updatedAt": material.get("updatedAt")}
+        if row != material:
+            repaired += 1
+            row["updatedAt"] = now
+        rows.append(row)
+    rows.extend(built.values())
+    if built or repaired:
         path = os.path.join(master_dir, "materials.json")
         with open(path + ".tmp", "w", encoding="utf-8") as handle:
-            json.dump(existing + fresh, handle, ensure_ascii=False, indent=2)
+            json.dump(rows, handle, ensure_ascii=False, indent=2)
         os.replace(path + ".tmp", path)
-    return {"existing": len(existing), "added": len(fresh)}
+    return {"existing": len(existing), "added": len(built), "repaired": repaired}
 
 
 if __name__ == "__main__":

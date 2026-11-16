@@ -82,6 +82,10 @@ class AuthoritativeReferenceGuidanceTests(unittest.TestCase):
         self.assertEqual(result["ingredientPriors"][0]["sourceRecordIds"], ["formula-1"])
         self.assertEqual(result["ingredientPriors"][0]["formulaWeightedFrequency"], 1.0)
         self.assertEqual(result["ingredientPriors"][0]["dosageGuidance"][0]["typicalRangePercent"], {"lower": 4.0, "upper": 4.0})
+        # The result can name the formula PDF that printed the ingredient.
+        source = result["ingredientPriors"][0]["sourceFormulas"][0]
+        self.assertEqual(source["id"], "formula-1")
+        self.assertEqual(source["printedAmount"], "4")
 
     def test_unreviewed_or_fabricated_renderer_claims_cannot_create_eligible_guidance(self):
         self._write("reference_formulation_reviews", [])

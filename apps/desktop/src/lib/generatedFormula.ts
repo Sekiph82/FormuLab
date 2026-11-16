@@ -14,6 +14,9 @@ export interface GeneratedReference {
 
 export interface GeneratedIngredient {
   inci?: string;
+  /** The generator's candidate key — the key of this ingredient in the card's
+   *  `ingredient_origins` and `evidence_links`. Absent on older sessions. */
+  key?: string;
   function?: string;
   weight_pct?: string;
   /** FVL-03.011 — the real canonical `RawMaterial.code` this ingredient
@@ -57,11 +60,29 @@ export interface GeneratedIngredient {
   }>;
 }
 
+/** How reviewed supplier field formulas (imported formula PDFs) supported one
+ *  ingredient: `engine.py` `reference_formulation_evidence`. */
+export interface ReferenceFormulationEvidence {
+  ingredient_key?: string;
+  canonical_chemistry_id?: string;
+  product_family_key?: string;
+  formula_count: number;
+  eligible_formula_count: number;
+  supplier_count: number;
+  source_record_ids?: string[];
+  source_formulas?: {
+    id: string; title?: string; supplierId?: string; originalFilename?: string;
+    printedName?: string; printedAmount?: string; pageNumber?: number | null;
+  }[];
+  dosage_guidance?: { formula_count: number; typical_range_percent: { lower: number; upper: number } };
+}
+
 export interface GeneratedFormula {
   name?: string;
   purpose?: string;
   references?: GeneratedReference[];
   ingredients?: GeneratedIngredient[];
+  reference_formulation_evidence?: ReferenceFormulationEvidence[];
   how_it_works?: { title?: string; text?: string }[];
   avoid?: { item?: string; reason?: string }[];
   usage?: string[];
@@ -134,4 +155,22 @@ export function ingredientId(index: number, ingredient: GeneratedIngredient): st
  *  keep both in sync if either changes. */
 export function normalizeIngredientKey(raw: string | undefined): string {
   return (raw ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+/** The card's own key for an ingredient. The generator's `key` when the session
+ *  has it; for an older session the display name, or else the INCI a trade name
+ *  prints in brackets ("Ucare Polymer JR 400 (Polyquaternium-10)" ->
+ *  "polyquaternium-10") when only that key is in `known`. */
+export function cardIngredientKey(ingredient: GeneratedIngredient, known?: Record<string, unknown>): string {
+  if (ingredient.key) return ingredient.key;
+  const display = normalizeIngredientKey(ingredient.inci);
+  if (!known || display in known) return display;
+  const inner = normalizeIngredientKey(/\(([^()]+)\)\s*$/u.exec(ingredient.inci ?? "")?.[1]);
+  return inner && inner in known ? inner : display;
+}
+
+/** The field-formula evidence the generator recorded for this ingredient key. */
+export function referenceEvidenceFor(formula: GeneratedFormula | undefined, key: string): ReferenceFormulationEvidence | undefined {
+  return formula?.reference_formulation_evidence?.find((item) =>
+    (item.ingredient_key ?? item.canonical_chemistry_id?.split(":").slice(1).join(":")) === key);
 }

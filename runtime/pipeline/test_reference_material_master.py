@@ -28,12 +28,34 @@ class ReferenceMaterialMasterTests(unittest.TestCase):
             result = m.append_materials(directory)
             with open(os.path.join(directory, "materials.json"), encoding="utf-8") as handle:
                 rows = json.load(handle)
-            self.assertEqual(result, {"existing": 1, "added": 2})
+            self.assertEqual(result, {"existing": 1, "added": 2, "repaired": 0})
             added = {row["displayName"]: row for row in rows[1:]}
             self.assertEqual(added["Crodamol GTCC"]["functions"], ["emollient"])
             self.assertEqual(added["10,000/200 Fluid (Dimethicone)"]["inciName"], "Dimethicone")
             self.assertNotIn("inciName", added["Crodamol GTCC"])
-            self.assertEqual(m.append_materials(directory)["added"], 0)
+            # Each row links to the formula PDF that printed it.
+            self.assertEqual(added["Crodamol GTCC"]["documents"][-1]["location"], "reference-formulations/f1")
+            self.assertEqual(m.append_materials(directory), {"existing": 3, "added": 0, "repaired": 0})
+
+    def test_a_merged_row_is_named_by_its_inci_and_an_old_generated_row_is_repaired(self):
+        with tempfile.TemporaryDirectory() as directory:
+            def write(name, rows):
+                with open(os.path.join(directory, f"{name}.json"), "w", encoding="utf-8") as handle:
+                    json.dump(rows, handle)
+            merged = {"id": "l1", "ingredientName": {"rawValue": "Dongbaek (Tsubaki) Oil � Hostapon SCI 85 �"},
+                      "inciOrChemicalName": {"rawValue": "Camellia Japonica Seed Oil"}}
+            write("reference_formulations", [{"id": "f1", "sourceDocumentHash": "a" * 64,
+                                              "source": {"supplierId": "clariant", "parserVersion": "layout-v3", "title": "Body wash"},
+                                              "ingredientLines": [merged]}])
+            old = {"code": "REF-CAMELLIA-JAPONICA-SEED-OIL", "displayName": "Dongbaek (Tsubaki) Oil � Hostapon SCI 85 �",
+                   "notes": "From supplier field formulas: 1 formula(s).", "createdAt": "t0", "updatedAt": "t0"}
+            write("materials", [old])
+            self.assertEqual(m.append_materials(directory)["repaired"], 1)
+            with open(os.path.join(directory, "materials.json"), encoding="utf-8") as handle:
+                (row,) = json.load(handle)
+            self.assertEqual(row["displayName"], "Camellia Japonica Seed Oil")
+            self.assertEqual(row["createdAt"], "t0")
+            self.assertEqual(row["documents"][0]["title"], "Supplier field formula: Body wash")
 
     def test_page_furniture_rows_are_not_materials(self):
         noise = ["© 2019 The Dow Chemical Company. All rights reserved.", "(and) Cetearyl Alcohol", "/ Dow",

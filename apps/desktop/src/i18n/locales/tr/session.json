@@ -517,6 +517,7 @@
         "malformed": "One or more ingredient percentages could not be parsed."
       },
       "origins": {
+        "reviewed_reference_formulation": "Seçildi: incelenmiş tedarikçi formül PDF'lerinde geçiyor",
         "scientific_evidence": "Supported by linked scientific evidence",
         "supplier_data": "From supplier technical data",
         "internal_formulab_data": "From FormuLab internal data",
@@ -525,6 +526,7 @@
         "ai_formulation_inference": "AI formulation inference — no direct supporting evidence found. Laboratory validation required."
       },
       "originsShort": {
+        "reviewed_reference_formulation": "Formül PDF",
         "scientific_evidence": "Evidence",
         "supplier_data": "Supplier",
         "internal_formulab_data": "Internal",
@@ -542,6 +544,14 @@
       "rationaleNotItemized": "A per-ingredient rationale is not yet itemized for this candidate.",
       "whyThisConcentration": "Why {{pct}}?",
       "insufficientEvidence": "Insufficient comparable evidence. Laboratory validation required.",
+      "materialRecord": "Hammadde kaydı",
+      "noIngredientSource": "Bu hammaddeye bağlı bir makale yok. Formülün tamamı için atıf yapılan {{count}} makale Evidence & Sources sekmesinde.",
+      "fieldFormulas": "Tedarikçi formül PDF'leri",
+      "fieldFormulasSummary": "İncelenmiş {{eligible}} {{family}} formülünün {{count}} tanesinde geçiyor ({{suppliers}} tedarikçi). Hammadde seçilirken bu, sırasını yükseltti.",
+      "fieldFormulaDosage": "İncelenmiş {{count}} tedarikçi formülünde tipik miktar: %{{lower}}–{{upper}}. Laboratuvar doğrulaması yine gerekli.",
+      "fieldFormulaPage": "sayfa {{page}}",
+      "fieldFormulasMore": "+{{count}} formül daha (listelenmedi).",
+      "fieldFormulasLimit": "Tedarikçi formülleri bu hammaddenin nerede kullanıldığını gösterir; uygunluk, güvenlik veya performans kanıtı değildir.",
       "decisionFactors": "FormuLab Decision Factors",
       "decisionFactorsNotComputed": "Decision factors are not yet computed for individual ingredients.",
       "supportingSources": "Supporting Scientific Sources",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isQsIngredient, normalizeIngredientKey, parsePercent, totalWeightPct } from "./generatedFormula";
+import { cardIngredientKey, isQsIngredient, normalizeIngredientKey, parsePercent, referenceEvidenceFor, totalWeightPct } from "./generatedFormula";
 
 describe("isQsIngredient", () => {
   it.each(["q.s. 100", "q.s 100", "QS 100", "qs to 100", "Q.S."])("recognizes %s", (raw) => {
@@ -64,5 +64,24 @@ describe("normalizeIngredientKey", () => {
 
   it("never merges chemically distinct sulfates", () => {
     expect(normalizeIngredientKey("Sodium Lauryl Sulfate")).not.toBe(normalizeIngredientKey("Sodium Laureth Sulfate"));
+  });
+});
+
+describe("cardIngredientKey", () => {
+  const origins = { "polyquaternium-10": ["reviewed_reference_formulation"], "panthenol": ["supplier_data"] };
+
+  it("finds a trade-name line by the INCI it prints in brackets", () => {
+    expect(cardIngredientKey({ inci: "Ucare Polymer JR 400 (Polyquaternium-10)" }, origins)).toBe("polyquaternium-10");
+    expect(cardIngredientKey({ inci: "Panthenol" }, origins)).toBe("panthenol");
+  });
+
+  it("prefers the generator's own key", () => {
+    expect(cardIngredientKey({ inci: "Anything", key: "panthenol" }, origins)).toBe("panthenol");
+  });
+
+  it("finds the field-formula evidence recorded for that key", () => {
+    const formula = { reference_formulation_evidence: [{ canonical_chemistry_id: "inci:polyquaternium-10", formula_count: 22, eligible_formula_count: 78, supplier_count: 3 }] };
+    expect(referenceEvidenceFor(formula, "polyquaternium-10")?.formula_count).toBe(22);
+    expect(referenceEvidenceFor(formula, "panthenol")).toBeUndefined();
   });
 });

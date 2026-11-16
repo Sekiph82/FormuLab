@@ -126,6 +126,42 @@ describe("FormulationResultPage", () => {
     await waitFor(() => expect(screen.getAllByText("5.50").length).toBeGreaterThanOrEqual(2));
   });
 
+  it("a trade-name line shows its origin, the formula PDFs that printed it and its raw material record", async () => {
+    readSession.mockResolvedValue({
+      ...SESSION,
+      cards: [{
+        version: "v1", markdown: "", violations: [],
+        ingredient_origins: { "polyquaternium-10": ["supplier_data", "reviewed_reference_formulation"] },
+        formula: {
+          name: "Balanced / Recommended",
+          ingredients: [{ inci: "Ucare Polymer JR 400 (Polyquaternium-10)", function: "Conditioning Agent", weight_pct: "0.25", material_code: "REF-UCARE" }],
+          references: [{ author: "Bhavani", year: "2023", doi: "10.1/whole-formula" }],
+          reference_formulation_evidence: [{
+            canonical_chemistry_id: "inci:polyquaternium-10", product_family_key: "shampoo",
+            formula_count: 22, eligible_formula_count: 78, supplier_count: 3,
+            source_record_ids: ["reference-formula-abc"],
+            source_formulas: [{ id: "reference-formula-abc", title: "Premium Shampoo", supplierId: "dow", pageNumber: 1, printedName: "UCARE Polymer JR-400", printedAmount: "0.30" }],
+            dosage_guidance: { formula_count: 20, typical_range_percent: { lower: 0.2, upper: 0.3 } },
+          }],
+        },
+      }],
+    });
+    rankingMocks.listRecords.mockImplementation(async (collection: unknown) => collection === "materials" ? [{
+      code: "REF-UCARE", displayName: "Ucare Polymer JR 400", casNumbers: [], documents: [
+        { kind: "other", title: "Supplier field formula: Premium Shampoo", location: "reference-formulations/reference-formula-abc" },
+      ], notes: "From supplier field formulas: 22 formula(s).",
+    }] : []);
+    renderPage();
+    await userEvent.click(await screen.findByText("Ucare Polymer JR 400 (Polyquaternium-10)"));
+    expect(screen.getAllByText("Formula PDF").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Printed in 22 of 78 reviewed shampoo field formulas/)).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Premium Shampoo" }).getAttribute("href")).toBe("/reference-formulations/reference-formula-abc");
+    expect(screen.getByText(/Typical amount in 20 reviewed field formula\(s\): 0.2–0.3%/)).not.toBeNull();
+    expect(await screen.findByRole("link", { name: "Supplier field formula: Premium Shampoo" })).not.toBeNull();
+    // A whole-formula article is not shown as this ingredient's own source.
+    expect(screen.queryByText(/Bhavani/)).toBeNull();
+  });
+
   it("switching versions clears the previously selected ingredient's evidence context", async () => {
     renderPage();
     await screen.findByText("Cocamidopropyl Betaine");
