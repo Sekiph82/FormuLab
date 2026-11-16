@@ -15,14 +15,14 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
 - Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
-- Blockers/Waits: none (handbook import running in the app)
+- Blockers/Waits: none
 
 ## Progress
 
-- Total Tasks: 214
-- Completed Tasks: 212
-- Remaining Tasks: 2
-- Completion: 99.1%
+- Total Tasks: 215
+- Completed Tasks: 214
+- Remaining Tasks: 1
+- Completion: 99.5%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -407,7 +407,8 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [x] REF-01.012 — Import the 1,704 unique raw-material documents (SDS, TDS, specifications, GHS, regulatory, brochures) with SDS extraction and product-card links
 - [x] REF-01.013 — Unverified Material Master candidates built one by one from every extracted formula line, linked to raw-material documents
 - [x] REF-01.014 — Make the supplier formulation corpus the primary source for formula architecture and dosage; literature search becomes supporting evidence
-- [~] REF-01.015 — Import owner-purchased formulation handbooks (Flick Vol 2: 1,847 formulas) as gap-filling reference formulas
+- [x] REF-01.015 — Import owner-purchased formulation handbooks (Flick Vol 2: 1,847 formulas) as gap-filling reference formulas
+- [x] REF-01.016 — Read every formula PDF the corpus holds: Clariant "Weight -%" and INCI-only cards, one record per brochure formula, and show the formula PDFs behind each New Request ingredient
 - [~] REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
 
 ## Historical Detail & Evidence
