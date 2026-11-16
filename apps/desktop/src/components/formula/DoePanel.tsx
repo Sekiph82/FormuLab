@@ -33,7 +33,6 @@ import {
   assertAcceptedRecommendationRunCanCreateTrial,
   assertDoeCandidateHumanSelected,
   evaluateDoeCandidateMaterialCost,
-  calculateDesignDiagnostics,
   createDoeAnalysis,
   createDoeCandidates,
   createDoeRunFromAcceptedCandidate,
@@ -444,10 +443,10 @@ export function DoePanel({
     return version.status;
   }
 
-  async function commitWizard() {
-    setError(null);
-    try {
-      const study = createDoeStudy(
+  // The wizard's study and its design, built from the wizard state; the preview step shows
+  // this design and the commit saves it.
+  function buildWizardDesign() {
+    const study = createDoeStudy(
         {
           studyCode: wizard.studyCode || `DOE-${Date.now().toString(36).toUpperCase()}`,
           title: wizard.title,
@@ -464,22 +463,28 @@ export function DoePanel({
         },
         actor,
       );
-      const factorRows = wizard.factors.map((f) => ({ ...f, studyId: study.id, studyRevision: study.revision }));
-      const constraintRows = wizard.constraints.map((c) => ({ ...c, studyId: study.id, studyRevision: study.revision }));
-      const responseRows = wizard.responses.map((r) => ({ ...r, studyId: study.id, studyRevision: study.revision }));
+    const factorRows = wizard.factors.map((f) => ({ ...f, studyId: study.id, studyRevision: study.revision }));
+    const constraintRows = wizard.constraints.map((c) => ({ ...c, studyId: study.id, studyRevision: study.revision }));
+    const responseRows = wizard.responses.map((r) => ({ ...r, studyId: study.id, studyRevision: study.revision }));
+    const generated = generateDoeDesign(
+      {
+        study,
+        factors: factorRows,
+        constraints: constraintRows,
+        responses: responseRows,
+        designType: wizard.designType,
+        seed: wizard.seed,
+        centerPointCount: wizard.centerPointCount,
+      },
+      actor,
+    );
+    return { study, factorRows, constraintRows, responseRows, generated };
+  }
 
-      const generated = generateDoeDesign(
-        {
-          study,
-          factors: factorRows,
-          constraints: constraintRows,
-          responses: responseRows,
-          designType: wizard.designType,
-          seed: wizard.seed,
-          centerPointCount: wizard.centerPointCount,
-        },
-        actor,
-      );
+  async function commitWizard() {
+    setError(null);
+    try {
+      const { study, factorRows, constraintRows, responseRows, generated } = buildWizardDesign();
 
       const readyStudy: DoeStudy = { ...study, status: "runs_generated" };
 
@@ -1199,6 +1204,7 @@ export function DoePanel({
             setWizardStep(WIZARD_FIRST_STEP);
           }}
           onCommit={() => void commitWizard()}
+          previewDesign={() => buildWizardDesign().generated.design}
         />
       )}
     </div>
@@ -1570,6 +1576,7 @@ function StudyWizard({
   update,
   onCancel,
   onCommit,
+  previewDesign,
 }: {
   t: SimpleT;
   versions: FormulationVersion[];
@@ -1579,6 +1586,7 @@ function StudyWizard({
   update: <K extends keyof WizardState>(key: K, value: WizardState[K]) => void;
   onCancel: () => void;
   onCommit: () => void;
+  previewDesign: () => DoeDesign;
 }) {
   const stepIndex = WIZARD_STEPS.indexOf(step);
   const factorIssues = validateDoeFactors(wizard.factors);
@@ -1588,8 +1596,9 @@ function StudyWizard({
   let preview: { runCount: number; warnings: string[] } | null = null;
   if (step === "preview" && wizard.factors.length > 0 && factorIssues.length === 0) {
     try {
-      const diagnostics = calculateDesignDiagnostics([], wizard.factors, wizard.constraints);
-      preview = { runCount: diagnostics.runCount, warnings: diagnostics.warnings };
+      // Diagnose the design the commit would save — not an empty run list.
+      const design = previewDesign();
+      preview = { runCount: design.runCount, warnings: design.diagnostics.warnings };
     } catch {
       preview = null;
     }

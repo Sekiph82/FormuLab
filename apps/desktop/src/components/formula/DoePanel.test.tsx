@@ -250,7 +250,8 @@ describe("DoePanel — study wizard", () => {
     await user.click(within(dialog).getByRole("button", { name: "Next" }));
     // Step 7: generation settings — leave defaults.
     await user.click(within(dialog).getByRole("button", { name: "Next" }));
-    // Step 8: preview.
+    // Step 8: preview — the run count of the design that will be generated, not "—".
+    expect(within(dialog).getByText(/Estimated run count: 2/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Next" }));
 
     // Step 9: confirm — generate.
