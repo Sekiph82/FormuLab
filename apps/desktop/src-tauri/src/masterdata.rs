@@ -2452,6 +2452,8 @@ fn explicit_phase_values(instruction: &str, explicit_phase: Option<&serde_json::
             }
         }
         cursor = end.max(start + 1);
+        // "phase €…": one byte past `start` can fall inside a multi-byte character.
+        while cursor < lower.len() && !lower.is_char_boundary(cursor) { cursor += 1; }
     }
     Ok(values)
 }
@@ -3251,6 +3253,13 @@ fn validate_raw_sensitive_write(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_phase_word_followed_by_a_multibyte_character_does_not_panic() {
+        // A Flick handbook step reads "... phase €..." after OCR; this used to slice inside '€'.
+        let phases = explicit_phase_values("Add phase €5 slowly, then phase B.", None, "ref").unwrap();
+        assert_eq!(phases, vec![("B".to_string(), vec!["ref".to_string()])]);
+    }
 
     const DOSSIER_COLLECTIONS: [(&str, bool); 8] = [
         ("regulatory_dossiers", false),
