@@ -104,11 +104,15 @@ export async function ensureReferenceFormulationNormalizations(): Promise<number
     listRecords("reference_formulation_normalizations"),
     listRecords("supplier_sds_product_evidence"),
   ]);
-  const normalized = new Set(versionRows.map((record) => referenceFormulationNormalizationVersionSchema.parse(record).referenceFormulationRecordId));
+  const normalized = new Set(versionRows.map((record) => String((record as { referenceFormulationRecordId?: unknown }).referenceFormulationRecordId ?? "")));
+  // Only records still missing a normalization are schema-checked: validating the whole
+  // corpus (hundreds of MB) after every supplier batch took minutes per batch.
+  const pending = currentReferenceFormulations(sourceRows as unknown as { id: string; sourceDocumentHash: string; source: { parserVersion: string }; ingredientLines?: unknown[] }[])
+    .filter((record) => !normalized.has(record.id) && (record.ingredientLines?.length ?? 0) > 0);
+  if (pending.length === 0) return 0;
   const sdsEvidence = sdsRows.map((record) => supplierSdsProductEvidenceRecordSchema.parse(record));
   let added = 0;
-  for (const source of currentReferenceFormulations(sourceRows.map((record) => referenceFormulationRecordSchema.parse(record)))) {
-    if (normalized.has(source.id) || source.ingredientLines.length === 0) continue;
+  for (const source of pending.map((record) => referenceFormulationRecordSchema.parse(record))) {
     await appendReferenceFormulationNormalizationRecord(createReferenceFormulationNormalizationVersion({
       id: `normalization-auto-${source.id}`,
       source,
