@@ -239,11 +239,18 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
       const acquisitions = await listRecords("supplier_document_acquisitions");
       const formulaHashes = new Set(acquisitions
         .filter((record) => record.documentType === "FORMULATION").map((record) => record.sha256.toLowerCase()));
-      const storedProductDocuments = new Map(acquisitions
-        .filter((record) => record.documentType !== "FORMULATION").map((record) => [record.sha256.toLowerCase(), record]));
+      // One PDF can be stored for several products (the same TDS in three product folders); every
+      // such receipt is its own product card, so reading is tracked per receipt, not per file.
+      const storedProductDocuments = new Map<string, SupplierDocumentAcquisition[]>();
+      for (const record of acquisitions) {
+        if (record.documentType === "FORMULATION") continue;
+        const key = record.sha256.toLowerCase();
+        storedProductDocuments.set(key, [...(storedProductDocuments.get(key) ?? []), record]);
+      }
       const productEvidence = (await listRecords("supplier_product_evidence")).map((row) => supplierProductEvidenceRecordSchema.parse(row));
       // A stored SDS/TDS whose reading failed earlier is read again on the next run; stored bytes are not re-copied.
-      const readHashes = new Set(productEvidence.flatMap((record) => record.recordType === "document" ? [record.documentHash.toLowerCase()] : []));
+      const readAcquisitions = new Set(productEvidence.flatMap((record) => record.recordType === "document" ? [record.acquisitionCode] : []));
+      const readErrors = new Map<string, number>();
       for (let offset = 0; offset < documents.length; offset += 100) {
         const receiptInputs: NewSupplierDocumentAcquisition[] = [];
         const fileByHash = new Map<string, File>();
@@ -263,7 +270,12 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
             const stored = storedProductDocuments.get(sha256);
             if (stored) {
               duplicates += 1;
-              if (!readHashes.has(sha256) && !unread.includes(stored)) { unread.push(stored); fileByHash.set(sha256, entry.file); }
+              for (const receipt of stored) {
+                if ((receipt.documentType === "SDS" || receipt.documentType === "TDS") && !readAcquisitions.has(receipt.code) && !unread.includes(receipt)) {
+                  unread.push(receipt);
+                  fileByHash.set(sha256, entry.file);
+                }
+              }
               continue;
             }
             await storeSupplierDocumentPdf(bytes, sha256);
@@ -301,12 +313,19 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
             const evidence = await extractSupplierProductDocumentEvidence(acquisition, new Uint8Array(await file.arrayBuffer()), await deriveSupplierProductCardId(acquisition));
             const saved = await appendSupplierProductEvidenceUpdate(evidence, createSupplierProductCardVersion({ acquisition, evidence, existingRecords: productEvidence }));
             productEvidence.push(saved.evidence, saved.cardVersion);
+            readAcquisitions.add(acquisition.code);
             extracted += 1;
-          } catch { notExtracted += 1; }
+          } catch (cause) {
+            notExtracted += 1;
+            const reason = cause instanceof Error ? cause.message : String(cause);
+            readErrors.set(reason, (readErrors.get(reason) ?? 0) + 1);
+          }
         }
         if (controller.signal.aborted) break;
       }
-      setResult(text(`Product document intake ${controller.signal.aborted ? "paused" : "finished"}: ${imported} raw-material document receipts added (${extracted} SDS/TDS read onto product cards, ${notExtracted} SDS/TDS could not be read), ${duplicates} exact duplicates, ${formulaCopies} formula copies skipped, ${failed} failed. Extracted facts are unreviewed candidates and are not linked to RawMaterial. Re-select the folder to safely retry remaining files.`, `Ürün belgesi alımı ${controller.signal.aborted ? "duraklatıldı" : "bitti"}: ${imported} hammadde belgesi kaydı eklendi (${extracted} SDS/TDS okunup ürün kartına bağlandı, ${notExtracted} SDS/TDS okunamadı), ${duplicates} tam kopya, ${formulaCopies} formül kopyası atlandı, ${failed} başarısız. Çıkarılan bilgiler incelenmemiş adaylardır ve RawMaterial'a bağlanmadı. Kalan dosyaları güvenle yeniden denemek için klasörü tekrar seçin.`));
+      // The most frequent read failures, so an unread sheet has a visible reason.
+      const reasons = [...readErrors].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([reason, count]) => `${count}× ${reason.slice(0, 160)}`).join(" · ");
+      setResult(text(`Product document intake ${controller.signal.aborted ? "paused" : "finished"}: ${imported} raw-material document receipts added (${extracted} SDS/TDS read onto product cards, ${notExtracted} SDS/TDS could not be read${reasons ? `: ${reasons}` : ""}), ${duplicates} exact duplicates, ${formulaCopies} formula copies skipped, ${failed} failed. Extracted facts are unreviewed candidates and are not linked to RawMaterial. Re-select the folder to safely retry remaining files.`, `Ürün belgesi alımı ${controller.signal.aborted ? "duraklatıldı" : "bitti"}: ${imported} hammadde belgesi kaydı eklendi (${extracted} SDS/TDS okunup ürün kartına bağlandı, ${notExtracted} SDS/TDS okunamadı${reasons ? `: ${reasons}` : ""}), ${duplicates} tam kopya, ${formulaCopies} formül kopyası atlandı, ${failed} başarısız. Çıkarılan bilgiler incelenmemiş adaylardır ve RawMaterial'a bağlanmadı. Kalan dosyaları güvenle yeniden denemek için klasörü tekrar seçin.`));
       onImported();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
