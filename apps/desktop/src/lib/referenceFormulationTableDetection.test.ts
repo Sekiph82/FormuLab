@@ -7,6 +7,22 @@ function line(y: number, cells: Array<[number, string]>): PositionedLine {
 }
 
 describe("detectIngredientTables", () => {
+  it("reads Clariant's \"Weight -%\" header and an INCI-only \"Phase | INCI | QUANTITY\" card", () => {
+    const [weightDash] = detectIngredientTables([
+      line(700, [[50, "Phase"], [90, "Ingredient"], [230, "INCI"], [480, "Weight -%"]]),
+      line(688, [[60, "A"], [90, "Water"], [230, "Aqua"], [485, "Add 100"]]),
+      line(676, [[90, "Aristoflex BLV"], [230, "Ammonium Acryloyldimethyltaurate/Beheneth-25"], [490, "0,3"]]),
+      line(668, [[230, "Methacrylate Crosspolymer"]]),
+    ]);
+    expect(weightDash!.rows[2]).toEqual(["", "Aristoflex BLV", "Ammonium Acryloyldimethyltaurate/Beheneth-25 Methacrylate Crosspolymer", "0,3"]);
+    const [inciOnly] = detectIngredientTables([
+      line(700, [[50, "Phase"], [90, "INCI"], [400, "QUANTITY"]]),
+      line(688, [[55, "A"], [90, "Aqua"], [405, "to 100"]]),
+      line(676, [[90, "Sodium Lauroyl Methyl Isethionate"], [405, "8.00"]]),
+    ]);
+    expect(inciOnly!.rows).toEqual([["Phase", "INCI", "% w/w"], ["A", "Aqua", "to 100"], ["", "Sodium Lauroyl Methyl Isethionate", "8.00"]]);
+  });
+
   it("reads a Product / Functionality / % W/W table and stops at the method heading", () => {
     const [table] = detectIngredientTables([
       line(692, [[71, "Alkaline Cleaner"], [448, "HC/HS/34"]]),

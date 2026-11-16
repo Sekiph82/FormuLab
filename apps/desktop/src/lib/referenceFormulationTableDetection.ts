@@ -21,11 +21,11 @@ const CANONICAL_HEADER: Record<DetectedColumn, string> = {
 
 const HEADER_PATTERNS: Array<[DetectedColumn, RegExp]> = [
   ["phase", /^(phase|step|stage)$/],
-  ["amount", /^(%|% ?w\/?w|w\/?w ?%|wt\.? ?%|% ?wt\.?|amount|quantity|dosage|dose|dose \(%?|dose \(% ?w\/?w\)?|concentration|percentage|percent|weight percent|(#?\d+ )?percentage \(%\)|% active|parts|parts by weight|composition %|weight ?\(?%\)?|% by weight|% ?\(w\/w\)|weight %)$/],
+  ["amount", /^(%|% ?w\/?w|w\/?w ?%|wt\.? ?%|% ?wt\.?|amount|quantity|dosage|dose|dose \(%?|dose \(% ?w\/?w\)?|concentration|percentage|percent|weight percent|(#?\d+ )?percentage \(%\)|% active|parts|parts by weight|composition %|weight ?-? ?\(?%\)?|% by weight|% ?\(w\/w\)|weight %|amount ?\(?%\)?|% inclusion|inclusion ?\(?%\)?)$/],
   ["inci", /^(inci|inci name|inci names?|chemical name|chemical description|chemical identity|chemical)$/],
   ["function", /^(function|functionality|role|purpose|benefit)$/],
   ["supplier", /^(supplier|manufacturer|vendor|source)$/],
-  ["ingredient", /^(ingredients?|ingredient ?\/ ?inci name|product|products|product name|component|components|raw materials?|trade ?names?|trade ?names? ?\/ ?suppliers?|commercial product|material|composition|[a-z]+ product ?\/ ?ingredient|formulation|formula)$/],
+  ["ingredient", /^(ingredients?|ingredient ?names?|ingredient ?\/ ?inci name|product|products|product name|component|components|raw materials?|trade ?names?|trade ?names? ?\/ ?suppliers?|commercial product|material|composition|[a-z]+ product ?\/ ?ingredient|formulation|formula)$/],
 ];
 /** Preferred name column when a header has several ("Ingredient" and "Trade Name"). */
 const PRIMARY_NAME = /^(ingredients?|component|components|product|products|composition|raw materials?)/;
@@ -78,7 +78,8 @@ function detectHeader(line: PositionedLine): HeaderCell[] | undefined {
     for (const cell of names) if (cell !== primary) cell.column = /supplier/i.test(cell.label) ? "supplier" : "ignore";
   }
   const known = cells.filter((cell) => cell.column !== "ignore").length;
-  const hasIngredient = cells.some((cell) => cell.column === "ingredient");
+  // Some cards name each line only by INCI ("Phase | INCI | Quantity").
+  const hasIngredient = cells.some((cell) => cell.column === "ingredient" || cell.column === "inci");
   const hasAmount = cells.some((cell) => cell.column === "amount");
   if (!hasIngredient || !hasAmount || known < 2 || known < cells.length - known) return undefined;
   return cells.sort((left, right) => left.x - right.x);
