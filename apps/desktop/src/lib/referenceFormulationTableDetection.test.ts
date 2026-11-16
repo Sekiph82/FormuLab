@@ -20,7 +20,8 @@ describe("detectIngredientTables", () => {
       line(688, [[55, "A"], [90, "Aqua"], [405, "to 100"]]),
       line(676, [[90, "Sodium Lauroyl Methyl Isethionate"], [405, "8.00"]]),
     ]);
-    expect(inciOnly!.rows).toEqual([["Phase", "INCI", "% w/w"], ["A", "Aqua", "to 100"], ["", "Sodium Lauroyl Methyl Isethionate", "8.00"]]);
+    // The INCI column names the line when the card prints no separate ingredient column.
+    expect(inciOnly!.rows).toEqual([["Phase", "Ingredient", "% w/w"], ["A", "Aqua", "to 100"], ["", "Sodium Lauroyl Methyl Isethionate", "8.00"]]);
   });
 
   it("reads a Product / Functionality / % W/W table and stops at the method heading", () => {

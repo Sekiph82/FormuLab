@@ -78,8 +78,13 @@ function detectHeader(line: PositionedLine): HeaderCell[] | undefined {
     for (const cell of names) if (cell !== primary) cell.column = /supplier/i.test(cell.label) ? "supplier" : "ignore";
   }
   const known = cells.filter((cell) => cell.column !== "ignore").length;
-  // Some cards name each line only by INCI ("Phase | INCI | Quantity").
-  const hasIngredient = cells.some((cell) => cell.column === "ingredient" || cell.column === "inci");
+  // Some cards name each line only by INCI ("Phase | INCI | Quantity"): that column is
+  // then the line's name, since the formula reader needs a name column.
+  if (!cells.some((cell) => cell.column === "ingredient")) {
+    const inci = cells.find((cell) => cell.column === "inci");
+    if (inci) inci.column = "ingredient";
+  }
+  const hasIngredient = cells.some((cell) => cell.column === "ingredient");
   const hasAmount = cells.some((cell) => cell.column === "amount");
   if (!hasIngredient || !hasAmount || known < 2 || known < cells.length - known) return undefined;
   return cells.sort((left, right) => left.x - right.x);
