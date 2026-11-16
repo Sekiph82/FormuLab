@@ -1,6 +1,6 @@
 import { z } from "zod";
 import Decimal from "decimal.js";
-import { referenceFormulationRecordSchema, type ReferenceFormulationRecord } from "./referenceFormulationRecord";
+import { parseReferenceFormulationRecord, type ReferenceFormulationRecord } from "./referenceFormulationRecord";
 import {
   createReferenceFormulationFunctionNormalization,
   validateReferenceFormulationFunctionNormalizationAgainstSource,
@@ -270,7 +270,7 @@ export function createReferenceFormulationQueryRecord(input: {
   source: ReferenceFormulationRecord;
   normalization: ReferenceFormulationNormalizationVersion;
 }): ReferenceFormulationQueryRecord {
-  const source = referenceFormulationRecordSchema.parse(input.source);
+  const source = parseReferenceFormulationRecord(input.source);
   const normalization = referenceFormulationNormalizationVersionSchema.parse(input.normalization);
   if (normalization.referenceFormulationRecordId !== source.id
     || normalization.sourceDocumentHash.toLowerCase() !== source.sourceDocumentHash.toLowerCase()) {

@@ -113,6 +113,20 @@ describe("reference formulation evidence review page", () => {
     expect(screen.getByText(/No source records match these filters/)).toBeInTheDocument();
   });
 
+  it("draws a large corpus a page at a time and shows the rest on request", async () => {
+    const many = Array.from({ length: 61 }, (_, index) => ({
+      ...record, id: `reference-formula-${index}`, code: `reference-formula-${index}`,
+      source: { ...record.source, title: `Formula ${String(index).padStart(2, "0")}` },
+    })) as unknown as ReferenceFormulationRecord[];
+    bridge.list.mockResolvedValue(many);
+    renderListPage();
+    const viewer = await screen.findByRole("list", { name: "Reference formulations" });
+    expect(viewer.querySelectorAll(":scope > li")).toHaveLength(61); // 60 cards + the "show more" row
+    await userEvent.click(screen.getByRole("button", { name: "Show 1 more" }));
+    expect(viewer.querySelectorAll(":scope > li")).toHaveLength(61);
+    expect(screen.queryByRole("button", { name: /Show \d+ more/ })).toBeNull();
+  });
+
   it("supports keyboard focus and search entry with an accessible search label", async () => {
     const user = userEvent.setup();
     renderListPage();

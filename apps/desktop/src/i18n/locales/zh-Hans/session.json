@@ -3621,6 +3621,7 @@
     "allSuppliers": "All suppliers",
     "showingRecords": "Showing {{filtered}} of {{total}} source records",
     "recordListLabel": "参考配方",
+    "showMore": "再显示 {{count}} 条",
     "refreshCorpus": "Refresh corpus",
     "empty": "No extracted reference formulations are available yet.",
     "noMatches": "No source records match these filters. Search uses source and candidate text; it does not imply a validated product or chemical identity.",

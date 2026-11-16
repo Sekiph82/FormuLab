@@ -202,6 +202,26 @@ export const referenceFormulationRecordSchema = z.object({
 });
 
 export type ReferenceFormulationRecord = z.infer<typeof referenceFormulationRecordSchema>;
+
+const parsedReferenceFormulationRecords = new WeakMap<object, ReferenceFormulationRecord>();
+
+/**
+ * `referenceFormulationRecordSchema.parse`, remembered per object. The normalization validators
+ * each re-parse the whole source record, once per ingredient line; across the corpus that made
+ * the Reference Formulas page take minutes to open. A parsed record is returned as-is next time.
+ * ponytail: assumes callers never mutate a record after parsing it (records are immutable
+ * snapshots); a mutated object would not be re-validated.
+ */
+export function parseReferenceFormulationRecord(input: unknown): ReferenceFormulationRecord {
+  if (typeof input === "object" && input !== null) {
+    const cached = parsedReferenceFormulationRecords.get(input);
+    if (cached) return cached;
+  }
+  const parsed = referenceFormulationRecordSchema.parse(input);
+  if (typeof input === "object" && input !== null) parsedReferenceFormulationRecords.set(input, parsed);
+  parsedReferenceFormulationRecords.set(parsed, parsed);
+  return parsed;
+}
 export type ReferenceFormulationArithmeticSnapshot = z.infer<typeof arithmeticSnapshotSchema>;
 
 function comparableMetadata(value: string): string {

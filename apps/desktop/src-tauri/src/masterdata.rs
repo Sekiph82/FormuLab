@@ -545,6 +545,7 @@ fn collection_path(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
 }
 
 fn read_array(path: &PathBuf) -> Result<Vec<serde_json::Value>, String> {
+    recover_interrupted_append(path)?;
     // Only a missing file means "no records yet". Any other failure must stop
     // the caller, or a later write_array would replace the real collection.
     let text = match std::fs::read_to_string(path) {
@@ -566,6 +567,82 @@ fn write_array(path: &PathBuf, rows: &[serde_json::Value]) -> Result<(), String>
     )
     .map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
+fn append_journal_path(path: &PathBuf) -> PathBuf {
+    path.with_extension("json.append")
+}
+
+/// Add rows to the end of a stored record list without rewriting what is already there.
+///
+/// The reference corpus is hundreds of MB; rewriting it for every imported PDF made imports
+/// take hours. The closing `]` is overwritten in place. Before that, a journal records where
+/// the `]` was, so an interrupted append is undone on the next read (`recover_interrupted_append`)
+/// and the file is never left without its earlier records.
+fn append_array(path: &PathBuf, rows: &[serde_json::Value]) -> Result<(), String> {
+    use std::io::{Read, Seek, SeekFrom, Write};
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let mut file = match std::fs::OpenOptions::new().read(true).write(true).open(path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return write_array(path, rows),
+        Err(e) => return Err(format!("could not open {}: {e}", path.display())),
+    };
+    let length = file.metadata().map_err(|e| e.to_string())?.len();
+    // Find the closing `]` and whether anything precedes it, looking back past whitespace only.
+    let tail_size = length.min(64 * 1024);
+    let mut tail = vec![0u8; tail_size as usize];
+    file.seek(SeekFrom::Start(length - tail_size)).map_err(|e| e.to_string())?;
+    file.read_exact(&mut tail).map_err(|e| e.to_string())?;
+    let mut significant = tail.iter().enumerate().rev().filter(|(_, byte)| !byte.is_ascii_whitespace());
+    let (close_at, close) = significant.next().ok_or_else(|| format!("{} is not a record list", path.display()))?;
+    let previous = significant.next().map(|(_, byte)| *byte);
+    if *close != b']' || previous.is_none() {
+        return Err(format!("{} is not a closed record list and was left untouched", path.display()));
+    }
+    let close_offset = length - tail_size + close_at as u64;
+    let mut text = String::from(if previous == Some(b'[') { "\n" } else { ",\n" });
+    for (index, row) in rows.iter().enumerate() {
+        if index > 0 {
+            text.push_str(",\n");
+        }
+        text.push_str(&serde_json::to_string(row).map_err(|e| e.to_string())?);
+    }
+    text.push_str("\n]\n");
+    let journal = append_journal_path(path);
+    let final_length = close_offset + text.len() as u64;
+    std::fs::write(&journal, format!("{close_offset} {final_length}")).map_err(|e| e.to_string())?;
+    file.seek(SeekFrom::Start(close_offset)).map_err(|e| e.to_string())?;
+    file.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+    file.set_len(final_length).map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
+    std::fs::remove_file(&journal).map_err(|e| e.to_string())
+}
+
+/// Undo an append that stopped part-way: cut the file back to where its `]` was and close it.
+fn recover_interrupted_append(path: &PathBuf) -> Result<(), String> {
+    use std::io::{Seek, SeekFrom, Write};
+    let journal = append_journal_path(path);
+    let text = match std::fs::read_to_string(&journal) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e.to_string()),
+    };
+    let damaged = || format!("{} is damaged; {} was left untouched", journal.display(), path.display());
+    let mut parts = text.split_whitespace().map(|part| part.parse::<u64>());
+    let (Some(Ok(offset)), Some(Ok(final_length))) = (parts.next(), parts.next()) else { return Err(damaged()) };
+    let length = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
+    // The append reached its full length before stopping: keep it, only the journal was left.
+    if length == final_length {
+        return std::fs::remove_file(&journal).map_err(|e| e.to_string());
+    }
+    let mut file = std::fs::OpenOptions::new().write(true).open(path).map_err(|e| e.to_string())?;
+    file.set_len(offset).map_err(|e| e.to_string())?;
+    file.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
+    file.write_all(b"]\n").map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
+    std::fs::remove_file(&journal).map_err(|e| e.to_string())
 }
 
 fn row_key(row: &serde_json::Value) -> Option<String> {
@@ -703,8 +780,8 @@ pub async fn append_reference_formulations(
     let path = collection_path(&app, "reference_formulations")?;
     let existing = read_array(&path)?;
     let pending = new_immutable_records(&existing, records, "reference_formulations")?;
-    let (rows, inserted, _) = apply_upsert(existing, pending, true, "reference_formulations")?;
-    write_array(&path, &rows)?;
+    let (rows, inserted, _) = apply_upsert(existing, pending.clone(), true, "reference_formulations")?;
+    append_array(&path, &pending)?;
     Ok(serde_json::json!({ "inserted": inserted, "updated": 0, "total": rows.len() }))
 }
 
@@ -850,6 +927,7 @@ pub async fn append_reference_formulation_normalizations(
     let path = collection_path(&app, "reference_formulation_normalizations")?;
     let mut rows = read_array(&path)?;
     let count = normalizations.len();
+    let mut appended = Vec::with_capacity(count);
     for mut normalization in normalizations {
         let source_id = normalization["referenceFormulationRecordId"].as_str()
             .ok_or_else(|| "normalization is missing its source formulation identity".to_string())?
@@ -865,14 +943,15 @@ pub async fn append_reference_formulation_normalizations(
         if let Some(object) = normalization.as_object_mut() {
             object.insert("createdAt".to_string(), serde_json::Value::String(now_rfc3339_utc()));
         }
-        let (next_rows, inserted, _) = apply_upsert(rows, vec![normalization], true, "reference_formulation_normalizations")?;
+        let (next_rows, inserted, _) = apply_upsert(rows, vec![normalization.clone()], true, "reference_formulation_normalizations")?;
         if inserted != 1 {
             return Err("normalization version was not appended".to_string());
         }
         rows = next_rows;
+        appended.push(normalization);
     }
     // Nothing is written unless every version passed: one bad version leaves the file unchanged.
-    write_array(&path, &rows)?;
+    append_array(&path, &appended)?;
     Ok(count)
 }
 
@@ -3253,6 +3332,46 @@ fn validate_raw_sensitive_write(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn appending_keeps_earlier_records_and_an_interrupted_append_is_undone() {
+        let dir = std::env::temp_dir().join(format!("formulab-append-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rows.json");
+        let row = |id: &str| serde_json::json!({ "id": id, "text": "ünïcode ]" });
+
+        // An existing pretty-printed file gains rows at the end; an empty list too.
+        write_array(&path, &[row("a")]).unwrap();
+        append_array(&path, &[row("b"), row("c")]).unwrap();
+        let ids = |rows: Vec<serde_json::Value>| rows.iter().map(|r| r["id"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+        assert_eq!(ids(read_array(&path).unwrap()), ["a", "b", "c"]);
+        std::fs::write(&path, "[]").unwrap();
+        append_array(&path, &[row("d")]).unwrap();
+        assert_eq!(ids(read_array(&path).unwrap()), ["d"]);
+
+        // Stopped half-way: the file is cut back to its earlier records on the next read.
+        write_array(&path, &[row("a")]).unwrap();
+        let length = std::fs::metadata(&path).unwrap().len();
+        let close = std::fs::read_to_string(&path).unwrap().rfind(']').unwrap() as u64;
+        std::fs::write(append_journal_path(&path), format!("{close} {}", length + 500)).unwrap();
+        let mut partial = std::fs::read(&path).unwrap();
+        partial.truncate(close as usize);
+        partial.extend_from_slice(b",\n{\"id\":\"b\",\"te");
+        std::fs::write(&path, partial).unwrap();
+        assert_eq!(ids(read_array(&path).unwrap()), ["a"]);
+        assert!(!append_journal_path(&path).exists());
+
+        // Finished but the journal was left behind: the new rows are kept.
+        append_array(&path, &[row("b")]).unwrap();
+        let length = std::fs::metadata(&path).unwrap().len();
+        std::fs::write(append_journal_path(&path), format!("1 {length}")).unwrap();
+        assert_eq!(ids(read_array(&path).unwrap()), ["a", "b"]);
+
+        // A file that is not a closed list is never appended to.
+        std::fs::write(&path, "[{\"id\":\"a\"}").unwrap();
+        assert!(append_array(&path, &[row("b")]).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn a_phase_word_followed_by_a_multibyte_character_does_not_panic() {

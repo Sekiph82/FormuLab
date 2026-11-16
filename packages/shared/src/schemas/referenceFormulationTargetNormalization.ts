@@ -4,7 +4,7 @@ import {
   type ReferenceFormulationTargetCandidate,
   type ReferenceFormulationTargetWarning,
 } from "../engine/referenceFormulationTargetExtraction";
-import { referenceFormulationRecordSchema, type ReferenceFormulationRecord } from "./referenceFormulationRecord";
+import { parseReferenceFormulationRecord, type ReferenceFormulationRecord } from "./referenceFormulationRecord";
 
 export const REFERENCE_FORMULATION_TARGET_NORMALIZATION_VERSION = "formulab-reference-formulation-target-normalization-v1";
 
@@ -75,7 +75,7 @@ export function validateReferenceFormulationTargetNormalizationAgainstSource(
   sourceInput: ReferenceFormulationRecord,
 ): ReferenceFormulationTargetNormalization {
   const value = referenceFormulationTargetNormalizationSchema.parse(targetInput);
-  const source = referenceFormulationRecordSchema.parse(sourceInput);
+  const source = parseReferenceFormulationRecord(sourceInput);
   const expected = createReferenceFormulationTargetNormalization(source);
   if (JSON.stringify(value) !== JSON.stringify(expected)) {
     throw new Error("Normalized target properties, semantics, context and citations must match the immutable source target snapshot.");

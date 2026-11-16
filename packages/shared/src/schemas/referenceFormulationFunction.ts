@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MATERIAL_FUNCTIONS } from "./primitives";
-import { referenceFormulationRecordSchema, type ReferenceFormulationRecord } from "./referenceFormulationRecord";
+import { parseReferenceFormulationRecord, type ReferenceFormulationRecord } from "./referenceFormulationRecord";
 
 export const supplierFunctionEvidenceSchema = z.object({
   status: z.enum(["not_stated", "stated"]),
@@ -75,7 +75,7 @@ export function validateReferenceFormulationFunctionNormalizationAgainstSource(
   sourceFormulaLineId: string,
 ): ReferenceFormulationFunctionNormalization {
   const value = referenceFormulationFunctionNormalizationSchema.parse(functionInput);
-  const source = referenceFormulationRecordSchema.parse(sourceInput);
+  const source = parseReferenceFormulationRecord(sourceInput);
   const line = source.ingredientLines.find((candidate) => candidate.id === sourceFormulaLineId);
   if (!line) throw new Error("Function normalization source formula line was not found.");
   const expected = createReferenceFormulationFunctionNormalization({ source, sourceFormulaLineId });

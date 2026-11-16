@@ -1,5 +1,5 @@
 import {
-  referenceFormulationRecordSchema,
+  parseReferenceFormulationRecord,
   referenceFormulationNormalizationVersionSchema,
   supplierDocumentAcquisitionSchema,
   supplierSdsProductEvidenceRecordSchema,
@@ -37,7 +37,7 @@ export async function getReferenceFormulationCorpusReviewData(recordId: string):
     listRecords("supplier_sds_product_evidence"),
     listRecords("supplier_document_acquisitions"),
   ]);
-  const sources = sourceRows.map((row) => referenceFormulationRecordSchema.parse(row));
+  const sources = sourceRows.map((row) => parseReferenceFormulationRecord(row));
   const source = sources.find((row) => row.id === recordId);
   if (!source) throw new Error("Reference formulation record was not found.");
   const versions = versionRows.map((row) => referenceFormulationNormalizationVersionSchema.parse(row));

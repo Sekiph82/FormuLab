@@ -13,6 +13,8 @@ import { readSupplierDocumentPdf } from "@/lib/masterdata";
 import { SupplierSdsPdfPagePreview } from "@/components/dataExchange/connectors/SupplierSdsPdfPagePreview";
 import { LocalFolderImport } from "@/components/referenceFormulations/LocalFolderImport";
 
+const RECORD_PAGE = 60;
+
 const DECISIONS = [
   { value: "accepted", labelKey: "decisionAccept", icon: Check },
   { value: "edited", labelKey: "decisionEdit", icon: Edit3 },
@@ -98,6 +100,10 @@ export function ReferenceFormulationsPage() {
       return normalized.includes(needle);
     });
   }, [records, queryBySourceId, searchText, supplierFilter]);
+  // Drawing every card of a 4,700-record corpus at once froze the page; draw a page at a time.
+  const [shown, setShown] = useState(RECORD_PAGE);
+  useEffect(() => setShown(RECORD_PAGE), [filteredRecords]);
+  const showMore = useCallback(() => setShown((count) => count + RECORD_PAGE), []);
   const items = useMemo(() => {
     if (!selected) return [];
     const versions = traceData?.source.id === selected.id ? traceData.versions : [];
@@ -198,7 +204,13 @@ export function ReferenceFormulationsPage() {
           <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">{t("referenceFormulations.empty")}</div>
         ) : records.length > 0 && !error && filteredRecords.length === 0 ? (
           <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">{t("referenceFormulations.noMatches")}</div>
-        ) : <ul aria-label={t("referenceFormulations.recordListLabel")} className="grid max-h-[75vh] gap-3 overflow-y-auto rounded-lg border border-border p-3 md:grid-cols-2">{filteredRecords.map((record) => <ReferenceFormulationCorpusCard key={record.id} record={record} query={queryBySourceId.get(record.id)} />)}</ul>}
+        ) : <ul aria-label={t("referenceFormulations.recordListLabel")} onScroll={(event) => {
+          const list = event.currentTarget;
+          if (list.scrollTop + list.clientHeight >= list.scrollHeight - 600) showMore();
+        }} className="grid max-h-[75vh] gap-3 overflow-y-auto rounded-lg border border-border p-3 md:grid-cols-2">
+          {filteredRecords.slice(0, shown).map((record) => <ReferenceFormulationCorpusCard key={record.id} record={record} query={queryBySourceId.get(record.id)} />)}
+          {shown < filteredRecords.length && <li className="md:col-span-2"><button type="button" onClick={showMore} className="w-full rounded border border-border py-2 text-xs text-text hover:bg-surface-2">{t("referenceFormulations.showMore", { count: Math.min(RECORD_PAGE, filteredRecords.length - shown) })}</button></li>}
+        </ul>}
       </main>
     );
   }

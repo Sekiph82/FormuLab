@@ -3,9 +3,10 @@ import {
   createReferenceFormulationQueryRecord,
   createReferenceFormulationNormalizationVersion,
   referenceFormulationNormalizationVersionSchema,
-  referenceFormulationRecordSchema,
+  parseReferenceFormulationRecord,
   validateReferenceFormulationContributionAgainstSource,
   type ReferenceFormulationNormalizationVersion,
+  type ReferenceFormulationRecord,
   type ReferenceFormulationContribution,
   type MaterialFunction,
   createReferenceFormulationFunctionNormalization,
@@ -36,7 +37,7 @@ export async function listReferenceFormulationNormalizations(
   ]);
   const source = sources.find((record) => record.id === referenceFormulationRecordId);
   if (!source) throw new Error("Reference formulation record was not found.");
-  const parsedSource = referenceFormulationRecordSchema.parse(source);
+  const parsedSource = parseReferenceFormulationRecord(source);
   const linkedVersions = versions
     .map((version) => referenceFormulationNormalizationVersionSchema.parse(version))
     .filter((version) => version.referenceFormulationRecordId === referenceFormulationRecordId)
@@ -55,7 +56,7 @@ export async function rebuildReferenceFormulationCorpusIndex(): Promise<{
     listRecords("reference_formulation_normalizations"),
     listRecords("supplier_sds_product_evidence"),
   ]);
-  const allSources = sourceRows.map((record) => referenceFormulationRecordSchema.parse(record));
+  const allSources = sourceRows.map((record) => parseReferenceFormulationRecord(record));
   if (new Set(allSources.map((source) => source.id)).size !== allSources.length) {
     throw new Error("Corpus index rebuild cannot contain duplicate immutable source record IDs.");
   }
@@ -113,7 +114,7 @@ export async function ensureReferenceFormulationNormalizations(): Promise<number
     .filter((record) => !normalized.has(record.id) && (record.ingredientLines?.length ?? 0) > 0);
   if (pending.length === 0) return 0;
   const sdsEvidence = sdsRows.map((record) => supplierSdsProductEvidenceRecordSchema.parse(record));
-  const versions = pending.map((record) => referenceFormulationRecordSchema.parse(record)).map((source) =>
+  const versions = pending.map((record) => parseReferenceFormulationRecord(record)).map((source) =>
     createReferenceFormulationNormalizationVersion({
       id: `normalization-auto-${source.id}`,
       source,
@@ -144,7 +145,7 @@ export async function appendReferenceFormulationNormalization(input: {
   ]);
   const sourceValue = sourceRecords.find((record) => record.id === input.referenceFormulationRecordId);
   if (!sourceValue) throw new Error("Reference formulation record was not found.");
-  const source = referenceFormulationRecordSchema.parse(sourceValue);
+  const source = parseReferenceFormulationRecord(sourceValue);
   const existing = existingRecords
     .map((record) => referenceFormulationNormalizationVersionSchema.parse(record))
     .filter((record) => record.referenceFormulationRecordId === source.id)
@@ -168,7 +169,7 @@ export async function appendReferenceFormulationNormalization(input: {
 }
 
 function validateNormalizationHistory(
-  source: ReturnType<typeof referenceFormulationRecordSchema.parse>,
+  source: ReferenceFormulationRecord,
   versions: ReferenceFormulationNormalizationVersion[],
   sdsEvidenceRecords: SupplierSdsProductEvidenceRecord[] = [],
 ): void {

@@ -252,10 +252,22 @@ async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise
   return invoke<T>(cmd, { token: currentSessionToken(), ...args });
 }
 
+/**
+ * The reference formula corpus is several hundred MB and immutable; pages that list it and
+ * build its search index read it more than once. Keep one copy until this app writes to it.
+ * ponytail: a change made to the file outside the app shows only after a restart.
+ */
+let referenceFormulationRows: Promise<unknown[]> | null = null;
+
 export async function listRecords<C extends Collection>(
   collection: C,
 ): Promise<CollectionTypes[C][]> {
   if (!isTauri) return [];
+  if (collection === "reference_formulations") {
+    const rows = referenceFormulationRows ??= call<unknown[]>("list_master_records", { collection });
+    rows.catch(() => { if (referenceFormulationRows === rows) referenceFormulationRows = null; });
+    return [...(await rows)] as CollectionTypes[C][];
+  }
   return call<CollectionTypes[C][]>("list_master_records", { collection });
 }
 
@@ -317,7 +329,11 @@ export async function upsertRecords<C extends Collection>(
     return call<UpsertResult>("append_supplier_document_acquisitions", { records });
   }
   if (collection === "reference_formulations") {
-    return call<UpsertResult>("append_reference_formulations", { records });
+    try {
+      return await call<UpsertResult>("append_reference_formulations", { records });
+    } finally {
+      referenceFormulationRows = null;
+    }
   }
   return call<UpsertResult>("upsert_master_records", { collection, records });
 }

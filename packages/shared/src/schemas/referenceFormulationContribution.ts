@@ -3,7 +3,7 @@ import Decimal from "decimal.js";
 import { createCompositionFractionEvidence } from "./compositionFraction";
 import { supplierSdsProductEvidenceRecordSchema, type SupplierSdsProductEvidenceRecord } from "./supplierSdsProductEvidence";
 import { parseExplicitMassPercentageRange } from "./singleComponentResolver";
-import { referenceFormulationRecordSchema, type ReferenceFormulationRecord } from "./referenceFormulationRecord";
+import { parseReferenceFormulationRecord, type ReferenceFormulationRecord } from "./referenceFormulationRecord";
 
 const normalizedPercentBoundsSchema = z.object({
   lowerBound: z.number().finite().min(0).max(100),
@@ -217,7 +217,7 @@ export function createReferenceFormulationContribution(input: {
   sourceComponentId?: string;
   canonicalChemicalCandidateIds?: string[];
 }): ReferenceFormulationContribution {
-  const source = referenceFormulationRecordSchema.parse(input.source);
+  const source = parseReferenceFormulationRecord(input.source);
   const line = source.ingredientLines.find((candidate) => candidate.id === input.sourceFormulaLineId);
   if (!line) throw new Error("Contribution source formula line was not found.");
   const productMatch = source.productMatches.find((match) => match.ingredientLineId === line.id);
@@ -311,7 +311,7 @@ export function validateReferenceFormulationContributionAgainstSource(
   sdsEvidenceRecords: SupplierSdsProductEvidenceRecord[] = [],
 ): ReferenceFormulationContribution {
   const contribution = referenceFormulationContributionSchema.parse(contributionInput);
-  const source = referenceFormulationRecordSchema.parse(sourceInput);
+  const source = parseReferenceFormulationRecord(sourceInput);
   const line = source.ingredientLines.find((candidate) => candidate.id === contribution.sourceFormulaLineId);
   const match = source.productMatches.find((candidate) => candidate.ingredientLineId === contribution.sourceFormulaLineId);
   if (!line || contribution.sourceFormulationRecordId !== source.id

@@ -4,7 +4,7 @@ import {
   referenceFormulationProcedureStepSchema,
   type ReferenceFormulationProcedureStep,
 } from "../engine/referenceFormulationProcedureExtraction";
-import { referenceFormulationRecordSchema, type ReferenceFormulationRecord } from "./referenceFormulationRecord";
+import { parseReferenceFormulationRecord, type ReferenceFormulationRecord } from "./referenceFormulationRecord";
 
 export const REFERENCE_FORMULATION_PROCESS_NORMALIZATION_VERSION = "formulab-reference-formulation-process-normalization-v1";
 
@@ -123,7 +123,7 @@ export function validateReferenceFormulationProcessNormalizationAgainstSource(
   sourceInput: ReferenceFormulationRecord,
 ): ReferenceFormulationProcessNormalization {
   const value = referenceFormulationProcessNormalizationSchema.parse(processInput);
-  const source = referenceFormulationRecordSchema.parse(sourceInput);
+  const source = parseReferenceFormulationRecord(sourceInput);
   const expected = createReferenceFormulationProcessNormalization(source);
   if (JSON.stringify(value) !== JSON.stringify(expected)) {
     throw new Error("Normalized process steps, facts, citations and warnings must match the immutable source procedure snapshot.");

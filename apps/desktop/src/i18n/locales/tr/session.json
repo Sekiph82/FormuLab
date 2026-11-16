@@ -3621,6 +3621,7 @@
     "allSuppliers": "Tüm tedarikçiler",
     "showingRecords": "{{total}} kaynak kaydının {{filtered}} tanesi gösteriliyor",
     "recordListLabel": "Referans formülasyonlar",
+    "showMore": "{{count}} tane daha göster",
     "refreshCorpus": "Korpusu yenile",
     "empty": "Henüz çıkarılmış referans formülü yok.",
     "noMatches": "Bu filtrelerle eşleşen kaynak kaydı yok. Arama kaynak ve aday metinlerini kullanır; ürün veya kimya kimliğinin doğrulandığı anlamına gelmez.",

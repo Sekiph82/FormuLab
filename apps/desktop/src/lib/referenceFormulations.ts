@@ -1,7 +1,7 @@
 import {
   currentReferenceFormulations,
   matchReferenceFormulationProducts,
-  referenceFormulationRecordSchema,
+  parseReferenceFormulationRecord,
   type CommercialProduct,
   type ReferenceFormulationIngredientLine,
   type ReferenceFormulationRecord,
@@ -37,7 +37,7 @@ export async function recordReferenceFormulations(
   inputs: ReferenceFormulationRecord[],
   existing?: readonly { code?: unknown }[],
 ): Promise<ReferenceFormulationRecord[]> {
-  const records = inputs.map((input) => referenceFormulationRecordSchema.parse(input));
+  const records = inputs.map((input) => parseReferenceFormulationRecord(input));
   const stored = new Map((existing ?? await listRecords("reference_formulations")).map((row) => [String(row.code), row]));
   const fresh: ReferenceFormulationRecord[] = [];
   const saved = records.map((record) => {
@@ -46,7 +46,7 @@ export async function recordReferenceFormulations(
       fresh.push(record);
       return record;
     }
-    const parsedExisting = referenceFormulationRecordSchema.parse(sameCode);
+    const parsedExisting = parseReferenceFormulationRecord(sameCode);
     if (canonicalJson(parsedExisting) === canonicalJson(record)) return parsedExisting;
     throw new Error("Reference formulation records are immutable; use a new record code for a new extraction snapshot.");
   });
@@ -57,7 +57,7 @@ export async function recordReferenceFormulations(
 /** Newest parse of each source document; older parses remain stored as history. */
 export async function listReferenceFormulations(): Promise<ReferenceFormulationRecord[]> {
   const records = await listRecords("reference_formulations");
-  return currentReferenceFormulations(records.map((record) => referenceFormulationRecordSchema.parse(record)));
+  return currentReferenceFormulations(records.map((record) => parseReferenceFormulationRecord(record)));
 }
 
 /** Resolve supplier product-code candidates against the existing FVL-04 crosswalk collection. */
