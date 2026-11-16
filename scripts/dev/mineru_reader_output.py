@@ -4,12 +4,14 @@ For every stored formula PDF whose current record has no ingredient lines, run t
 install (tools/mineru, see tools/mineru/env.sh) and write its tables as OCR-style lines with word
 boxes to data/supplier-documents/mineru/<sha256>.json. The app reads that file when it imports the
 PDF again and records the result under its own parser version
-("formulab-reference-formulation-layout-v9-mineru-fallback"). Nothing leaves this computer:
+("formulab-reference-formulation-layout-v10-mineru-card-columns"). Nothing leaves this computer:
 MinerU runs on its local server only (no --remote), telemetry off.
 
 Usage (from the repository root, FormuLab closed or idle):
   python scripts/dev/mineru_reader_output.py            # every unread PDF
   python scripts/dev/mineru_reader_output.py --limit 5  # a few, to check
+  python scripts/dev/mineru_reader_output.py --rewrite  # also rewrite every cached MinerU output
+                                                         # after a converter change (no new MinerU run)
 """
 from __future__ import annotations
 
@@ -133,16 +135,70 @@ def _row_lines(page, rows, top):
     lines = []
     for index, row in enumerate(rows):
         y = top + index * ROW_HEIGHT
+        cells = [re.sub(r"%\.$", "%", cell.strip()) for cell in row]
         words = [{"text": cell, "x0": xs[i], "x1": xs[i] + CHAR_WIDTH * len(cell), "y0": y}
-                 for i, cell in enumerate(row) if cell.strip()]
+                 for i, cell in enumerate(cells) if cell]
         if words:
             lines.append({"pageNumber": page, "text": " ".join(w["text"] for w in words), "words": words})
     return lines, top + len(rows) * ROW_HEIGHT + 3 * ROW_HEIGHT
 
 
-AMOUNT_CELL = re.compile(r"^(?:(?:ad|add|to|q\.?\s*s\.?(?:\s*(?:to|ad))?)\s*)?\d+(?:[.,]\d+)?\s*%?$|^(?:ad|add|to)\s*100|^q\.?\s*s\.?$", re.I)
+# "0.20%." : a card may end an amount with a stray period.
+AMOUNT_CELL = re.compile(r"^(?:(?:ad|add|to|q\.?\s*s\.?(?:\s*(?:to|ad))?)\s*)?\d+(?:[.,]\d+)?\s*%?\.?$|^(?:ad|add|to)\s*100|^q\.?\s*s\.?$", re.I)
 AMOUNT_HEADER = re.compile(r"%|weight|wt\b|amount|quantity|w/w|dose|dosage|inclusion|percent", re.I)
 PHASE_CELL = re.compile(r"^(?:[A-H]\d?|[IVX]{1,4})\.?$")
+
+
+HEADER_WORD = re.compile(r"phase|ingredient|inci|trade|name|function|supplier|product|component", re.I)
+# Scanned cards print the trade name and, under it, the INCI name in one cell; OCR joins the two
+# lines without a space: "Hostapon® SCI 85 P (Clariant)Sodium Cocoyl Isethionate",
+# "Agenajel 21287Zea Mays (Corn) Starch", "Biobranil water solubleWater (Aqua), Propylene Glycol".
+SUPPLIER_GLUE = re.compile(r"^(.+?\([A-Z][^()]{1,40}\))([A-Z][A-Za-z0-9].*)$")
+WORD_GLUE = re.compile(r"^(\S.*?\s\S*?[a-z0-9])([A-Z][a-z].*)$")
+
+
+def _without_title_rows(table: list[list[str]]) -> list[list[str]]:
+    """Drop the card title printed inside the table above its first formula row
+    ("Hair Conditioner/ Treatment | BII/ 2024", "With Octopirox®"): a spanned row with at most
+    two distinct texts, no amount and no column-header word."""
+    width = max(len(r) for r in table)
+    if width < 3:
+        return table
+    out = list(table)
+    while out and not any(AMOUNT_CELL.match(c.strip()) for c in out[0]):
+        texts = {c.strip() for c in out[0] if c.strip()}
+        if len(texts) > 2 or any(HEADER_WORD.search(t) or AMOUNT_HEADER.search(t) for t in texts):
+            break
+        out.pop(0)
+    return out if len(out) >= 3 else table
+
+
+def _split_glued(name: str) -> tuple[str, str] | None:
+    for pattern in (SUPPLIER_GLUE, WORD_GLUE):
+        match = pattern.match(name.strip())
+        if match:
+            return match.group(1).strip(), match.group(2).strip()
+    return None
+
+
+def _unglued(table: list[list[str]]) -> list[list[str]]:
+    """Give the INCI names OCR joined to trade names their own column, when a table has no INCI
+    column and at least two of its names are joined this way. Names with nothing joined keep
+    their cell and leave the INCI cell empty; no text is dropped."""
+    header = table[0]
+    if any(re.search(r"inci", cell, re.I) for cell in header):
+        return table
+    col = next((i for i, cell in enumerate(header) if re.match(r"ingredient|trade|name|product", cell.strip(), re.I)), None)
+    if col is None:
+        return table
+    splits = [(_split_glued(row[col]) if col < len(row) else None) for row in table[1:]]
+    if sum(split is not None for split in splits) < 2:
+        return table
+    out = [header[:col + 1] + ["INCI"] + header[col + 1:]]
+    for row, split in zip(table[1:], splits):
+        name, inci = split or ((row[col] if col < len(row) else ""), "")
+        out.append(row[:col] + [name, inci] + row[col + 1:])
+    return out
 
 
 def _shaped(table: list[list[str]]) -> list[list[str]]:
@@ -180,6 +236,11 @@ def _shaped(table: list[list[str]]) -> list[list[str]]:
     if name_col is None:
         return rows
     header[name_col] = "Ingredient"
+    # The text column after the names on a card is the printed function ("Anionic surfactant").
+    function_col = next((i for i in range(name_col + 1, width) if not header[i]
+                         and sum(bool(re.search(r"[A-Za-z]{3}", c)) for c in columns[i]) >= 3), None)
+    if function_col is not None:
+        header[function_col] = "Function"
     return [header, *rows]
 
 
@@ -229,7 +290,8 @@ def reader_lines(markdown: str) -> list[dict]:
         parser = _Tables(); parser.feed(text)
         tables = []
         for table in (t for t in parser.tables + _pipe_tables(text) if len(t) >= 3):
-            tables.extend(t for t in (_transposed(table) or [_shaped(table)]) if _plausible(t))
+            table = _without_title_rows(table)
+            tables.extend(_unglued(t) for t in (_transposed(table) or [_shaped(table)]) if _plausible(t))
         listed = _listed_table(text) if not tables else None
         if listed and not _plausible(listed):
             listed = None
@@ -246,14 +308,18 @@ def _unread(master: str) -> list[str]:
     return sorted({str(r["sourceDocumentHash"]).lower() for r in rows if not r.get("ingredientLines")})
 
 
-def run(limit: int | None) -> dict[str, int]:
+def run(limit: int | None, rewrite: bool = False) -> dict[str, int]:
     env = {**os.environ, "MINERU_HOME": os.path.join(TOOL, "home"), "MINERU_TELEMETRY_DISABLED": "1",
            "HF_HOME": os.path.join(TOOL, "hf"), "MODELSCOPE_CACHE": os.path.join(TOOL, "modelscope"), "MINERU_MODEL_SOURCE": "huggingface"}
     cli = os.path.join(TOOL, "venv", "Scripts", "mineru.exe")
     os.makedirs(os.path.join(STORE, "mineru"), exist_ok=True)
     os.makedirs(os.path.join(TOOL, "out", "docs"), exist_ok=True)
     counts = {"pdfs": 0, "written": 0, "no_formula": 0, "failed": 0}
-    for digest in _unread(MASTER)[:limit]:
+    digests = _unread(MASTER)
+    if rewrite:
+        cached = sorted(name[:-3] for name in os.listdir(os.path.join(TOOL, "out", "docs")) if re.fullmatch(r"[0-9a-f]{64}\.md", name))
+        digests = list(dict.fromkeys(digests + cached))
+    for digest in digests[:limit]:
         pdf = os.path.join(STORE, "sha256", digest[:2], f"{digest}.pdf")
         if not os.path.exists(pdf):
             continue
@@ -284,4 +350,6 @@ def run(limit: int | None) -> dict[str, int]:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--limit", type=int, default=None)
-    print(json.dumps(run(parser.parse_args().limit)))
+    parser.add_argument("--rewrite", action="store_true")
+    args = parser.parse_args()
+    print(json.dumps(run(args.limit, args.rewrite)))
