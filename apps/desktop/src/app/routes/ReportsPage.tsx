@@ -11,6 +11,9 @@ import { useCompatibilityRules } from "@/hooks/useCompatibilityRules";
 import { useSafetyRules } from "@/hooks/useSafetyRules";
 import { useRegulatoryRules } from "@/hooks/useRegulatoryRules";
 
+/** A session id starts with its local date and time ("2026-11-16-0522"): show "2026-11-16 05:22". */
+const sessionDate = (created: string) => created.replace(/^(\d{4}-\d{2}-\d{2})-(\d{2})(\d{2})$/u, "$1 $2:$3");
+
 const ROWS = [
   { key: "formula", titleKey: "reports.formula.title", descKey: "reports.formula.description", href: "/formulation" },
   { key: "trial", titleKey: "reports.trial.title", descKey: "reports.trial.description", href: "/laboratory" },
@@ -98,7 +101,7 @@ function FormulationReports() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[12.5px] text-text">{row.brief?.target || row.id}</div>
                 <div className="text-[10.5px] text-muted">
-                  {row.created.replace(/^(\d{4}-\d{2}-\d{2})-(\d{2})(\d{2})$/u, "$1 $2:$3")} · {t("reports.formulationReports.versions", { count: row.card_count })}
+                  {sessionDate(row.created)} · {t("reports.formulationReports.versions", { count: row.card_count })}
                 </div>
               </div>
               {FORMATS.map((format) => (

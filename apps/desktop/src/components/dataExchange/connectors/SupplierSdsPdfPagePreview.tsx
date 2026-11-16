@@ -8,6 +8,7 @@ export function SupplierSdsPdfPagePreview({ bytes, pageNumber, lineNumber, docum
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    const canvasElement = canvasRef.current;
     let disposed = false;
     let renderTask: RenderTask | undefined;
     let loadingTask: PDFDocumentLoadingTask | undefined;
@@ -45,7 +46,7 @@ export function SupplierSdsPdfPagePreview({ bytes, pageNumber, lineNumber, docum
       disposed = true;
       renderTask?.cancel();
       void loadingTask?.destroy();
-      if (canvasRef.current) canvasRef.current.width = 0;
+      if (canvasElement) canvasElement.width = 0;
     };
   }, [bytes, pageNumber]);
 
