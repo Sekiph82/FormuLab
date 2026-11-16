@@ -93,7 +93,9 @@ def delete(apply: bool) -> None:
                     if len(identifier) >= 8:  # short ids would match unrelated text
                         ids.add(identifier)
                     changed = True
-    entries = [path for path in _entries() if path not in set(snap["entries"]) and MARKER in _text(path)]
+    # Formula cards carry the marker only in their file name ("..._syn-test-...md").
+    entries = [path for path in _entries() if path not in set(snap["entries"])
+               and (MARKER.lower() in os.path.basename(path).lower() or MARKER in _text(path))]
     for name, keys in doomed.items():
         if keys:
             print(f"{name}: {len(keys)} synthetic record(s)")
@@ -111,6 +113,15 @@ def delete(apply: bool) -> None:
             os.replace(target + ".tmp", target)
     for path in entries:
         shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
+    # The formula-card index existed before testing, so it is kept; only its synthetic cards go.
+    index = os.path.join(ROOT, "formulas", "index.json")
+    if os.path.exists(index):
+        with open(index, encoding="utf-8") as handle:
+            cards = json.load(handle)
+        kept_cards = [card for card in cards if MARKER not in json.dumps(card, ensure_ascii=False)]
+        if len(kept_cards) != len(cards):
+            with open(index, "w", encoding="utf-8") as handle:
+                json.dump(kept_cards, handle, ensure_ascii=False, indent=2)
     # Stored PDF bytes of synthetic document receipts, unless a kept receipt still points at them.
     acquisitions = collections.get("supplier_document_acquisitions.json", [])
     gone = doomed.get("supplier_document_acquisitions.json", set())

@@ -38,6 +38,7 @@ const SAFE_FAILURES = {
   acquisition_failed: "The supplier document receipt could not be recorded.",
   parser_failed: "The PDF could not be converted into a source-linked formulation record.",
   record_conflict: "An immutable source record with this identity already has different contents.",
+  record_write_failed: "The formulation was read but its record could not be saved; importing the file again retries it.",
   source_unavailable: "The selected file could not be read or did not match its saved source hash.",
 } as const;
 
@@ -393,7 +394,13 @@ async function persistVariant(input: {
     unresolvedEntries: unresolved.entries,
     createdAt: nowIso(),
   });
-  const saved = await recordReferenceFormulation(record);
+  let saved: Awaited<ReturnType<typeof recordReferenceFormulation>>;
+  try {
+    saved = await recordReferenceFormulation(record);
+  } catch (error) {
+    // A save failure is not a parse failure: say which, so the owner knows a retry can succeed.
+    throw new ImportFileFailure(/immutable/iu.test(String(error)) ? "record_conflict" : "record_write_failed");
+  }
   runCache?.sources?.push(saved);
   return { recordId: saved.id, acquisitionCode: input.acquisition.code };
 }

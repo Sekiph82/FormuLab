@@ -3069,6 +3069,7 @@
           "timeout": "Timed out",
           "storage_failed": "Storage failed",
           "parser_failed": "Parser failed",
+          "record_write_failed": "Record could not be saved",
           "unknown_failure": "Unknown failure"
         }
       },

@@ -73,7 +73,7 @@ export const referenceFormulationImportFileSchema = z.object({
   referenceFormulationRecordId: z.string().trim().min(1).optional(),
   duplicateOfItemId: z.string().trim().min(1).optional(),
   duplicateOfSourceRecordId: z.string().trim().min(1).optional(),
-  errorCode: z.enum(["invalid_pdf", "file_too_large", "storage_failed", "acquisition_failed", "parser_failed", "record_conflict", "source_unavailable"]).optional(),
+  errorCode: z.enum(["invalid_pdf", "file_too_large", "storage_failed", "acquisition_failed", "parser_failed", "record_conflict", "record_write_failed", "source_unavailable"]).optional(),
   errorMessage: z.string().trim().min(1).max(240).optional(),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),

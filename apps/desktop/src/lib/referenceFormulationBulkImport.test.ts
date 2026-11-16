@@ -340,7 +340,7 @@ describe("reference formulation bulk import", () => {
     failUpsertOnce.push({ collection: "reference_formulations", matches: () => true });
 
     const interrupted = await startReferenceFormulationBulkImport([selectedFile("parse-retry.pdf", bytes)], metadata);
-    expect(interrupted.files[0]).toMatchObject({ status: "failed", errorCode: "parser_failed", attemptCount: 1 });
+    expect(interrupted.files[0]).toMatchObject({ status: "failed", errorCode: "record_write_failed", attemptCount: 1 });
     expect(collections.get("supplier_document_acquisitions")).toHaveLength(1);
     expect(collections.get("reference_formulations") ?? []).toHaveLength(0);
 

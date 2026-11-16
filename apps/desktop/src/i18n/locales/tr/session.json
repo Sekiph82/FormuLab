@@ -3069,6 +3069,7 @@
           "timeout": "Zaman aşımı",
           "storage_failed": "Depolama başarısız",
           "parser_failed": "Ayrıştırma başarısız",
+          "record_write_failed": "Kayıt yazılamadı",
           "unknown_failure": "Bilinmeyen hata"
         }
       },
