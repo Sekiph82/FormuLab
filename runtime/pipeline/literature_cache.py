@@ -164,6 +164,20 @@ def topical(paper: Dict[str, Any], query_terms: List[str]) -> bool:
     return score(paper, query_terms) >= need
 
 
+# Product names that are also machine-learning names ("Shampoo" and "SOAP" are optimizers).
+_COMPUTING_SENSE = re.compile(
+    r"\b(optimi[sz]er|optimi[sz]ation algorithm|gradient|preconditioned|stochastic|neural|deep learning|"
+    r"machine learning|tensor|adam|transformer|large language model|reinforcement learning|training loss)\b",
+    re.I,
+)
+
+
+def off_domain(paper: Dict[str, Any]) -> bool:
+    """A computer-science paper that only shares the product's name (the "Shampoo" optimizer)."""
+    text = f"{paper.get('title', '')} {paper.get('abstract', '')}"
+    return "computer science" in str(paper.get("concepts", "")).lower() and bool(_COMPUTING_SENSE.search(text))
+
+
 def anchored(paper: Dict[str, Any], anchor_terms: List[str]) -> bool:
     """Is the paper about THIS product at all?
 
@@ -172,6 +186,8 @@ def anchored(paper: Dict[str, Any], anchor_terms: List[str]) -> bool:
     accepted paper must also share the product's own vocabulary (target +
     category) — that is what keeps a limescale query away from spin fields.
     """
+    if off_domain(paper):
+        return False
     if not anchor_terms:
         return True
     return score(paper, anchor_terms) >= 1

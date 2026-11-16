@@ -20,6 +20,14 @@ def fake_paper(i, terms):
 
 
 class CacheTests(unittest.TestCase):
+    def test_a_machine_learning_paper_named_after_the_product_is_not_about_it(self):
+        optimizer = {"title": "SOAP: Improving and Stabilizing Shampoo using Adam", "abstract": "a preconditioned optimizer",
+                     "concepts": "Shampoo, SOAP, Computer science, Chemistry"}
+        cosmetic = {"title": "Formulation of Mild Shampoos and Investigation of Possible Prebiotic Effects", "abstract": "",
+                    "concepts": "Shampoo, Staphylococcus epidermidis"}
+        self.assertFalse(lc.anchored(optimizer, ["shampoo"]))
+        self.assertTrue(lc.anchored(cosmetic, ["shampoo"]))
+
     def test_cache_hit_skips_api(self):
         # 15 relevant cached papers -> gather must not touch the network.
         with tempfile.TemporaryDirectory() as tmp:
