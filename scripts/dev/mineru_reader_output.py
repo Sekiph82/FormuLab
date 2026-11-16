@@ -32,6 +32,13 @@ AMOUNT = re.compile(r"^(.*?[A-Za-z].*?)\s+(\d+(?:[.,]\d+)?)\s*%\s*$")
 PHASE = re.compile(r"^([A-H]|[IVX]{1,4})\s+(.+)$")
 
 
+def _plain(text: str) -> str:
+    """MinerU writes marks as LaTeX ("ACULYN $^{TM}$"); keep the printed sign."""
+    text = re.sub(r"\$\s*\^\s*\{\s*(?:TM|tm)\s*\}\s*\$", "™", text)
+    text = re.sub(r"\$\s*\^\s*\{\s*(?:\\textregistered|R|®)\s*\}\s*\$", "®", text)
+    return re.sub(r"\$\s*\^\s*\{([^}]*)\}\s*\$", r"\1", text)
+
+
 class _Tables(HTMLParser):
     """HTML tables as grids, rowspan and colspan cells repeated into every row and column they cover."""
 
@@ -54,7 +61,7 @@ class _Tables(HTMLParser):
 
     def handle_endtag(self, tag):
         if tag in ("td", "th") and self._cell is not None and self._rows:
-            self._rows[-1].append((" ".join("".join(self._cell).split()), *self._span))
+            self._rows[-1].append((_plain(" ".join("".join(self._cell).split())), *self._span))
             self._cell = None
         elif tag == "table" and self._rows is not None:
             self.tables.append(_grid(self._rows))
@@ -89,7 +96,7 @@ def _pipe_tables(text):
     tables, current = [], []
     for line in text.splitlines():
         if line.strip().startswith("|"):
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            cells = [_plain(c.strip()) for c in line.strip().strip("|").split("|")]
             if not all(re.fullmatch(r":?-{2,}:?", c) for c in cells if c):
                 current.append(cells)
         elif current:
@@ -103,7 +110,7 @@ def _listed_table(text):
     for raw in text.splitlines():
         if not re.match(r"^\s*[-*]\s+", raw):
             continue
-        item = re.sub(r"^\s*[-*]\s+", "", raw).strip()
+        item = _plain(re.sub(r"^\s*[-*]\s+", "", raw).strip())
         match = PHASE.match(item)
         if match:
             phase, item = match.group(1), match.group(2)

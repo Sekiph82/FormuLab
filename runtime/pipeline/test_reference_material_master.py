@@ -92,6 +92,11 @@ class ReferenceMaterialMasterTests(unittest.TestCase):
                 rows = json.load(handle)
             self.assertEqual([row["active"] for row in rows], [True, False])
 
+    def test_ocr_marks_and_procedure_steps(self):
+        self.assertEqual(m.plain_marks("ACULYN $^{TM}$ Siltouch"), "ACULYN ™ Siltouch")
+        self.assertTrue(m._NOT_A_MATERIAL.search("Adjust pH if necessary to 5.5-"))
+        self.assertFalse(m._NOT_A_MATERIAL.search("Adipic Acid"))
+
     def test_page_furniture_rows_are_not_materials(self):
         noise = ["© 2019 The Dow Chemical Company. All rights reserved.", "(and) Cetearyl Alcohol", "/ Dow",
                  "Sodium metasilicate pentahydrate Suppliers: 1. Croda", " DOW CORNING 556 FLUID"]

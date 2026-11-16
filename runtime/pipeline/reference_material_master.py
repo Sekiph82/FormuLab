@@ -49,9 +49,18 @@ def material_functions(printed: list[str]) -> list[str]:
 # Printed rows that are page furniture, not raw materials: copyright and trademark
 # notes, supplier lists, continuation fragments ("(and) Xanthan Gum", "/ Dow").
 _NOT_A_MATERIAL = re.compile(
-    r"©|\ball rights reserved|\btrademark\b|\bsuppliers?\s*:|^\s*(?:\(and\)|and\b|/|[^\w(])",
+    r"©|\ball rights reserved|\btrademark\b|\bsuppliers?\s*:|^\s*(?:\(and\)|and\b|/|[^\w(])"
+    # A procedure step read into the ingredient column ("Adjust pH if necessary to 5.5-").
+    r"|^\s*(?:adjust|add|mix|heat|cool|stir|dissolve|disperse|combine|homogeni[sz]e)\b",
     re.I,
 )
+
+
+def plain_marks(name: str) -> str:
+    """OCR/MinerU writes marks as LaTeX ("ACULYN $^{TM}$"); the printed name has the plain sign."""
+    name = re.sub(r"\$\s*\^\s*\{\s*(?:TM|tm)\s*\}\s*\$", "™", name)
+    name = re.sub(r"\$\s*\^\s*\{\s*(?:\\textregistered|R|®)\s*\}\s*\$", "®", name)
+    return re.sub(r"\$\s*\^\s*\{([^}]*)\}\s*\$", r"\1", name)
 
 
 # A class name printed where a formula leaves the choice open ("Preservative q.s.", "Colorant"):
@@ -176,7 +185,7 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
                 name = _cell(line, "inciOrChemicalName")
             titles[str(source.get("id"))] = str(source.get("source", {}).get("title") or source.get("id"))
             # U+FFFD is a trademark sign the PDF font did not map; the printed name reads without it.
-            name = re.sub(r"\s+", " ", name.replace("\ufffd", "")).strip()
+            name = re.sub(r"\s+", " ", plain_marks(name).replace("\ufffd", "")).strip()
             names[key][name] += 1
             if _cell(line, "function"):
                 functions[key].append(_cell(line, "function"))
@@ -236,10 +245,12 @@ def append_materials(master_dir: str) -> dict[str, int]:
     generated_codes = {str(material.get("code")) for material in existing if str(material.get("notes") or "").startswith(_GENERATED_NOTE)}
     for material in existing:
         mine = str(material.get("notes") or "").startswith(_GENERATED_NOTE) and material.get("active", True)
-        # A placeholder row this tool wrote earlier is kept as history but switched off.
-        if mine and is_placeholder(str(material.get("displayName") or "")):
-            rows.append({**material, "active": False, "updatedAt": now,
-                         "notes": f"{material.get('notes')} {_PLACEHOLDER_NOTE}"})
+        # A placeholder or non-material row this tool wrote earlier is kept as history but switched off.
+        display = str(material.get("displayName") or "")
+        reason = _PLACEHOLDER_NOTE if is_placeholder(display) else (
+            "Inactive: the printed row is not a raw material (page text or a procedure step)." if _NOT_A_MATERIAL.search(display) else None)
+        if mine and reason:
+            rows.append({**material, "active": False, "updatedAt": now, "notes": f"{material.get('notes')} {reason}"})
             repaired += 1
             continue
         # "REF-X-X" repeats a row this tool already wrote for the same printed key; two active
