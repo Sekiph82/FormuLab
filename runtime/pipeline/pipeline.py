@@ -1014,6 +1014,8 @@ def run(
             "productFamilyKey": reference_guidance.get("productFamilyKey") if isinstance(reference_guidance, dict) else None,
             "eligibleFormulaCount": guidance_eligible_count,
             "supplierCount": guidance_supplier_count,
+            # True when only owner-purchased handbook formulas covered this family.
+            "handbookOnly": bool(isinstance(reference_guidance, dict) and reference_guidance.get("handbookOnly")),
             "mappedIngredientCount": len(guidance_priors),
             "selectedIngredientCount": len(selected_reference_ingredients),
             "sourceRecordIds": reference_source_ids,

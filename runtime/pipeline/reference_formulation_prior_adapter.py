@@ -134,6 +134,10 @@ def _quantile(values: list[float], probability: float) -> float:
     return ordered[max(0, math.ceil(probability * len(ordered)) - 1)]
 
 
+# Folder-imported handbook formulas carry this source id ("Handbook <title>" folder).
+HANDBOOK_SUPPLIER_PREFIX = "supplier-handbook-"
+
+
 def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], materials: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Return validated, recomputed priors. The caller-supplied payload is ignored."""
     requested = _key(brief.get("targetProductType"))
@@ -260,6 +264,11 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
             ai_used.discard(source_id)
 
     eligible = [row for row in eligible if row["supplier"]]
+    # Owner decision 2026-11-16: formulas from owner-purchased handbooks support the supplier
+    # field formulas; they shape guidance only for a family no supplier formula covers.
+    field_formulas = [row for row in eligible if not row["supplier"].startswith(HANDBOOK_SUPPLIER_PREFIX)]
+    handbook_only = bool(eligible) and not field_formulas
+    eligible = field_formulas or eligible
     if not eligible:
         return {"schemaVersion": "formulab-new-request-reference-priors-v1", "productFamilyKey": family,
                 "eligibleFormulaCount": 0, "supplierCount": 0, "aiAdvisoryFormulaCount": 0, "ingredientPriors": [], "interpretation": INTERPRETATION}
@@ -372,5 +381,5 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
         })
     return {"schemaVersion": "formulab-new-request-reference-priors-v1", "productFamilyKey": family,
             "eligibleFormulaCount": len(family_ids), "supplierCount": len(all_suppliers),
-            "aiAdvisoryFormulaCount": len(family_ids & ai_used),
+            "aiAdvisoryFormulaCount": len(family_ids & ai_used), "handbookOnly": handbook_only,
             "ingredientPriors": priors, "interpretation": INTERPRETATION}

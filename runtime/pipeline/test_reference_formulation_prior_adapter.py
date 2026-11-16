@@ -124,6 +124,20 @@ class AuthoritativeReferenceGuidanceTests(unittest.TestCase):
         self.assertEqual(prior["materialCode"], "MAT-GTCC")
         self.assertEqual(prior["dosageGuidance"][0]["typicalRangePercent"], {"lower": 5.2, "upper": 5.2})
 
+    def test_handbook_formulas_only_fill_a_family_without_field_formulas(self):
+        book = {**self.source, "id": "book-1", "source": {**self.source["source"], "supplierId": "supplier-handbook-flick"}}
+        self._write("reference_formulations", [self.source, book])
+        both = self.reviews + [{**row, "id": "b" + row["id"], "referenceFormulationRecordId": "book-1",
+                                "targetKey": row["targetKey"].replace("norm-1", "norm-b")} for row in self.reviews]
+        self._write("reference_formulation_reviews", both)
+        self._write("reference_formulation_normalizations", [self.normalization, {**self.normalization, "id": "norm-b", "referenceFormulationRecordId": "book-1"}])
+        result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [self.material])
+        self.assertEqual((result["eligibleFormulaCount"], result["handbookOnly"]), (1, False))
+        self.assertEqual(result["ingredientPriors"][0]["sourceRecordIds"], ["formula-1"])
+        self._write("reference_formulations", [book])
+        result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [self.material])
+        self.assertEqual((result["eligibleFormulaCount"], result["handbookOnly"]), (1, True))
+
     def _as_ai(self, rows):
         return [{**row, "id": "ai-" + row["id"], "reviewer": {"userId": "ai:claude-opus-5-5", "displayName": "Claude (AI review, advisory)"}}
                 for row in rows]
