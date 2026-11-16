@@ -322,6 +322,9 @@ export function DataExchangeImportDialog({
       await upsertRecords("data_exchange_import_row_results", rowResults);
       setCommitted({ job, outcomes });
       onCommitted(job);
+    } catch (cause) {
+      // A storage failure must reach the user; it used to vanish and leave the preview as if nothing happened.
+      setFileError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(false);
     }
