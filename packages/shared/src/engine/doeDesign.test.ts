@@ -519,6 +519,12 @@ describe("generateDoeDesign (end-to-end)", () => {
     expect(result.design.diagnostics.centerPointCount).toBe(3);
   });
 
+  it("runs a factor at its edited low and high even when a stale center value is stored", () => {
+    const stale = [factor({ factorCode: "A", lowValue: "12", highValue: "20", centerValue: "5" })];
+    const result = generateDoeDesign({ study, factors: stale, constraints: [], responses: RESPONSES, designType: "full_factorial", seed: 1, centerPointCount: 0 }, HUMAN);
+    expect(result.runs.map((run) => run.factorSettings[0]?.actualValue).sort()).toEqual(["12", "20"]);
+  });
+
   it("marks replicate numbers for a manual design containing a deliberate duplicate", () => {
     const settings = [{ factorCode: "A", codedValue: "1", actualValue: "20" }];
     const result = generateDoeDesign(

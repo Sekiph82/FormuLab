@@ -1617,8 +1617,8 @@ function StudyWizard({
         factorType: "continuous",
         sourceType: "process_parameter",
         sourceEntityId: `factor_${wizard.factors.length + 1}`,
+        // No stored center: it follows the edited low/high as their midpoint.
         lowValue: "0",
-        centerValue: "5",
         highValue: "10",
         categoricalLevels: [],
         transformation: "none",

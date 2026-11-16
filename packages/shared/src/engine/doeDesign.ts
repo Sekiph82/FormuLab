@@ -305,11 +305,12 @@ function round(value: number, precision: number): string {
 export function continuousActualFromCoded(factor: DoeFactor, coded: number): string {
   const low = Number(factor.lowValue ?? "0");
   const high = Number(factor.highValue ?? "1");
-  const center = factor.centerValue !== undefined ? Number(factor.centerValue) : (low + high) / 2;
-  // coded in [-1, +1] maps linearly onto [low, high]; coded 0 maps to center;
-  // a coded magnitude beyond 1 (axial/alpha points) extrapolates the same line.
+  // coded -1/+1 are low/high and the line between them is the coding; a stored
+  // center value is the center point only (a stale or off-midpoint center must
+  // never move the low/high runs). A coded magnitude beyond 1 (axial/alpha
+  // points) extrapolates the same line.
   const half = (high - low) / 2;
-  const actual = center + coded * half;
+  const actual = coded === 0 && factor.centerValue !== undefined ? Number(factor.centerValue) : (low + high) / 2 + coded * half;
   return round(actual, factor.precision);
 }
 
