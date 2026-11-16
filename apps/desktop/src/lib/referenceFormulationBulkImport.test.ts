@@ -62,7 +62,7 @@ vi.mock("./referenceFormulationOcr", () => ({
   })),
 }));
 
-import { pagesFromExtraction, resumeReferenceFormulationBulkImport, startReferenceFormulationBulkImport } from "./referenceFormulationBulkImport";
+import { formulaVariantCount, pagesFromExtraction, resumeReferenceFormulationBulkImport, startReferenceFormulationBulkImport } from "./referenceFormulationBulkImport";
 import { SUPPLIER_PDF_TEXT_PARSER_VERSION } from "./supplierPdfTextExtraction";
 import { rebuildReferenceFormulationCorpusIndex } from "./referenceFormulationNormalizations";
 
@@ -182,6 +182,29 @@ describe("reference formulation bulk import", () => {
     collections.clear();
     failUpsertOnce.length = 0;
     vi.clearAllMocks();
+  });
+
+  it("reads a brochure with one formula table per page as separate formulas, each with its own page", () => {
+    const row = (lineNumber: number, y: number, cells: string[]) => ({
+      lineNumber, text: cells.join(" "), position: { x: 60, y },
+      fragments: cells.map((text, index) => ({ text, x: [60, 200, 480][index]!, width: 20 })),
+    });
+    const page = (pageNumber: number, title: string, first: string) => ({ pageNumber, lines: [
+      { lineNumber: 1, text: title, position: { x: 60, y: 700 }, fragments: [{ text: title, x: 60, width: 200 }] },
+      row(2, 660, ["Ingredient", "INCI", "Weight -%"]),
+      row(3, 645, [first, "Aqua", "80,00"]),
+      row(4, 630, ["Aristoflex BLV", "Ammonium Acryloyldimethyltaurate", "0,30"]),
+    ] });
+    const extraction = {
+      status: "extracted" as const, documentHash: "b".repeat(64),
+      parserVersion: SUPPLIER_PDF_TEXT_PARSER_VERSION as typeof SUPPLIER_PDF_TEXT_PARSER_VERSION, pageCount: 2, warnings: [],
+      pages: [page(1, "Royal Glow - Hair Scalp Serum", "Water"), page(2, "Noble Grace Shampoo", "Demineralized Water")],
+    };
+    expect(formulaVariantCount(extraction)).toBe(2);
+    const second = pagesFromExtraction(extraction, [], 2);
+    expect(second.map((entry) => entry.pageNumber)).toEqual([2]);
+    expect(second[0]!.blocks.find((block) => block.type === "table")).toMatchObject({ rows: expect.arrayContaining([["Demineralized Water", "Aqua", "80,00"]]) });
+    expect(second[0]!.blocks.some((block) => block.type === "text" && block.text === "Noble Grace Shampoo")).toBe(true);
   });
 
   it("reconstructs positioned supplier PDF columns and wrapped procedure text as cited review blocks", () => {

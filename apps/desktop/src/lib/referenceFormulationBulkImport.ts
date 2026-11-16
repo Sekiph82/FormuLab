@@ -214,12 +214,34 @@ function pageTables(lines: PositionedLine[], ocrLines: OcrLine[], pageNumber: nu
   ];
 }
 
-/** Number of formulas printed side by side in this document's ingredient tables (1 when there is one). */
+/**
+ * Every formula the document prints: one per ingredient table, and one per amount
+ * column of a table that prints several side by side. `table` is the key of the
+ * printed table (page and position) the formula belongs to.
+ */
+function formulaUnits(
+  extraction: Awaited<ReturnType<typeof extractSupplierPdfText>> & { status: "extracted" },
+  ocrLines: OcrLine[],
+) {
+  return extraction.pages.flatMap((page) => pageTables(page.lines, ocrLines, page.pageNumber).map((entry, index) => ({
+    pageNumber: page.pageNumber, index, variant: entry.table.variant ?? 1,
+    table: `${page.pageNumber}:${entry.source}:${entry.table.position?.y ?? `#${index}`}`,
+  })));
+}
+
+/** Brochures print one formula per table; side-by-side columns of one table are one document's variants. */
+function separateTables(units: ReturnType<typeof formulaUnits>): boolean {
+  return new Set(units.map((unit) => unit.table)).size > 1;
+}
+
+/** Number of formulas this document prints (1 when there is one). */
 export function formulaVariantCount(
   extraction: Awaited<ReturnType<typeof extractSupplierPdfText>> & { status: "extracted" },
   ocrLines: OcrLine[] = [],
 ): number {
-  return Math.max(1, ...extraction.pages.flatMap((page) => pageTables(page.lines, ocrLines, page.pageNumber).map(({ table }) => table.variantCount)));
+  const units = formulaUnits(extraction, ocrLines);
+  if (separateTables(units)) return units.length;
+  return Math.max(1, ...units.map((unit) => unit.variant));
 }
 
 /**
@@ -232,7 +254,13 @@ export function pagesFromExtraction(
   ocrLines: OcrLine[],
   variant = 1,
 ) {
-  return extraction.pages.map((page) => {
+  // A brochure with several separate tables: formula `variant` is the n-th table, read
+  // with the text of its own page only (its title, procedure and claims).
+  // ponytail: a single formula whose table restarts with a header on the next page is
+  // read as two formulas; join them when such layouts show up.
+  const units = formulaUnits(extraction, ocrLines);
+  const unit = separateTables(units) ? units[variant - 1] : undefined;
+  return extraction.pages.filter((page) => !unit || page.pageNumber === unit.pageNumber).map((page) => {
     type TextBlock = {
       type: "text"; blockIndex: number; text: string; source: "digital" | "ocr"; confidence?: number;
       position?: { x: number; y: number };
@@ -241,8 +269,8 @@ export function pagesFromExtraction(
     const positioned = [...page.lines].sort((left, right) => (right.position?.y ?? 0) - (left.position?.y ?? 0));
     const blocks: Array<TextBlock | TableBlock> = [];
     let nextIndex = 0;
-    for (const { table, source } of pageTables(positioned, ocrLines, page.pageNumber)) {
-      if ((table.variant ?? 1) !== variant) continue;
+    for (const [index, { table, source }] of pageTables(positioned, ocrLines, page.pageNumber).entries()) {
+      if (unit ? index !== unit.index : (table.variant ?? 1) !== variant) continue;
       blocks.push({ type: "table", blockIndex: nextIndex++, rows: table.rows, source, ...(table.position && source === "digital" ? { position: table.position } : {}) });
     }
     const consumedProcedureLines = new Set<number>();
