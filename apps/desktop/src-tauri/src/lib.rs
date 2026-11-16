@@ -140,6 +140,7 @@ pub fn run() {
             masterdata::append_reference_formulations,
             masterdata::append_reference_formulation_review,
             masterdata::append_reference_formulation_normalization,
+            masterdata::append_reference_formulation_normalizations,
             supplier_document_store::store_supplier_document_pdf,
             supplier_document_store::open_supplier_document_pdf,
             supplier_document_store::read_supplier_document_pdf,

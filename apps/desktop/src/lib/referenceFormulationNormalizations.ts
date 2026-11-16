@@ -21,7 +21,9 @@ import {
   currentReferenceFormulations,
   referenceFormulationCanonicalChemistryCandidates,
 } from "@formulab/shared";
-import { appendReferenceFormulationNormalizationRecord, listRecords, nowIso } from "./masterdata";
+import { appendReferenceFormulationNormalizationRecord, appendReferenceFormulationNormalizationRecords, listRecords, nowIso } from "./masterdata";
+
+const NORMALIZATION_WRITE_CHUNK = 250;
 
 /** Read immutable normalization versions for one source formulation. */
 export async function listReferenceFormulationNormalizations(
@@ -111,9 +113,8 @@ export async function ensureReferenceFormulationNormalizations(): Promise<number
     .filter((record) => !normalized.has(record.id) && (record.ingredientLines?.length ?? 0) > 0);
   if (pending.length === 0) return 0;
   const sdsEvidence = sdsRows.map((record) => supplierSdsProductEvidenceRecordSchema.parse(record));
-  let added = 0;
-  for (const source of pending.map((record) => referenceFormulationRecordSchema.parse(record))) {
-    await appendReferenceFormulationNormalizationRecord(createReferenceFormulationNormalizationVersion({
+  const versions = pending.map((record) => referenceFormulationRecordSchema.parse(record)).map((source) =>
+    createReferenceFormulationNormalizationVersion({
       id: `normalization-auto-${source.id}`,
       source,
       version: 1,
@@ -121,7 +122,10 @@ export async function ensureReferenceFormulationNormalizations(): Promise<number
       supplierSdsEvidenceRecords: sdsEvidence,
       createdAt: nowIso(),
     }));
-    added += 1;
+  // One native write per chunk: appending one by one re-read the whole corpus for every version.
+  let added = 0;
+  for (let start = 0; start < versions.length; start += NORMALIZATION_WRITE_CHUNK) {
+    added += await appendReferenceFormulationNormalizationRecords(versions.slice(start, start + NORMALIZATION_WRITE_CHUNK));
   }
   return added;
 }

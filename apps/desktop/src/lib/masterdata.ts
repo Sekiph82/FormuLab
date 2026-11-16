@@ -336,6 +336,13 @@ export async function appendReferenceFormulationNormalizationRecord(
   return call<ReferenceFormulationNormalizationVersion>("append_reference_formulation_normalization", { normalization });
 }
 
+/** Append many normalization versions in one native write; all pass or none is stored. */
+export async function appendReferenceFormulationNormalizationRecords(
+  normalizations: ReferenceFormulationNormalizationVersion[],
+): Promise<number> {
+  return call<number>("append_reference_formulation_normalizations", { normalizations });
+}
+
 /** Store owner-selected PDF bytes by verified content hash in the project document store. */
 export async function storeSupplierDocumentPdf(
   bytes: Uint8Array,

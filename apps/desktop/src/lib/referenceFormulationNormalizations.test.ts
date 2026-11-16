@@ -19,12 +19,13 @@ import { createReferenceFormulationSource } from "@formulab/shared";
 import { createReferenceFormulationRecord } from "@formulab/shared";
 import { appendReferenceFormulationNormalization, ensureReferenceFormulationNormalizations, listReferenceFormulationNormalizations, rebuildReferenceFormulationCorpusIndex } from "./referenceFormulationNormalizations";
 import { createReferenceFormulationNormalizationVersion } from "@formulab/shared";
-import { appendReferenceFormulationNormalizationRecord, listRecords } from "./masterdata";
+import { appendReferenceFormulationNormalizationRecord, appendReferenceFormulationNormalizationRecords, listRecords } from "./masterdata";
 import { getReferenceFormulationCorpusReviewData } from "./referenceFormulationCorpusReview";
 
 vi.mock("./masterdata", () => ({
   listRecords: vi.fn(),
   appendReferenceFormulationNormalizationRecord: vi.fn(),
+  appendReferenceFormulationNormalizationRecords: vi.fn(),
   nowIso: () => "2026-10-26T12:00:00.000Z",
 }));
 
@@ -304,15 +305,16 @@ describe("automatic first normalization after import", () => {
     let versions: unknown[] = [];
     vi.mocked(listRecords).mockImplementation(async (collection) =>
       (collection === "reference_formulations" ? [source] : collection === "reference_formulation_normalizations" ? versions : []) as never);
-    vi.mocked(appendReferenceFormulationNormalizationRecord).mockImplementation(async (record) => record);
+    vi.mocked(appendReferenceFormulationNormalizationRecords).mockImplementation(async (records) => records.length);
 
     await expect(ensureReferenceFormulationNormalizations()).resolves.toBe(1);
-    const saved = vi.mocked(appendReferenceFormulationNormalizationRecord).mock.calls[0]![0];
+    // All pending versions go to the store in one batch write.
+    const saved = vi.mocked(appendReferenceFormulationNormalizationRecords).mock.calls[0]![0][0]!;
     expect(saved).toMatchObject({ id: `normalization-auto-${source.id}`, version: 1, referenceFormulationRecordId: source.id });
     expect(saved.lines.every((line) => line.canonicalChemistry.status === "unresolved")).toBe(true);
 
     versions = [saved];
     await expect(ensureReferenceFormulationNormalizations()).resolves.toBe(0);
-    expect(appendReferenceFormulationNormalizationRecord).toHaveBeenCalledTimes(1);
+    expect(appendReferenceFormulationNormalizationRecords).toHaveBeenCalledTimes(1);
   });
 });

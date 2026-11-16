@@ -828,6 +828,54 @@ pub async fn append_reference_formulation_normalization(
     Ok(normalization)
 }
 
+/// Append many candidate-only normalization versions with the same checks as
+/// `append_reference_formulation_normalization`, reading the formulation corpus
+/// and writing the normalization file once instead of once per version.
+#[tauri::command(async)]
+pub async fn append_reference_formulation_normalizations(
+    app: AppHandle,
+    token: String,
+    normalizations: Vec<serde_json::Value>,
+) -> Result<usize, String> {
+    authz::authorize_any_app(&app, &token, "formulation", &WRITE_CAPABILITIES)?;
+    let _guard = REFERENCE_FORMULATION_NORMALIZATION_WRITE_LOCK
+        .lock()
+        .map_err(|_| "normalization storage is unavailable".to_string())?;
+    let source_rows = read_array(&collection_path(&app, "reference_formulations")?)?;
+    let sources: std::collections::HashMap<&str, &serde_json::Value> = source_rows.iter()
+        .filter_map(|row| row["id"].as_str().map(|id| (id, row)))
+        .collect();
+    let sds_evidence_rows = read_array(&collection_path(&app, "supplier_sds_product_evidence")?)?;
+    let acquisition_rows = read_array(&collection_path(&app, "supplier_document_acquisitions")?)?;
+    let path = collection_path(&app, "reference_formulation_normalizations")?;
+    let mut rows = read_array(&path)?;
+    let count = normalizations.len();
+    for mut normalization in normalizations {
+        let source_id = normalization["referenceFormulationRecordId"].as_str()
+            .ok_or_else(|| "normalization is missing its source formulation identity".to_string())?
+            .to_string();
+        let source = sources.get(source_id.as_str())
+            .ok_or_else(|| "normalization source formulation was not found".to_string())?;
+        let mut history = rows.iter()
+            .filter(|row| row["referenceFormulationRecordId"].as_str() == Some(source_id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        history.sort_by_key(|row| row["version"].as_u64().unwrap_or(0));
+        validate_normalization_version(&normalization, source, &history, &sds_evidence_rows, &acquisition_rows)?;
+        if let Some(object) = normalization.as_object_mut() {
+            object.insert("createdAt".to_string(), serde_json::Value::String(now_rfc3339_utc()));
+        }
+        let (next_rows, inserted, _) = apply_upsert(rows, vec![normalization], true, "reference_formulation_normalizations")?;
+        if inserted != 1 {
+            return Err("normalization version was not appended".to_string());
+        }
+        rows = next_rows;
+    }
+    // Nothing is written unless every version passed: one bad version leaves the file unchanged.
+    write_array(&path, &rows)?;
+    Ok(count)
+}
+
 /// Persist extracted SDS facts as an immutable, explicitly unreviewed evidence snapshot.
 #[tauri::command(async)]
 pub async fn append_supplier_sds_product_evidence(
