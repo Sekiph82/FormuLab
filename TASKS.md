@@ -19,8 +19,8 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 218
-- Completed Tasks: 218
+- Total Tasks: 219
+- Completed Tasks: 219
 - Remaining Tasks: 0
 - Completion: 100%
 
@@ -412,6 +412,7 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [x] REF-01.017 — Read formula PDFs the layout parser cannot (scanned cards, image tables) from a local, offline MinerU run, under their own parser version; batch formula saves per PDF
 - [x] REF-01.018 — Read the remaining unread formula PDFs (reader fallback when layout gives no lines, more amount headers, transposed/headerless reader tables with a closes-to-100 gate; parser v8/v9); PDF/DOCX formulation reports; scrollable app pages and supplier formula list
 - [x] REF-01.019 — Open Reference Formulas in seconds (memoized source validation, one corpus load, paged list), append-only formula/normalization writes with crash journal, printed material names cleaned and one material per printed product, legacy workspace merged and data-location warning cleared, Python caches kept out of installers
+- [x] REF-01.020 — Scanned formula cards read column by column (trade name / INCI / function split, card title rows dropped, MinerU v10, 109 PDFs re-imported); SYN-TEST and older test records removed with backup
 - [x] REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
 
 ## Historical Detail & Evidence
