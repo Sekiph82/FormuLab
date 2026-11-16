@@ -3852,7 +3852,11 @@
       "constraintsHeading": "역제형 제약",
       "constraintsEmpty": "아직 연결된 제약 세트가 없습니다.",
       "excludedMaterials": "제외 원료",
-      "createConstraints": "제약 생성 및 연결"
+      "createConstraints": "제약 생성 및 연결",
+      "profileCodeLabel": "프로필 코드",
+      "profileNameLabel": "프로필 이름",
+      "constraintCodeLabel": "제약 조건 세트 코드",
+      "constraintNameLabel": "제약 조건 세트 이름"
     },
     "candidates": {
       "generate": "후보 생성",

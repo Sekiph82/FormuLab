@@ -3852,7 +3852,11 @@
       "constraintsHeading": "逆向约束",
       "constraintsEmpty": "尚未关联约束集。",
       "excludedMaterials": "排除的原料",
-      "createConstraints": "创建并关联约束"
+      "createConstraints": "创建并关联约束",
+      "profileCodeLabel": "配置文件代码",
+      "profileNameLabel": "配置文件名称",
+      "constraintCodeLabel": "约束集代码",
+      "constraintNameLabel": "约束集名称"
     },
     "candidates": {
       "generate": "生成候选配方",

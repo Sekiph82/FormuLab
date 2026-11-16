@@ -3852,7 +3852,11 @@
       "constraintsHeading": "Contraintes Inverses",
       "constraintsEmpty": "Aucun ensemble de contraintes lié pour le moment.",
       "excludedMaterials": "Matériaux exclus",
-      "createConstraints": "Créer et lier les contraintes"
+      "createConstraints": "Créer et lier les contraintes",
+      "profileCodeLabel": "Code du profil",
+      "profileNameLabel": "Nom du profil",
+      "constraintCodeLabel": "Code de l'ensemble de contraintes",
+      "constraintNameLabel": "Nom de l'ensemble de contraintes"
     },
     "candidates": {
       "generate": "Générer des candidats",

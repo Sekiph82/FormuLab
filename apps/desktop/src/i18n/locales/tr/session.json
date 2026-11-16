@@ -3852,7 +3852,11 @@
       "constraintsHeading": "Ters Kısıtlar",
       "constraintsEmpty": "Henüz bağlı bir kısıt kümesi yok.",
       "excludedMaterials": "Hariç tutulan malzemeler",
-      "createConstraints": "Kısıt oluştur ve bağla"
+      "createConstraints": "Kısıt oluştur ve bağla",
+      "profileCodeLabel": "Profil kodu",
+      "profileNameLabel": "Profil adı",
+      "constraintCodeLabel": "Kısıt seti kodu",
+      "constraintNameLabel": "Kısıt seti adı"
     },
     "candidates": {
       "generate": "Aday oluştur",

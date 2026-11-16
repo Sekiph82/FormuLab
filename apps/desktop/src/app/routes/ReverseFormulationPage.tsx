@@ -988,10 +988,10 @@ function TargetSection({
               </select>
             )}
             <div className="flex flex-wrap items-end gap-1.5">
-              <Field label={t("reverseFormulation.studies.codeLabel")}>
+              <Field label={t("reverseFormulation.target.profileCodeLabel")}>
                 <input value={profileCode} onChange={(e) => setProfileCode(e.target.value)} className={INPUT} />
               </Field>
-              <Field label={t("reverseFormulation.studies.nameLabel")}>
+              <Field label={t("reverseFormulation.target.profileNameLabel")}>
                 <input value={profileName} onChange={(e) => setProfileName(e.target.value)} className={INPUT} />
               </Field>
               <Field label={t("reverseFormulation.target.phMinLabel")}>
@@ -1043,10 +1043,10 @@ function TargetSection({
               </select>
             )}
             <div className="flex flex-wrap items-end gap-1.5">
-              <Field label={t("reverseFormulation.studies.codeLabel")}>
+              <Field label={t("reverseFormulation.target.constraintCodeLabel")}>
                 <input value={constraintCode} onChange={(e) => setConstraintCode(e.target.value)} className={INPUT} />
               </Field>
-              <Field label={t("reverseFormulation.studies.nameLabel")}>
+              <Field label={t("reverseFormulation.target.constraintNameLabel")}>
                 <input value={constraintName} onChange={(e) => setConstraintName(e.target.value)} className={INPUT} />
               </Field>
               <Field label={t("reverseFormulation.target.excludedMaterials")}>

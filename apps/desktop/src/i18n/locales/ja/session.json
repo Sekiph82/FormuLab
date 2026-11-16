@@ -3852,7 +3852,11 @@
       "constraintsHeading": "リバース制約",
       "constraintsEmpty": "制約セットはまだリンクされていません。",
       "excludedMaterials": "除外原料",
-      "createConstraints": "制約を作成してリンク"
+      "createConstraints": "制約を作成してリンク",
+      "profileCodeLabel": "プロファイルコード",
+      "profileNameLabel": "プロファイル名",
+      "constraintCodeLabel": "制約セットコード",
+      "constraintNameLabel": "制約セット名"
     },
     "candidates": {
       "generate": "候補を生成",

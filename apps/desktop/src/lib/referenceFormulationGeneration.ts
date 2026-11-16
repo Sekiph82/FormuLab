@@ -1,6 +1,7 @@
 import {
   calculateReferenceFormulationCooccurrence,
   productFamilyForRequest,
+  buildKenyaCatalog,
   calculateReferenceFormulationContributionDistributions,
   calculateReferenceFormulationDosageDistributions,
   calculateReferenceFormulationIngredientFrequencyPriors,
@@ -29,6 +30,17 @@ function familyKey(value: string): string {
   // text from a PDF field still need identical text; normalize them in the shared engine if that matters.
   const label = productFamilyForRequest(value)?.label ?? value;
   return label.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
+}
+
+/** A product-family code ("HH-HANDSOAP") names no taxonomy family by itself; its catalog or
+ *  Material Master name ("Liquid Hand Soap") does. Unknown codes are used as written. */
+export async function productFamilyName(code: string): Promise<string> {
+  const wanted = code.trim().toLocaleUpperCase("en-US");
+  const catalog = buildKenyaCatalog().families.find((family) => family.code.toLocaleUpperCase("en-US") === wanted);
+  if (catalog) return catalog.name;
+  const stored = ((await listRecords("product_families")) as unknown as { code?: string; name?: string; displayName?: string }[])
+    .find((family) => family.code?.toLocaleUpperCase("en-US") === wanted);
+  return stored?.name ?? stored?.displayName ?? code;
 }
 
 /** Source-retention permissions are evaluated when guidance is requested, not
@@ -99,7 +111,7 @@ export async function loadReferenceFormulationGenerationContext(productFamilyCod
   /** Eligible formulas whose decisions include Claude's advisory reviews (D-REF-01-1). */
   aiAdvisorySourceRecordIds: string[];
 }> {
-  const productFamilyKey = familyKey(productFamilyCode);
+  const productFamilyKey = familyKey(await productFamilyName(productFamilyCode));
   if (!productFamilyKey) throw new Error("A product-family code is required for reference guidance.");
   const [{ queryRecords }, sourceRecords, reviewRows, aiReviewRows] = await Promise.all([
     rebuildReferenceFormulationCorpusIndex(),

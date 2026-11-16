@@ -3852,7 +3852,11 @@
       "constraintsHeading": "Rückformulierungs-Beschränkungen",
       "constraintsEmpty": "Noch kein Beschränkungssatz verknüpft.",
       "excludedMaterials": "Ausgeschlossene Materialien",
-      "createConstraints": "Beschränkungen erstellen & verknüpfen"
+      "createConstraints": "Beschränkungen erstellen & verknüpfen",
+      "profileCodeLabel": "Profilcode",
+      "profileNameLabel": "Profilname",
+      "constraintCodeLabel": "Code des Bedingungssatzes",
+      "constraintNameLabel": "Name des Bedingungssatzes"
     },
     "candidates": {
       "generate": "Kandidaten generieren",

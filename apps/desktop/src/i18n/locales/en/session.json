@@ -3812,7 +3812,11 @@
       "constraintsHeading": "Reverse Constraints",
       "constraintsEmpty": "No constraint set linked yet.",
       "excludedMaterials": "Excluded materials",
-      "createConstraints": "Create & link constraints"
+      "createConstraints": "Create & link constraints",
+      "profileCodeLabel": "Profile code",
+      "profileNameLabel": "Profile name",
+      "constraintCodeLabel": "Constraint set code",
+      "constraintNameLabel": "Constraint set name"
     },
     "candidates": {
       "generate": "Generate candidates",

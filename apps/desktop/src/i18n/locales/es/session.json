@@ -3852,7 +3852,11 @@
       "constraintsHeading": "Restricciones Inversas",
       "constraintsEmpty": "Aún no hay un conjunto de restricciones vinculado.",
       "excludedMaterials": "Materiales excluidos",
-      "createConstraints": "Crear y vincular restricciones"
+      "createConstraints": "Crear y vincular restricciones",
+      "profileCodeLabel": "Código del perfil",
+      "profileNameLabel": "Nombre del perfil",
+      "constraintCodeLabel": "Código del conjunto de restricciones",
+      "constraintNameLabel": "Nombre del conjunto de restricciones"
     },
     "candidates": {
       "generate": "Generar candidatos",

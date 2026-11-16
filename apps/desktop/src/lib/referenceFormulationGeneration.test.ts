@@ -66,3 +66,10 @@ describe("reference formulation support quality", () => {
     expect(fixture({ total: 4, eligible: 0, suppliers: 0 }).status).toBe("UNAVAILABLE");
   });
 });
+
+describe("productFamilyName", () => {
+  it("turns a catalog family code into the name the taxonomy reads", async () => {
+    const { productFamilyName } = await import("./referenceFormulationGeneration");
+    await expect(productFamilyName("hh-handsoap")).resolves.toBe("Liquid Hand Soap");
+  });
+});
