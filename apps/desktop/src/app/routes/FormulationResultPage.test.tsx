@@ -718,17 +718,15 @@ describe("FormulationResultPage — Session 6 Safety/Regulatory/evidence-gap wir
     // — an ingredient that does not even exist in this card's real
     // `formula.ingredients` (Water (Aqua) only). The tab must show the
     // REAL, recomputed state instead of ever rendering that legacy text
-    // — proving the retired module is genuinely not consulted. The real
-    // authoritative result here is "warning" (the real
-    // `safety-flammable-solvent`/`safety-ventilation-reminder` seed rules
-    // both fire on a q.s.-to-100% solvent-function line) — a real,
-    // deterministic finding, not the fabricated legacy one.
+    // — proving the retired module is genuinely not consulted. Water alone
+    // fires no seed rule (the flammable-solvent and ventilation rules match
+    // the volatile solvents themselves, not every solvent-function line), so
+    // the real result is "Safe", or "coverage unknown" because that water
+    // line has no material code — never the fabricated legacy finding.
     expect(screen.queryByText("Sodium Hydroxide")).toBeNull();
     expect(screen.queryByText(/SAFETY-CORR-001/)).toBeNull();
-    // "Safety warning" legitimately appears twice — the Safety tab's own
-    // state line and the always-visible `VersionSummaryCard`'s data row —
-    // both real, both expected.
-    expect((await screen.findAllByText("Safety warning")).length).toBeGreaterThanOrEqual(2);
+    expect((await screen.findAllByText(/^(Safe|Safety coverage unknown)$/)).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Safety warning")).toBeNull();
   });
 
   it("FVL-03.011: the Formula tab shows this fixture's genuinely unresolved materialCode honestly, never a fabricated id", async () => {
@@ -779,15 +777,14 @@ describe("FormulationResultPage — Session 6 Safety/Regulatory/evidence-gap wir
     await screen.findByText("Water (Aqua)");
     await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
     // FVL-03.009/.010: both readiness badges now show the authoritative,
-    // client-recomputed states — "Safety warning" (real
-    // safety-flammable-solvent/safety-ventilation-reminder seed rules
-    // fire on this fixture's q.s.-to-100% solvent-function line) and
+    // client-recomputed states — no safety warning (no seed rule fires on this
+    // fixture's water-only formula) and
     // "Regulatory review needed" (the real KE-REG-003 label_requirement
     // rule fires a real `missing_data` finding for the "kenya" market
     // this fixture's own real `brief.market` now carries) — never either
     // fixture's own legacy `overall_status` field ("PASS_WITH_CONDITIONS"/
     // "COMPLIANT_WITH_CONDITIONS", values no longer read anywhere).
-    expect((await screen.findAllByText("Safety warning")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/^(Safe|Safety coverage unknown)$/)).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("Regulatory review needed")).length).toBeGreaterThan(0);
   });
 

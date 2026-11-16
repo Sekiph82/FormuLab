@@ -183,6 +183,15 @@ describe("evaluateSafety", () => {
     expect(findings).toHaveLength(1);
   });
 
+  it("does not treat water or a fatty alcohol as a flammable or vapour-generating solvent", () => {
+    const lines = [
+      line({ displayName: "Purified Water", percent: "82", functions: ["solvent"] }),
+      line({ displayName: "Cetearyl Alcohol", percent: "75", functions: ["emollient"] }),
+    ];
+    const findings = evaluateSafety(lines, [ruleFor("safety-flammable-solvent"), ruleFor("safety-ventilation-reminder")], { materials: [] });
+    expect(findings).toEqual([]);
+  });
+
   it("every seed safety rule evaluates without throwing on an empty formula", () => {
     expect(() => evaluateSafety([], SEED_SAFETY_RULES, { materials: [] })).not.toThrow();
     expect(evaluateSafety([], SEED_SAFETY_RULES, { materials: [] })).toEqual([]);

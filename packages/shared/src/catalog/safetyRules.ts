@@ -136,7 +136,14 @@ export const SEED_SAFETY_RULES: SafetyRule[] = [
     ruleType: "concentration_dependent",
     // maxConcentrationPercent is the ceiling below which this is NOT flagged —
     // the finding fires once the line's percent exceeds it, i.e. at/above 70%.
-    conditions: [{ label: "alcohol solvent", functionsAny: ["solvent"], nameKeywordsAny: ["alcohol", "ethanol", "isopropyl", "ipa"], maxConcentrationPercent: "70" }],
+    // Conditions match on ANY listed field, so "solvent" alone would flag water and "alcohol"
+    // would flag fatty alcohols (cetearyl alcohol); match the flammable alcohols themselves.
+    conditions: [{
+      label: "alcohol solvent",
+      nameKeywordsAny: ["ethanol", "isopropanol", "isopropyl alcohol", "alcohol denat", "denatured alcohol", "sd alcohol"],
+      casNumbersAny: ["64-17-5", "67-63-0"],
+      maxConcentrationPercent: "70",
+    }],
     message: "An alcohol-type solvent is present at or above 70%. Formulas at this concentration are commonly flammable-liquid classified.",
     scientificReason: "Ethanol/isopropanol solutions above roughly 60–70% typically have a flash point low enough to classify as a flammable liquid.",
     requiredAction: "Confirm flash point and flammable-liquid classification/labelling before production and storage.",
@@ -290,7 +297,12 @@ export const SEED_SAFETY_RULES: SafetyRule[] = [
     category: "missing_ventilation",
     severity: "info",
     ruleType: "forbidden_combination",
-    conditions: [{ label: "vapour/gas-generating", functionsAny: ["bleaching_agent", "solvent"] }],
+    // Volatile solvents by name: the "solvent" function alone also covers water.
+    conditions: [{
+      label: "vapour/gas-generating",
+      functionsAny: ["bleaching_agent"],
+      nameKeywordsAny: ["ethanol", "isopropanol", "isopropyl alcohol", "alcohol denat", "acetone", "butoxyethanol", "glycol ether", "limonene", "mineral spirits", "naphtha"],
+    }],
     message: "This formula includes a material class that commonly requires local ventilation during production, beyond routine handling.",
     scientificReason: "Bleaching agents and solvents can generate vapours/gases during mixing that benefit from local exhaust.",
     requiredAction: "Confirm ventilation adequacy at the production site before scale-up.",
