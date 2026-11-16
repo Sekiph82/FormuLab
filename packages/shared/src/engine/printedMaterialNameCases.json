@@ -1,0 +1,21 @@
+[
+  { "printed": "1. DI water", "name": "DI water", "id": "inci:water" },
+  { "printed": "1. DI or soft water", "name": "DI or soft water", "id": "inci:water" },
+  { "printed": "Deionized Water", "name": "Deionized Water", "id": "inci:water" },
+  { "printed": "12) Glycerin", "name": "Glycerin", "id": "inci:glycerin" },
+  { "printed": "(3) Glycerin", "name": "Glycerin", "id": "inci:glycerin" },
+  { "printed": "B Glycerin", "name": "Glycerin", "id": "inci:glycerin" },
+  { "printed": "Butylene Glycol / Making Cosmetics", "name": "Butylene Glycol", "id": "inci:butylene-glycol" },
+  { "printed": "Zemea / DuPont", "name": "Zemea", "id": "inci:zemea" },
+  { "printed": "A ACULYN™ 22 Thickener / Dow", "name": "ACULYN™ 22 Thickener", "id": "inci:aculyntm-22-thickener" },
+  { "printed": "Cegesoft SH / BASF Stability:", "name": "Cegesoft SH", "id": "inci:cegesoft-sh" },
+  { "printed": "Glycerin Vegetal Appearance:", "name": "Glycerin Vegetal", "id": "inci:glycerin-vegetal" },
+  { "printed": "Glycerin / Water", "name": "Glycerin / Water", "id": "inci:glycerin-water" },
+  { "printed": "Caprylyl Glycol / Ethylhexylglycerin", "name": "Caprylyl Glycol / Ethylhexylglycerin", "id": "inci:caprylyl-glycol-ethylhexylglycerin" },
+  { "printed": "Acrylates/C10-30 Alkyl Acrylate Crosspolymer", "name": "Acrylates/C10-30 Alkyl Acrylate Crosspolymer", "id": "inci:acrylates-c10-30-alkyl-acrylate-crosspolymer" },
+  { "printed": "AA2G / DKSH", "name": "AA2G / DKSH", "id": "inci:aa2g-dksh" },
+  { "printed": "08005-J / Sensient FD&C RED", "name": "08005-J / Sensient FD&C RED", "id": "inci:08005-j-sensient-fd-c-red" },
+  { "printed": "C12-15 Alkyl Benzoate", "name": "C12-15 Alkyl Benzoate", "id": "inci:c12-15-alkyl-benzoate" },
+  { "printed": "Vitamin E", "name": "Vitamin E", "id": "inci:vitamin-e" },
+  { "printed": "DOWSIL� 5225C Formulation Aid", "name": "DOWSIL� 5225C Formulation Aid", "id": "inci:dowsil-5225c-formulation-aid" }
+]

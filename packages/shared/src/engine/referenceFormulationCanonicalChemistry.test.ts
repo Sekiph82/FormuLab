@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { canonicalChemistryIdFromInci, referenceFormulationCanonicalChemistryCandidates } from "./referenceFormulationCanonicalChemistry";
+import { canonicalChemistryIdFromInci, cleanPrintedMaterialName, referenceFormulationCanonicalChemistryCandidates } from "./referenceFormulationCanonicalChemistry";
+import printedNames from "./printedMaterialNameCases.json";
 
 describe("canonical chemistry from printed INCI names", () => {
+  it("reads the material name without list numbers, phase letters, supplier suffixes or column labels", () => {
+    // The pipeline's clean_printed_name / inci_chemistry_id read the same cases and must agree.
+    for (const { printed, name, id } of printedNames) {
+      expect(cleanPrintedMaterialName(printed), printed).toBe(name);
+      expect(canonicalChemistryIdFromInci(printed), printed).toBe(id);
+    }
+  });
+
   it("gives one deterministic id per single INCI name", () => {
     expect(canonicalChemistryIdFromInci("Sodium Laureth Sulfate")).toBe("inci:sodium-laureth-sulfate");
     expect(canonicalChemistryIdFromInci(" sodium  laureth sulfate* ")).toBe("inci:sodium-laureth-sulfate");

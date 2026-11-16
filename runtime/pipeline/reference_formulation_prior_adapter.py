@@ -29,15 +29,47 @@ def _array(directory: str, name: str) -> list[dict[str, Any]]:
         return []
 
 
-_WATER = re.compile(r"^(?:aqua|water|eau)(?:\s*(?:/|\()\s*(?:aqua|water|eau)\s*\)?)?$")
+# "Water", "Aqua (Water)", and the grades formulas print for it ("DI water", "Deionized water",
+# "DI or soft water"): all INCI Aqua.
+_WATER = re.compile(r"^(?:(?:de-?ionized|demineralized|distilled|purified|di|soft|ro)\s+(?:or\s+\w+\s+)?)?"
+                    r"(?:aqua|water|eau)(?:\s*(?:/|\()\s*(?:aqua|water|eau)\s*\)?)?$")
+# The first word of a supplier or distributor that formulas print after a name ("Butylene Glycol / Making
+# Cosmetics", "Zemea / DuPont"). Only a listed first word is cut, so a blend like "Glycerin / Water" stays.
+_SUPPLIER_SUFFIX = re.compile(
+    r"\s+/\s*(?:dow|croda|sensient|making|basf|vantage|dsm|dsm-firmenich|hallstar|dupont|symrise|earthoil|miyoshi"
+    r"|ashland|spectrum|angus|clariant|oleon|henry|stepan|kobo|merck|kahlwax|lubrizol|activon|kao|elementis|evonik"
+    r"|seppic|biosynthis|cargill|univar|arxada|nagase|sytheon|ingredion|robertet|givaudan|nouryon|zschimmer|codif"
+    r"|lanxess|floratech|dksh|wacker|innospec|inolex|lonza|momentive|gattefoss[eé]|azelis|imcd|brenntag|biesterfeld"
+    r"|lotioncrafter|solvay|arkema|firmenich|iff|mane|akema|aak|ioi|kci|icsc|sun chemical)\b[^/]*$",
+    re.I,
+)
+# Text a table printed into the name cell: a list number ("1. DI water", "12) Glycerin"), a phase
+# letter ("A ACULYN 22"), or the next column's label ("Glycerin Vegetal Appearance:").
+_LIST_NUMBER = re.compile(r"^\s*(?:\(\d{1,2}\)|\d{1,2}\s*[.)])\s+")
+_PHASE_LETTER = re.compile(r"^[A-F]\s+(?=[A-Z][A-Za-z])")
+_PROPERTY_LABEL = re.compile(r"\s+(?:appearance|stability|product characteristics|viscosity|odou?r|colou?r)\s*:.*$", re.I)
+
+
+def clean_printed_name(raw: str | None) -> str:
+    """The material name a formula line prints, without list numbers, phase letters, supplier suffixes
+    or a neighbouring column's label. Twin of the shared cleanPrintedMaterialName; both must agree."""
+    text = re.sub(r"\s+", " ", raw or "").strip()
+    text = _LIST_NUMBER.sub("", text)
+    text = _PHASE_LETTER.sub("", text)
+    text = _PROPERTY_LABEL.sub("", text)
+    without_supplier = _SUPPLIER_SUFFIX.sub("", text).strip()
+    # "08005-J / Sensient FD&C Red", "AA2G / DKSH": the part before the slash is no name by itself.
+    return without_supplier if re.search(r"[A-Za-z]{3}", without_supplier) else text
+
+
 _BLEND = re.compile(r"\s*\(and\)\s*|\s*;\s*|,\s+|\s+&\s+")
 
 
 def inci_chemistry_id(raw: str | None) -> str | None:
     """Python twin of the shared canonicalChemistryIdFromInci; both must agree. Also keys a printed
     ingredient name, so a formula line and a Material Master row with the same name meet."""
-    text = unicodedata.normalize("NFKC", raw or "").lower()
-    text = re.sub(r"[®™©*†‡¹²³⁴⁵⁶⁷⁸⁹⁰]", "", text)
+    text = unicodedata.normalize("NFKC", clean_printed_name(raw)).lower()
+    text = re.sub(r"[®™©*†‡¹²³⁴⁵⁶⁷⁸⁹⁰�]", "", text)
     text = re.sub(r"\s*\(\d{1,2}\)\s*$", "", text)
     text = re.sub(r"\s+", " ", text).strip()
     if not text or len(text) > 120 or "%" in text or not re.search(r"[a-z]{3}", text):
@@ -289,10 +321,6 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
 
     family_ids = {row["id"] for row in eligible}
     all_suppliers = {row["supplier"] for row in eligible}
-    by_chemistry: dict[str, list[dict[str, Any]]] = {}
-    for row in eligible:
-        for _, chemistry_id in row["lines"]:
-            by_chemistry.setdefault(chemistry_id, []).append(row)
 
     materials_by_chemistry: dict[str, list[dict[str, Any]]] = {}
     for material in materials:
@@ -322,14 +350,46 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
     # even when their display name is a trade name ("Hostapon SCI 85P").
     materials_by_code = {str(material.get("code") or material.get("material_code")): material
                          for material in materials if material.get("active", True)}
+
+    def material_for(key: str | None) -> dict[str, Any] | None:
+        if not key:
+            return None
+        mapped = materials_by_chemistry.get(key) or materials_by_name.get(key, [])
+        if len(mapped) != 1:
+            code = "REF-" + re.sub(r"[^A-Z0-9]+", "-", key.split(":", 1)[-1].upper()).strip("-")[:60]
+            mapped = [materials_by_code[code]] if code in materials_by_code else mapped
+        return mapped[0] if len(mapped) == 1 else None
+
+    # Each line meets its material by its INCI key, else by its printed name ("Aristoflex BLV" whose
+    # INCI cell the PDF cut). Lines are then counted per material, so one product read under several
+    # keys is one prior. A line that meets no single material is left out, as before.
+    reviewed_identity = {id(material) for group in materials_by_chemistry.values() for material in group}
+    material_of: dict[str, dict[str, Any]] = {}
+    chemistry_of: dict[str, dict[str, int]] = {}
+    by_chemistry: dict[str, list[dict[str, Any]]] = {}
+    for row in eligible:
+        grouped = []
+        for line, chemistry_id in row["lines"]:
+            name = line.get("ingredientName")
+            material = material_for(chemistry_id)
+            if material is None:
+                material = material_for(inci_chemistry_id(name.get("rawValue") if isinstance(name, dict) else None))
+                # A reviewed identity names the material's chemistry; a printed name does not override it.
+                if material is not None and id(material) in reviewed_identity:
+                    material = None
+            if material is None:
+                continue
+            group = f"material:{material.get('code') or material.get('material_code')}"
+            material_of[group] = material
+            counts = chemistry_of.setdefault(group, {})
+            counts[chemistry_id] = counts.get(chemistry_id, 0) + 1
+            grouped.append((line, group))
+        row["lines"] = grouped
+        for group in dict.fromkeys(group for _, group in grouped):
+            by_chemistry.setdefault(group, []).append(row)
+
     priors = []
     for chemistry_id, rows in sorted(by_chemistry.items()):
-        mapped = materials_by_chemistry.get(chemistry_id) or materials_by_name.get(chemistry_id, [])
-        if len(mapped) != 1:
-            code = "REF-" + re.sub(r"[^A-Z0-9]+", "-", chemistry_id.split(":", 1)[-1].upper()).strip("-")[:60]
-            mapped = [materials_by_code[code]] if code in materials_by_code else mapped
-        if len(mapped) != 1:
-            continue
         source_ids = sorted({row["id"] for row in rows})
         supplier_counts: dict[str, int] = {}
         for row in rows:
@@ -389,14 +449,15 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
                 "typicalRangePercent": {"lower": _quantile(lower_values, .25), "upper": _quantile(upper_values, .75)},
                 "sourceRecordIds": dosage_ids,
             })
-        material = mapped[0]
+        material = material_of[chemistry_id]
         priors.append({
             # Which formula PDFs printed this ingredient, so a result can name them.
             "sourceFormulas": [_source_formula(row, chemistry_id) for row in sorted(rows, key=lambda row: row["id"])
                                if row["id"] in source_ids][:50],
             "materialCode": str(material.get("code") or material.get("material_code")),
             "materialName": str(material.get("name") or material.get("inci") or ""),
-            "canonicalChemistryId": chemistry_id,
+            # The INCI key most of its lines print.
+            "canonicalChemistryId": max(chemistry_of[chemistry_id].items(), key=lambda item: (item[1], item[0]))[0],
             "formulaCount": len(source_ids), "eligibleFormulaCount": len(family_ids),
             "supplierCount": len(supplier_counts), "formulaWeightedFrequency": len(source_ids) / len(family_ids),
             "supplierNeutralFrequency": supplier_neutral, "sourceRecordIds": source_ids,

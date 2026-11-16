@@ -132,6 +132,31 @@ class AuthoritativeReferenceGuidanceTests(unittest.TestCase):
         result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [by_code])
         self.assertEqual(result["ingredientPriors"][0]["materialCode"], "REF-CRODAMOL-GTCC")
 
+    def test_one_product_with_differently_cut_inci_cells_is_one_prior(self):
+        # Two PDFs print "Aristoflex BLV" but cut its INCI cell at different places.
+        def line(line_id, inci):
+            return {"id": line_id, "quantitySemantics": "explicit_amount",
+                    "ingredientName": {"rawValue": "Aristoflex BLV", "evidence": {"sourceDocumentHash": self.digest}},
+                    "inciOrChemicalName": {"rawValue": inci, "evidence": {"sourceDocumentHash": self.digest}},
+                    "amount": {"rawValue": "1.5", "evidence": {"sourceDocumentHash": self.digest, "header": "% w/w"}}}
+        second = {**self.source, "id": "formula-2", "ingredientLines": [line("line-2", "Polyacrylate Crosspolymer-11")]}
+        self._write("reference_formulations", [{**self.source, "ingredientLines": [line("line-1", "Polyacrylate Crosspolyme")]}, second])
+        self._write("reference_formulation_normalizations", [])
+        self._write("identity_field_reviews", [])
+        reviews = []
+        for formula, line_id in (("formula-1", "line-1"), ("formula-2", "line-2")):
+            reviews += [{**review, "id": f"{formula}-{review['id']}", "referenceFormulationRecordId": formula} for review in (
+                self.reviews[0],
+                self._review(f"ingredient:{line_id}:ingredientName", f"ingredientLines[{line_id}].ingredientName", "Aristoflex BLV"),
+                self._review(f"ingredient:{line_id}:amount", f"ingredientLines[{line_id}].amount", "1.5"))]
+        self._write("reference_formulation_reviews", reviews)
+        material = {"code": "REF-POLYACRYLATE-CROSSPOLYMER-11", "name": "Aristoflex BLV", "trade_name": "Aristoflex BLV", "active": True}
+        result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [material])
+        self.assertEqual(result["eligibleFormulaCount"], 2)
+        [prior] = result["ingredientPriors"]
+        self.assertEqual((prior["materialCode"], prior["formulaCount"]), ("REF-POLYACRYLATE-CROSSPOLYMER-11", 2))
+        self.assertEqual(prior["canonicalChemistryId"], "inci:polyacrylate-crosspolymer-11")
+
     def test_handbook_formulas_only_fill_a_family_without_field_formulas(self):
         book = {**self.source, "id": "book-1", "source": {**self.source["source"], "supplierId": "supplier-handbook-flick"}}
         self._write("reference_formulations", [self.source, book])
@@ -188,6 +213,17 @@ class AuthoritativeReferenceGuidanceTests(unittest.TestCase):
                  "Bulaşık makinesi deterjanı": "dishwash_automatic", "Duş jeli": "body_wash", "110-00797-01-acetal": None}
         for text, expected in cases.items():
             self.assertEqual(family_key(text), expected, text)
+
+
+class PrintedMaterialNameTests(unittest.TestCase):
+    def test_names_and_keys_agree_with_the_shared_twin(self):
+        cases_path = os.path.join(os.path.dirname(__file__), "..", "..", "packages", "shared", "src", "engine",
+                                  "printedMaterialNameCases.json")
+        with open(cases_path, encoding="utf-8") as fh:
+            cases = json.load(fh)
+        for case in cases:
+            self.assertEqual(adapter.clean_printed_name(case["printed"]), case["name"], case["printed"])
+            self.assertEqual(adapter.inci_chemistry_id(case["printed"]), case["id"], case["printed"])
 
 
 if __name__ == "__main__":

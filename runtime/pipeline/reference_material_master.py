@@ -20,7 +20,9 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
-from reference_formulation_prior_adapter import _array, _current, inci_chemistry_id
+import unicodedata
+
+from reference_formulation_prior_adapter import _array, _current, clean_printed_name, inci_chemistry_id
 
 # Printed "Function" cells -> Material Master function codes. Unlisted wording stays unmapped.
 _FUNCTIONS = [
@@ -159,8 +161,14 @@ def _generated(material: dict[str, Any]) -> bool:
             and material.get("updatedAt") == material.get("createdAt"))
 
 
-def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
-    """Rows for every printed raw material Material Master lacks; this tool's own unedited rows are rebuilt."""
+def _same_name(display: str) -> str:
+    """One spelling of a printed name: case, marks and punctuation do not make another material."""
+    return re.sub(r"[^a-z0-9]+", "", unicodedata.normalize("NFKC", display).lower().replace("tm", ""))
+
+
+def build_materials(master_dir: str, now: str, merged: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    """Rows for every printed raw material Material Master lacks; this tool's own unedited rows are rebuilt.
+    `merged` receives, for each key folded into another row of the same printed name, both rows' codes."""
     existing = [material for material in _array(master_dir, "materials") if not _generated(material)]
     known = {key for material in existing
              for key in (inci_chemistry_id(material.get(field)) for field in ("inciName", "tradeName", "displayName")) if key}
@@ -185,7 +193,7 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
                 name = _cell(line, "inciOrChemicalName")
             titles[str(source.get("id"))] = str(source.get("source", {}).get("title") or source.get("id"))
             # U+FFFD is a trademark sign the PDF font did not map; the printed name reads without it.
-            name = re.sub(r"\s+", " ", plain_marks(name).replace("\ufffd", "")).strip()
+            name = clean_printed_name(re.sub(r"\s+", " ", plain_marks(name).replace("\ufffd", "")))
             names[key][name] += 1
             if _cell(line, "function"):
                 functions[key].append(_cell(line, "function"))
@@ -196,6 +204,22 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
     for key in evidence:
         if key not in known and key not in names:
             names[key][key.split(":", 1)[1].replace("-", " ").title()] += 1
+    # One printed product read under several keys ("Aristoflex BLV" with its INCI cell cut at a
+    # different place in each PDF) is one material: fold the keys into the one most formulas use.
+    by_name: dict[str, list[str]] = defaultdict(list)
+    for key, counter in names.items():
+        by_name[_same_name(counter.most_common(1)[0][0])].append(key)
+    for keys in by_name.values():
+        if len(keys) < 2:
+            continue
+        primary, *others = sorted(keys, key=lambda k: (-len(formulas.get(k, ())), k))
+        for other in others:
+            names[primary].update(names.pop(other))
+            functions[primary].extend(functions.pop(other, []))
+            suppliers[primary] |= suppliers.pop(other, set())
+            formulas[primary] |= formulas.pop(other, set())
+            if merged is not None:
+                merged[f"REF-{_slug(other)}"] = f"REF-{_slug(primary)}"
     rows = []
     for key, counter in sorted(names.items()):
         display = counter.most_common(1)[0][0]
@@ -240,7 +264,16 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
 def append_materials(master_dir: str) -> dict[str, int]:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     existing = _array(master_dir, "materials")
-    built = {row["code"]: row for row in build_materials(master_dir, now)}
+    merged: dict[str, str] = {}
+    built = {row["code"]: row for row in build_materials(master_dir, now, merged)}
+    # Which row now owns a printed name: an unedited row of this tool whose name keys elsewhere
+    # (written before list numbers and supplier suffixes were read off) repeats that row.
+    owner: dict[str, str] = {}
+    for material in list(built.values()) + [m for m in existing if m.get("active", True) and not _generated(m)]:
+        for field in ("inciName", "tradeName", "displayName"):
+            key = inci_chemistry_id(material.get(field))
+            if key:
+                owner.setdefault(key, str(material.get("code")))
     rows, repaired = [], 0
     generated_codes = {str(material.get("code")) for material in existing if str(material.get("notes") or "").startswith(_GENERATED_NOTE)}
     for material in existing:
@@ -261,6 +294,14 @@ def append_materials(master_dir: str) -> dict[str, int]:
                          "notes": f"{material.get('notes')} Inactive: duplicate of {base}."})
             repaired += 1
             continue
+        code = str(material.get("code") or "")
+        if _generated(material) and material.get("active", True) and code not in built:
+            target = merged.get(code) or owner.get(inci_chemistry_id(material.get("displayName")) or "")
+            if target and target != code:
+                rows.append({**material, "active": False, "updatedAt": now,
+                             "notes": f"{material.get('notes')} Inactive: same material as {target}."})
+                repaired += 1
+                continue
         row = built.pop(material.get("code"), None) if _generated(material) else None
         if row is None:
             rows.append(material)

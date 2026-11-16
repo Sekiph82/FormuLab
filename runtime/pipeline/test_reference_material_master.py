@@ -37,6 +37,39 @@ class ReferenceMaterialMasterTests(unittest.TestCase):
             self.assertEqual(added["Crodamol GTCC"]["documents"][-1]["location"], "reference-formulations/f1")
             self.assertEqual(m.append_materials(directory), {"existing": 3, "added": 0, "repaired": 0})
 
+    def test_list_numbers_and_supplier_suffixes_do_not_make_another_material(self):
+        with tempfile.TemporaryDirectory() as directory:
+            def write(name, rows):
+                with open(os.path.join(directory, f"{name}.json"), "w", encoding="utf-8") as handle:
+                    json.dump(rows, handle)
+
+            def cut(name, inci, line_id):
+                return {**_line(name, "Thickener", line_id), "inciOrChemicalName": {"rawValue": inci}}
+            write("reference_formulations", [{
+                "id": "f1", "sourceDocumentHash": "a" * 64, "source": {"supplierId": "clariant", "parserVersion": "layout-v3"},
+                # One product whose INCI cell each PDF cuts at a different place.
+                "ingredientLines": [cut("Aristoflex BLV", "Polyacrylate Crosspolyme", "l1"),
+                                    _line("1. Butylene Glycol / Making Cosmetics", "Humectant", "l2")],
+            }, {
+                "id": "f2", "sourceDocumentHash": "b" * 64, "source": {"supplierId": "clariant", "parserVersion": "layout-v3"},
+                "ingredientLines": [cut("ARISTOFLEX® BLV", "Polyacrylate Crosspolymer-11", "l1"),
+                                    cut("Aristoflex BLV", "Acryloyldimethyl- taurate", "l2")],
+            }])
+            stale = {"code": "REF-1-BUTYLENE-GLYCOL-MAKING-COSMETICS", "displayName": "1. Butylene Glycol / Making Cosmetics",
+                     "notes": "From supplier field formulas: 1 formula(s).", "active": True,
+                     "createdAt": "2026-11-01T00:00:00.000Z", "updatedAt": "2026-11-01T00:00:00.000Z"}
+            write("materials", [stale])
+            m.append_materials(directory)
+            with open(os.path.join(directory, "materials.json"), encoding="utf-8") as handle:
+                rows = json.load(handle)
+            active = {row["displayName"]: row for row in rows if row.get("active", True)}
+            self.assertEqual(sorted(active), ["Aristoflex BLV", "Butylene Glycol"])
+            self.assertEqual({doc["location"] for doc in active["Aristoflex BLV"]["documents"]},
+                             {"reference-formulations/f1", "reference-formulations/f2"})
+            old = next(row for row in rows if row["code"] == stale["code"])
+            self.assertFalse(old["active"])
+            self.assertIn(f"same material as {active['Butylene Glycol']['code']}", old["notes"])
+
     def test_a_merged_row_is_named_by_its_inci_and_an_old_generated_row_is_repaired(self):
         with tempfile.TemporaryDirectory() as directory:
             def write(name, rows):
