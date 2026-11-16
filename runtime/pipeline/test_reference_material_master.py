@@ -49,7 +49,9 @@ class ReferenceMaterialMasterTests(unittest.TestCase):
                 "id": "f1", "sourceDocumentHash": "a" * 64, "source": {"supplierId": "clariant", "parserVersion": "layout-v3"},
                 # One product whose INCI cell each PDF cuts at a different place.
                 "ingredientLines": [cut("Aristoflex BLV", "Polyacrylate Crosspolyme", "l1"),
-                                    _line("1. Butylene Glycol / Making Cosmetics", "Humectant", "l2")],
+                                    _line("1. Butylene Glycol / Making Cosmetics", "Humectant", "l2"),
+                                    # A class name and a step behind a phase letter / list number.
+                                    _line("A Surfactant", "", "l3"), _line("3. Add ingredient 2 and stir", "", "l4")],
             }, {
                 "id": "f2", "sourceDocumentHash": "b" * 64, "source": {"supplierId": "clariant", "parserVersion": "layout-v3"},
                 "ingredientLines": [cut("ARISTOFLEX® BLV", "Polyacrylate Crosspolymer-11", "l1"),
@@ -69,6 +71,29 @@ class ReferenceMaterialMasterTests(unittest.TestCase):
             old = next(row for row in rows if row["code"] == stale["code"])
             self.assertFalse(old["active"])
             self.assertIn(f"same material as {active['Butylene Glycol']['code']}", old["notes"])
+            # A second run finds nothing left to change.
+            self.assertEqual(m.append_materials(directory), {"existing": len(rows), "added": 0, "repaired": 0})
+
+    def test_a_row_this_tool_repaired_is_rebuilt_but_an_app_edit_is_kept(self):
+        with tempfile.TemporaryDirectory() as directory:
+            def write(name, rows):
+                with open(os.path.join(directory, f"{name}.json"), "w", encoding="utf-8") as handle:
+                    json.dump(rows, handle)
+            write("reference_formulations", [{
+                "id": "f1", "sourceDocumentHash": "a" * 64, "source": {"supplierId": "croda", "parserVersion": "layout-v3"},
+                "ingredientLines": [_line("1. Crodamol GTCC", "Emollient", "l1"), _line("2. Crodasinic LS30", "Surfactant", "l2")],
+            }])
+            note = "From supplier field formulas: 1 formula(s)."
+            repaired_by_tool = {"code": "REF-CRODAMOL-GTCC", "displayName": "1. Crodamol GTCC", "active": True, "notes": note,
+                                "createdAt": "2026-11-01T00:00:00.000Z", "updatedAt": "2026-11-02T05:56:18.000Z"}
+            edited_in_app = {"code": "REF-CRODASINIC-LS30", "displayName": "2. Crodasinic LS30 (checked)", "active": True,
+                             "notes": note, "createdAt": "2026-11-01T00:00:00.000Z", "updatedAt": "2026-11-03T09:14:52.418Z"}
+            write("materials", [repaired_by_tool, edited_in_app])
+            m.append_materials(directory)
+            with open(os.path.join(directory, "materials.json"), encoding="utf-8") as handle:
+                rows = {row["code"]: row for row in json.load(handle)}
+            self.assertEqual(rows["REF-CRODAMOL-GTCC"]["displayName"], "Crodamol GTCC")
+            self.assertEqual(rows["REF-CRODASINIC-LS30"], edited_in_app)
 
     def test_a_merged_row_is_named_by_its_inci_and_an_old_generated_row_is_repaired(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -124,6 +149,13 @@ class ReferenceMaterialMasterTests(unittest.TestCase):
             with open(os.path.join(directory, "materials.json"), encoding="utf-8") as handle:
                 rows = json.load(handle)
             self.assertEqual([row["active"] for row in rows], [True, False])
+            # A second row left with an existing code is dropped; switching a row off adds no copy of it.
+            with open(os.path.join(directory, "materials.json"), "w", encoding="utf-8") as handle:
+                json.dump(rows + [{**rows[1], "active": True}], handle)
+            self.assertEqual(m.append_materials(directory)["repaired"], 1)
+            with open(os.path.join(directory, "materials.json"), encoding="utf-8") as handle:
+                codes = [row["code"] for row in json.load(handle)]
+            self.assertEqual(sorted(codes), ["REF-CRODAMOL-GTCC", "REF-CRODAMOL-GTCC-X-X"])
 
     def test_ocr_marks_and_procedure_steps(self):
         self.assertEqual(m.plain_marks("ACULYN $^{TM}$ Siltouch"), "ACULYN ™ Siltouch")

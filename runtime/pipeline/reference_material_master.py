@@ -156,9 +156,16 @@ _TRADEMARK = re.compile("[®™�]")
 
 
 def _generated(material: dict[str, Any]) -> bool:
-    """A row this tool wrote and nobody has edited since."""
+    """A row this tool wrote or last repaired, and nobody has edited since.
+
+    This tool stamps whole seconds ("…:17.000Z"); the app stamps every edit with its milliseconds.
+    Requiring updatedAt == createdAt treated the tool's own earlier repairs as human edits, so names
+    it later learned to clean were never rebuilt.
+    ponytail: an app edit that lands on exactly .000 s (1 in 1000) would be rebuilt; record the editor
+    on materials if that ever matters."""
+    stamp = str(material.get("updatedAt") or "")
     return (str(material.get("code") or "").startswith("REF-") and str(material.get("notes") or "").startswith(_GENERATED_NOTE)
-            and material.get("updatedAt") == material.get("createdAt"))
+            and (stamp == material.get("createdAt") or stamp.endswith(".000Z")))
 
 
 def _same_name(display: str) -> str:
@@ -168,7 +175,7 @@ def _same_name(display: str) -> str:
 
 def build_materials(master_dir: str, now: str, merged: dict[str, str] | None = None) -> list[dict[str, Any]]:
     """Rows for every printed raw material Material Master lacks; this tool's own unedited rows are rebuilt.
-    `merged` receives, for each key folded into another row of the same printed name, both rows' codes."""
+    `merged` receives, for each key folded into another row of the same printed name, that row's code."""
     existing = [material for material in _array(master_dir, "materials") if not _generated(material)]
     known = {key for material in existing
              for key in (inci_chemistry_id(material.get(field)) for field in ("inciName", "tradeName", "displayName")) if key}
@@ -182,18 +189,19 @@ def build_materials(master_dir: str, now: str, merged: dict[str, str] | None = N
     formulas: dict[str, set[str]] = defaultdict(set)
     for source in _current(_array(master_dir, "reference_formulations")):
         for line in source.get("ingredientLines", []):
-            name = _cell(line, "ingredientName") or _cell(line, "inciOrChemicalName")
-            key = inci_chemistry_id(_cell(line, "inciOrChemicalName")) or inci_chemistry_id(name)
+            printed = _cell(line, "ingredientName") or _cell(line, "inciOrChemicalName")
+            key = inci_chemistry_id(_cell(line, "inciOrChemicalName")) or inci_chemistry_id(printed)
+            # Two trademark signs mean the PDF merged two rows ("Dongbaek Oil ® Hostapon SCI 85 ®");
+            # the line's own INCI cell then names it.
+            if len(_TRADEMARK.findall(printed)) >= 2 and _cell(line, "inciOrChemicalName"):
+                printed = _cell(line, "inciOrChemicalName")
+            # U+FFFD is a trademark sign the PDF font did not map; the printed name reads without it.
+            # Checked after cleaning: "A Surfactant" and "1. Add ingredient 13" are a class name and a step.
+            name = clean_printed_name(re.sub(r"\s+", " ", plain_marks(printed).replace("�", "")))
             if (not key or key in known or not re.search(r"[A-Za-z]{3}", name) or len(name) > 80
                     or _NOT_A_MATERIAL.search(name) or is_placeholder(name)):
                 continue
-            # Two trademark signs mean the PDF merged two rows ("Dongbaek Oil ® Hostapon SCI 85 ®");
-            # the line's own INCI cell then names it.
-            if len(_TRADEMARK.findall(name)) >= 2 and _cell(line, "inciOrChemicalName"):
-                name = _cell(line, "inciOrChemicalName")
             titles[str(source.get("id"))] = str(source.get("source", {}).get("title") or source.get("id"))
-            # U+FFFD is a trademark sign the PDF font did not map; the printed name reads without it.
-            name = clean_printed_name(re.sub(r"\s+", " ", plain_marks(name).replace("\ufffd", "")))
             names[key][name] += 1
             if _cell(line, "function"):
                 functions[key].append(_cell(line, "function"))
@@ -219,7 +227,7 @@ def build_materials(master_dir: str, now: str, merged: dict[str, str] | None = N
             suppliers[primary] |= suppliers.pop(other, set())
             formulas[primary] |= formulas.pop(other, set())
             if merged is not None:
-                merged[f"REF-{_slug(other)}"] = f"REF-{_slug(primary)}"
+                merged[other] = f"REF-{_slug(primary)}"
     rows = []
     for key, counter in sorted(names.items()):
         display = counter.most_common(1)[0][0]
@@ -268,7 +276,7 @@ def append_materials(master_dir: str) -> dict[str, int]:
     built = {row["code"]: row for row in build_materials(master_dir, now, merged)}
     # Which row now owns a printed name: an unedited row of this tool whose name keys elsewhere
     # (written before list numbers and supplier suffixes were read off) repeats that row.
-    owner: dict[str, str] = {}
+    owner: dict[str, str] = dict(merged)
     for material in list(built.values()) + [m for m in existing if m.get("active", True) and not _generated(m)]:
         for field in ("inciName", "tradeName", "displayName"):
             key = inci_chemistry_id(material.get(field))
@@ -276,27 +284,38 @@ def append_materials(master_dir: str) -> dict[str, int]:
                 owner.setdefault(key, str(material.get("code")))
     rows, repaired = [], 0
     generated_codes = {str(material.get("code")) for material in existing if str(material.get("notes") or "").startswith(_GENERATED_NOTE)}
+    by_code = {str(material.get("code")): material for material in existing}
+    seen: set[str] = set()
     for material in existing:
+        code = str(material.get("code") or "")
+        # Material Master holds one row per code; an earlier run could leave a second one behind.
+        if code in seen:
+            repaired += 1
+            continue
+        seen.add(code)
         mine = str(material.get("notes") or "").startswith(_GENERATED_NOTE) and material.get("active", True)
         # A placeholder or non-material row this tool wrote earlier is kept as history but switched off.
         display = str(material.get("displayName") or "")
         reason = _PLACEHOLDER_NOTE if is_placeholder(display) else (
             "Inactive: the printed row is not a raw material (page text or a procedure step)." if _NOT_A_MATERIAL.search(display) else None)
         if mine and reason:
+            built.pop(code, None)
             rows.append({**material, "active": False, "updatedAt": now, "notes": f"{material.get('notes')} {reason}"})
             repaired += 1
             continue
-        # "REF-X-X" repeats a row this tool already wrote for the same printed key; two active
-        # rows for one material also stop formula lines from mapping to either.
+        # "REF-X-X" repeats a row this tool already wrote for the same printed name; two active
+        # rows for one material also stop formula lines from mapping to either. Two long names whose
+        # codes share the first 60 characters are two materials and both stay.
         base = re.sub(r"(-X)+$", "", str(material.get("code") or ""))
-        if mine and base != material.get("code") and base in generated_codes:
+        if (mine and base != material.get("code") and base in generated_codes
+                and _same_name(str(by_code.get(base, {}).get("displayName") or "")) == _same_name(display)):
+            built.pop(code, None)
             rows.append({**material, "active": False, "updatedAt": now,
                          "notes": f"{material.get('notes')} Inactive: duplicate of {base}."})
             repaired += 1
             continue
-        code = str(material.get("code") or "")
         if _generated(material) and material.get("active", True) and code not in built:
-            target = merged.get(code) or owner.get(inci_chemistry_id(material.get("displayName")) or "")
+            target = owner.get(inci_chemistry_id(material.get("displayName")) or "")
             if target and target != code:
                 rows.append({**material, "active": False, "updatedAt": now,
                              "notes": f"{material.get('notes')} Inactive: same material as {target}."})
