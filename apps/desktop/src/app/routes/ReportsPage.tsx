@@ -54,7 +54,7 @@ function FormulationReports() {
   useEffect(() => {
     let live = true;
     listSessions()
-      .then((rows) => { if (live) setSessions([...rows].filter((row) => row.card_count > 0).sort((a, b) => b.created - a.created)); })
+      .then((rows) => { if (live) setSessions([...rows].filter((row) => row.card_count > 0).sort((a, b) => b.id.localeCompare(a.id))); })
       .catch((cause) => { if (live) { setSessions([]); setError(cause instanceof Error ? cause.message : String(cause)); } });
     return () => { live = false; };
   }, []);
@@ -98,7 +98,7 @@ function FormulationReports() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[12.5px] text-text">{row.brief?.target || row.id}</div>
                 <div className="text-[10.5px] text-muted">
-                  {new Date(row.created * (row.created < 1e12 ? 1000 : 1)).toLocaleString()} · {t("reports.formulationReports.versions", { count: row.card_count })}
+                  {row.created.replace(/^(\d{4}-\d{2}-\d{2})-(\d{2})(\d{2})$/u, "$1 $2:$3")} · {t("reports.formulationReports.versions", { count: row.card_count })}
                 </div>
               </div>
               {FORMATS.map((format) => (

@@ -171,7 +171,7 @@ export function ReferenceFormulationsPage() {
 
   if (!selected) {
     return (
-      <main className="mx-auto h-full w-full max-w-6xl overflow-y-auto p-6">
+      <main className="mx-auto w-full max-w-6xl p-6">
         <header className="mb-6">
           <h1 className="text-xl font-semibold text-text">{t("referenceFormulations.title")}</h1>
           <p className="mt-2 max-w-3xl text-sm text-muted">{t("referenceFormulations.intro")}</p>
@@ -204,7 +204,7 @@ export function ReferenceFormulationsPage() {
   }
 
   return (
-    <main className="mx-auto h-full w-full max-w-7xl overflow-y-auto p-6">
+    <main className="mx-auto w-full max-w-7xl p-6">
       <Link to="/reference-formulations" className="mb-4 inline-flex items-center gap-2 text-sm text-accent hover:underline"><ArrowLeft size={15} />{t("referenceFormulations.allFormulations")}</Link>
       <header className="mb-5 rounded-lg border border-border bg-surface p-5">
         <div className="flex items-start gap-3">

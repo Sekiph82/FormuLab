@@ -617,7 +617,8 @@ export const FORMULA_ALTERNATIVE_COUNTS = Array.from(
 
 export interface SessionSummary {
   id: string;
-  created: number;
+  /** Session id prefix, e.g. "2026-11-16-0522" (local date and HHMM). */
+  created: string;
   brief: FormulationBrief | null;
   card_count: number;
 }

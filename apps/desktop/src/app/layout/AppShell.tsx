@@ -146,7 +146,7 @@ export function AppShell() {
             <PanelLeft size={14} strokeWidth={1.5} />
           </button>
         )}
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <Outlet />
         </div>
       </main>

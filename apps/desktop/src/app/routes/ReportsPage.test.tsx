@@ -20,22 +20,23 @@ import { ReportsPage } from "./ReportsPage";
 describe("ReportsPage", () => {
   it("lists saved formulation results and downloads a DOCX report with its evaluations", async () => {
     mocks.listSessions.mockResolvedValue([
-      { id: "s-old", created: 1_700_000_000, brief: { target: "Older shampoo" }, card_count: 3 },
-      { id: "s-new", created: 1_800_000_000, brief: { target: "Mild sulfate-free shampoo" }, card_count: 3 },
-      { id: "s-empty", created: 1_900_000_000, brief: { target: "Failed run" }, card_count: 0 },
+      { id: "2026-07-25-0521-older", created: "2026-07-25-0521", brief: { target: "Older shampoo" }, card_count: 3 },
+      { id: "2026-11-16-0522-new", created: "2026-11-16-0522", brief: { target: "Mild sulfate-free shampoo" }, card_count: 3 },
+      { id: "2026-11-17-0900-empty", created: "2026-11-17-0900", brief: { target: "Failed run" }, card_count: 0 },
     ]);
     const formula = { ingredients: [{ inci: "Water (Aqua)", weight_pct: "q.s. 100" }] };
-    mocks.readSession.mockResolvedValue({ id: "s-new", brief: { target: "Mild sulfate-free shampoo", market: "Kenya" }, cards: [{ version: "v1", formula }] });
+    mocks.readSession.mockResolvedValue({ id: "2026-11-16-0522-new", brief: { target: "Mild sulfate-free shampoo", market: "Kenya" }, cards: [{ version: "v1", formula }] });
     render(<MemoryRouter><ReportsPage /></MemoryRouter>);
 
     const first = await screen.findByText("Mild sulfate-free shampoo");
     expect(screen.queryByText("Failed run")).toBeNull();
+    expect(screen.getByText(/2026-11-16 05:22/)).toBeInTheDocument();
     expect(first.compareDocumentPosition(screen.getByText("Older shampoo")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     await userEvent.click(screen.getAllByRole("button", { name: "docx" })[0]!);
     expect(mocks.download).toHaveBeenCalledTimes(1);
     const [, id, safety, regulatory, compatibility, format] = mocks.download.mock.calls[0] as unknown as [unknown, string, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, string];
-    expect([id, format]).toEqual(["s-new", "docx"]);
+    expect([id, format]).toEqual(["2026-11-16-0522-new", "docx"]);
     expect(Object.keys(safety)).toEqual(["v1"]);
     expect(Object.keys(regulatory)).toEqual(["v1"]);
     expect(Object.keys(compatibility)).toEqual(["v1"]);
