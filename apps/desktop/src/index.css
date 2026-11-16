@@ -105,6 +105,8 @@
 /* Dark — neutral-cool like light, so it shares light's blue accent (stepped
    up for the dark surface; dark text on the filled accent keeps contrast). */
 [data-theme="dark"] {
+  /* Native controls (select lists, scrollbars, date pickers) render dark too. */
+  color-scheme: dark;
   --bg: #16151a;
   --surface: #1e1d24;
   --surface-2: #26252d;

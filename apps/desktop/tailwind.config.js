@@ -7,6 +7,12 @@ export default {
       colors: {
         bg: "var(--bg)",
         surface: "var(--surface)",
+        // Aliases screens already use: without them these classes produced no colour
+        // (unreadable selects, invisible borders and warning text).
+        "surface-1": "var(--surface)",
+        "border-faint": "var(--border-faint)",
+        warning: "var(--warn)",
+        success: "var(--ok)",
         "surface-2": "var(--surface-2)",
         border: "var(--border)",
         faint: "var(--border-faint)",
