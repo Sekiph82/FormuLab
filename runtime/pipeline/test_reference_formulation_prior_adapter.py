@@ -127,6 +127,10 @@ class AuthoritativeReferenceGuidanceTests(unittest.TestCase):
         prior = result["ingredientPriors"][0]
         self.assertEqual(prior["materialCode"], "MAT-GTCC")
         self.assertEqual(prior["dosageGuidance"][0]["typicalRangePercent"], {"lower": 5.2, "upper": 5.2})
+        # A row written from formula lines is found by its code when its name is another trade name.
+        by_code = {"code": "REF-CRODAMOL-GTCC", "name": "Crodamol GTCC-SS", "active": True}
+        result = build_authoritative_guidance(self.directory, {"targetProductType": "Hand Dishwash"}, [by_code])
+        self.assertEqual(result["ingredientPriors"][0]["materialCode"], "REF-CRODAMOL-GTCC")
 
     def test_handbook_formulas_only_fill_a_family_without_field_formulas(self):
         book = {**self.source, "id": "book-1", "source": {**self.source["source"], "supplierId": "supplier-handbook-flick"}}

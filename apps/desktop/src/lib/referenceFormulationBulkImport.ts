@@ -234,6 +234,36 @@ function separateTables(units: ReturnType<typeof formulaUnits>): boolean {
   return new Set(units.map((unit) => unit.table)).size > 1;
 }
 
+/**
+ * A brochure formula's own name ("Royal Glow - Hair Scalp Serum"): the nearest line above its
+ * table that is not a running header or footer printed on several pages. Undefined when the
+ * formula is not read from a single page or no such line exists.
+ */
+export function formulaTitleOnPage(
+  extraction: Awaited<ReturnType<typeof extractSupplierPdfText>> & { status: "extracted" },
+  pages: ReturnType<typeof pagesFromExtraction>,
+): string | undefined {
+  if (pages.length !== 1) return undefined;
+  const normalize = (text: string) => text.replace(/\s+/gu, " ").trim().toLocaleLowerCase("en-US");
+  const seen = new Map<string, number>();
+  for (const page of extraction.pages) {
+    for (const text of new Set(page.lines.map((line) => normalize(line.text)))) seen.set(text, (seen.get(text) ?? 0) + 1);
+  }
+  const blocks = pages[0]!.blocks;
+  const tableY = blocks.find((block) => block.type === "table")?.position?.y;
+  const candidates = blocks.flatMap((block) => block.type === "text" && block.position ? [{ text: block.text.trim(), y: block.position.y }] : [])
+    .filter(({ text, y }) => (tableY === undefined || y > tableY)
+      && /[A-Za-z]{3}/u.test(text) && text.length >= 4 && text.length <= 90
+      && (seen.get(normalize(text)) ?? 0) < 2
+      && !/^(batch|page|phase|ingredients?|inci|procedure|key ingredients|claims|stability|formula)\b/iu.test(text)
+      && !/^\d/u.test(text) && !/%/u.test(text)
+      // A name, not a sentence or step of the procedure printed above the next table.
+      && /^[\p{Lu}\p{N}]/u.test(text) && !/[.,;:]$/u.test(text) && !/°\s?C|\bCPF\b/u.test(text)
+      && text.split(/\s+/u).length <= 7);
+  candidates.sort((left, right) => tableY === undefined ? right.y - left.y : left.y - right.y);
+  return candidates[0]?.text;
+}
+
 /** Number of formulas this document prints (1 when there is one). */
 export function formulaVariantCount(
   extraction: Awaited<ReturnType<typeof extractSupplierPdfText>> & { status: "extracted" },
@@ -367,7 +397,10 @@ async function persistVariant(input: {
   const identity = extractReferenceFormulationIdentity({ acquisition: input.acquisition, pages });
   const baseTitle = identity.candidates.find((candidate) => candidate.field === "formulation_title")?.rawValue
     ?? input.item.originalFilename.replace(/\.pdf$/iu, "");
-  const sourceTitle = input.variants > 1 ? `${baseTitle} (formula ${input.variant} of ${input.variants})` : baseTitle;
+  const pageTitle = input.variants > 1 ? formulaTitleOnPage(input.extraction, pages) : undefined;
+  const sourceTitle = input.variants > 1
+    ? `${pageTitle ? `${pageTitle} — ` : ""}${baseTitle} (formula ${input.variant} of ${input.variants})`
+    : baseTitle;
   const sourceRevision = identity.candidates.find((candidate) => candidate.field === "revision_identifier")?.rawValue;
   const revisionDate = identity.candidates.find((candidate) => candidate.field === "revision_date")?.rawValue;
   const publicationDate = identity.candidates.find((candidate) => candidate.field === "publication_date")?.rawValue;

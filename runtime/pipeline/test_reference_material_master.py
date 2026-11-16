@@ -57,6 +57,41 @@ class ReferenceMaterialMasterTests(unittest.TestCase):
             self.assertEqual(row["createdAt"], "t0")
             self.assertEqual(row["documents"][0]["title"], "Supplier field formula: Body wash")
 
+    def test_a_printed_class_name_is_not_a_material_and_an_earlier_row_is_switched_off(self):
+        self.assertTrue(m.is_placeholder("Preservative q.s."))
+        self.assertTrue(m.is_placeholder("Colorants"))
+        self.assertFalse(m.is_placeholder("Parfum"))
+        self.assertFalse(m.is_placeholder("Phenoxyethanol"))
+        with tempfile.TemporaryDirectory() as directory:
+            def write(name, rows):
+                with open(os.path.join(directory, f"{name}.json"), "w", encoding="utf-8") as handle:
+                    json.dump(rows, handle)
+            write("reference_formulations", [{"id": "f1", "sourceDocumentHash": "a" * 64, "source": {"supplierId": "dow", "parserVersion": "layout-v3"},
+                                              "ingredientLines": [_line("Preservative", "Preservative", "l1")]}])
+            write("materials", [{"code": "REF-PRESERVATIVE", "displayName": "Preservative", "active": True,
+                                 "notes": "From supplier field formulas: 11 formula(s).", "createdAt": "t0", "updatedAt": "t1"}])
+            self.assertEqual(m.append_materials(directory), {"existing": 1, "added": 0, "repaired": 1})
+            with open(os.path.join(directory, "materials.json"), encoding="utf-8") as handle:
+                (row,) = json.load(handle)
+            self.assertFalse(row["active"])
+
+    def test_an_updated_row_is_not_written_again_and_earlier_repeats_are_switched_off(self):
+        with tempfile.TemporaryDirectory() as directory:
+            def write(name, rows):
+                with open(os.path.join(directory, f"{name}.json"), "w", encoding="utf-8") as handle:
+                    json.dump(rows, handle)
+            write("reference_formulations", [{"id": "f1", "sourceDocumentHash": "a" * 64, "source": {"supplierId": "croda", "parserVersion": "layout-v3"},
+                                              "ingredientLines": [_line("Crodamol GTCC", "Emollient", "l1")]}])
+            note = "From supplier field formulas: 1 formula(s)."
+            write("materials", [
+                {"code": "REF-CRODAMOL-GTCC", "displayName": "Crodamol GTCC", "active": True, "notes": note, "createdAt": "t0", "updatedAt": "t1"},
+                {"code": "REF-CRODAMOL-GTCC-X-X", "displayName": "Crodamol GTCC", "active": True, "notes": note, "createdAt": "t2", "updatedAt": "t2"},
+            ])
+            self.assertEqual(m.append_materials(directory), {"existing": 2, "added": 0, "repaired": 1})
+            with open(os.path.join(directory, "materials.json"), encoding="utf-8") as handle:
+                rows = json.load(handle)
+            self.assertEqual([row["active"] for row in rows], [True, False])
+
     def test_page_furniture_rows_are_not_materials(self):
         noise = ["© 2019 The Dow Chemical Company. All rights reserved.", "(and) Cetearyl Alcohol", "/ Dow",
                  "Sodium metasilicate pentahydrate Suppliers: 1. Croda", " DOW CORNING 556 FLUID"]

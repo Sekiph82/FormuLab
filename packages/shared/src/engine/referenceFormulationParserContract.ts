@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION = "formulab-reference-formulation-layout-v5-one-record-per-table";
+export const REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION = "formulab-reference-formulation-layout-v6-brochure-formula-titles";
 
 const sourceKind = z.enum(["digital", "ocr", "mixed", "unknown"]);
 const positionSchema = z.object({ x: z.number().finite().nonnegative(), y: z.number().finite().nonnegative() }).strict();

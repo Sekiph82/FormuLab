@@ -318,9 +318,16 @@ def build_authoritative_guidance(master_dir: str | None, brief: dict[str, Any], 
         for name_key in {inci_chemistry_id(material.get(field)) for field in ("inci", "trade_name", "name")} - {None}:
             materials_by_name.setdefault(str(name_key), []).append(material)
 
+    # Rows written from formula lines carry their printed key in the code ("REF-SODIUM-COCOYL-ISETHIONATE")
+    # even when their display name is a trade name ("Hostapon SCI 85P").
+    materials_by_code = {str(material.get("code") or material.get("material_code")): material
+                         for material in materials if material.get("active", True)}
     priors = []
     for chemistry_id, rows in sorted(by_chemistry.items()):
         mapped = materials_by_chemistry.get(chemistry_id) or materials_by_name.get(chemistry_id, [])
+        if len(mapped) != 1:
+            code = "REF-" + re.sub(r"[^A-Z0-9]+", "-", chemistry_id.split(":", 1)[-1].upper()).strip("-")[:60]
+            mapped = [materials_by_code[code]] if code in materials_by_code else mapped
         if len(mapped) != 1:
             continue
         source_ids = sorted({row["id"] for row in rows})

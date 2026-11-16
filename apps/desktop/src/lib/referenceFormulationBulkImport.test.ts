@@ -62,7 +62,7 @@ vi.mock("./referenceFormulationOcr", () => ({
   })),
 }));
 
-import { formulaVariantCount, pagesFromExtraction, resumeReferenceFormulationBulkImport, startReferenceFormulationBulkImport } from "./referenceFormulationBulkImport";
+import { formulaTitleOnPage, formulaVariantCount, pagesFromExtraction, resumeReferenceFormulationBulkImport, startReferenceFormulationBulkImport } from "./referenceFormulationBulkImport";
 import { SUPPLIER_PDF_TEXT_PARSER_VERSION } from "./supplierPdfTextExtraction";
 import { rebuildReferenceFormulationCorpusIndex } from "./referenceFormulationNormalizations";
 
@@ -205,6 +205,8 @@ describe("reference formulation bulk import", () => {
     expect(second.map((entry) => entry.pageNumber)).toEqual([2]);
     expect(second[0]!.blocks.find((block) => block.type === "table")).toMatchObject({ rows: expect.arrayContaining([["Demineralized Water", "Aqua", "80,00"]]) });
     expect(second[0]!.blocks.some((block) => block.type === "text" && block.text === "Noble Grace Shampoo")).toBe(true);
+    // The formula is named by its own page title, not the brochure file.
+    expect(formulaTitleOnPage(extraction, second)).toBe("Noble Grace Shampoo");
   });
 
   it("reconstructs positioned supplier PDF columns and wrapped procedure text as cited review blocks", () => {

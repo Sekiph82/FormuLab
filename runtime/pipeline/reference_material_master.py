@@ -54,6 +54,21 @@ _NOT_A_MATERIAL = re.compile(
 )
 
 
+# A class name printed where a formula leaves the choice open ("Preservative q.s.", "Colorant"):
+# not a raw material. Fragrance / Parfum stay: "Parfum" is itself an INCI name.
+_PLACEHOLDER = re.compile(
+    r"(preservatives?( system| blend)?|colou?r(ant)?s?|dyes?|thickeners?|surfactants?|buffer"
+    r"|ph adjust(er|ment)|actives?|extracts?)",
+    re.I,
+)
+_PLACEHOLDER_NOTE = "Inactive: the formulas print this class name, not a specific raw material."
+
+
+def is_placeholder(name: str) -> bool:
+    plain = re.sub(r"\b(q\.?\s*s\.?|optional)\b|[*().,:]", " ", name or "", flags=re.I)
+    return bool(_PLACEHOLDER.fullmatch(re.sub(r"\s+", " ", plain).strip()))
+
+
 def cas_numbers(text: str) -> list[str]:
     """CAS numbers in printed text, also when a PDF spaces the hyphens ("63148 - 62 - 9");
     only numbers whose check digit is right, so dates and codes are not taken for CAS."""
@@ -141,6 +156,8 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
     known = {key for material in existing
              for key in (inci_chemistry_id(material.get(field)) for field in ("inciName", "tradeName", "displayName")) if key}
     used_codes = {material.get("code") for material in existing}
+    # Rows this tool wrote and later updated keep their code (REF-<printed key>): their key is known.
+    kept_codes = {material.get("code") for material in existing if str(material.get("notes") or "").startswith(_GENERATED_NOTE)}
     titles: dict[str, str] = {}
     names: dict[str, Counter[str]] = defaultdict(Counter)
     functions: dict[str, list[str]] = defaultdict(list)
@@ -151,7 +168,7 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
             name = _cell(line, "ingredientName") or _cell(line, "inciOrChemicalName")
             key = inci_chemistry_id(_cell(line, "inciOrChemicalName")) or inci_chemistry_id(name)
             if (not key or key in known or not re.search(r"[A-Za-z]{3}", name) or len(name) > 80
-                    or _NOT_A_MATERIAL.search(name)):
+                    or _NOT_A_MATERIAL.search(name) or is_placeholder(name)):
                 continue
             # Two trademark signs mean the PDF merged two rows ("Dongbaek Oil ® Hostapon SCI 85 ®");
             # the line's own INCI cell then names it.
@@ -174,6 +191,8 @@ def build_materials(master_dir: str, now: str) -> list[dict[str, Any]]:
     for key, counter in sorted(names.items()):
         display = counter.most_common(1)[0][0]
         code = f"REF-{_slug(key)}"
+        if code in kept_codes:
+            continue
         while code in used_codes:
             code += "-X"
         used_codes.add(code)
@@ -214,7 +233,23 @@ def append_materials(master_dir: str) -> dict[str, int]:
     existing = _array(master_dir, "materials")
     built = {row["code"]: row for row in build_materials(master_dir, now)}
     rows, repaired = [], 0
+    generated_codes = {str(material.get("code")) for material in existing if str(material.get("notes") or "").startswith(_GENERATED_NOTE)}
     for material in existing:
+        mine = str(material.get("notes") or "").startswith(_GENERATED_NOTE) and material.get("active", True)
+        # A placeholder row this tool wrote earlier is kept as history but switched off.
+        if mine and is_placeholder(str(material.get("displayName") or "")):
+            rows.append({**material, "active": False, "updatedAt": now,
+                         "notes": f"{material.get('notes')} {_PLACEHOLDER_NOTE}"})
+            repaired += 1
+            continue
+        # "REF-X-X" repeats a row this tool already wrote for the same printed key; two active
+        # rows for one material also stop formula lines from mapping to either.
+        base = re.sub(r"(-X)+$", "", str(material.get("code") or ""))
+        if mine and base != material.get("code") and base in generated_codes:
+            rows.append({**material, "active": False, "updatedAt": now,
+                         "notes": f"{material.get('notes')} Inactive: duplicate of {base}."})
+            repaired += 1
+            continue
         row = built.pop(material.get("code"), None) if _generated(material) else None
         if row is None:
             rows.append(material)
