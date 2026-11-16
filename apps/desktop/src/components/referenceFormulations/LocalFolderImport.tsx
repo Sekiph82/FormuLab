@@ -350,10 +350,12 @@ export function LocalFolderImport({ actor, onImported }: { actor: TrustedActor |
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={() => void importFormulations()} disabled={running || !actor || !rightsConfirmed || counts.FORMULATION === 0} className="inline-flex items-center gap-2 rounded bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-50"><Upload size={13} />{text("Import formulation PDFs", "Formülasyon PDF'lerini içe aktar")} · {counts.FORMULATION.toLocaleString()}</button>
           <button type="button" onClick={() => void importProductDocuments()} disabled={running || !actor || counts.SDS + counts.TDS + counts.PRODUCT_DOC === 0} className="inline-flex items-center gap-2 rounded border border-border px-3 py-2 text-xs text-text disabled:opacity-50"><Upload size={13} />{text("Store raw-material documents", "Hammadde belgelerini sakla")} · {(counts.SDS + counts.TDS + counts.PRODUCT_DOC).toLocaleString()}</button>
-          {running && <button type="button" onClick={() => abortController.current?.abort()} className="rounded border border-error/40 px-3 py-2 text-xs text-error">{text("Pause import", "İçe aktarımı duraklat")}</button>}
         </div>
       </>}
-      {running && <p role="status" className="mt-3 flex items-center gap-2 text-xs text-muted"><LoaderCircle size={13} className="animate-spin" />{progress}</p>}
+      {running && <div className="mt-3 flex flex-wrap items-center gap-3">
+        <p role="status" className="flex items-center gap-2 text-xs text-muted"><LoaderCircle size={13} className="animate-spin" />{progress}</p>
+        <button type="button" onClick={() => abortController.current?.abort()} className="rounded border border-error/40 px-3 py-2 text-xs text-error">{text("Pause import", "İçe aktarımı duraklat")}</button>
+      </div>}
       {error && <p role="alert" className="mt-3 flex items-start gap-2 text-xs text-error"><AlertCircle size={14} />{error}</p>}
       {result && <p role="status" className="mt-3 text-xs text-success">{result}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border-faint pt-3 text-xs text-muted">
