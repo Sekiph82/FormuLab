@@ -1032,12 +1032,7 @@ fn validate_supplier_product_document_evidence(app: &AppHandle, record: &serde_j
         "boiling_point", "melting_point", "freezing_point", "melting_freezing_point", "vapor_pressure", "vapor_density", "partition_coefficient", "molecular_weight", "other_physical_property",
         "regulatory_status", "chemical_safety_assessment", "other_regulatory_information",
     ];
-    let allowed_tds_fields = [
-        "active_matter", "total_solids", "nonvolatile_content", "water_content", "density", "relative_density", "ph", "viscosity",
-        "ionic_character", "appearance", "color", "odor", "solubility", "recommended_dosage", "application_guidance", "application_area",
-        "processing_conditions", "addition_sequence", "compatibility", "stability", "storage_conditions", "shelf_life", "packaging",
-        "analytical_method", "cloud_point", "pour_point", "flash_point", "performance_claim", "certification_claim",
-    ];
+    let allowed_tds_fields = TDS_CLAIM_FIELDS;
     for claim in claims {
         ensure_object_keys(claim, &["id", "fieldCode", "sectionNumber", "subject", "rawValue", "normalizedValue", "originalUnit", "normalizedUnit", "qualifier", "basis", "context", "extraction", "evidence"], "supplier product claim")?;
         let claim_id = claim["id"].as_str().filter(|value| !value.trim().is_empty())
@@ -2020,6 +2015,16 @@ fn validate_reference_evidence(value: &serde_json::Value, field_evidence: bool, 
 
 /// Mirrors `extractionMethod` in packages/shared referenceFormulationIdentityExtraction.ts.
 /// title_keyword and source_category are product-family proposals from the title or the supplier folder.
+/// Claim fields a TDS may carry: every field the TDS reader
+/// (`apps/desktop/src/lib/supplierProductExtraction.ts`, TDS_LABELS plus the
+/// title-derived `product_identifier`) can produce.
+const TDS_CLAIM_FIELDS: [&str; 30] = [
+    "product_identifier", "active_matter", "total_solids", "nonvolatile_content", "water_content", "density", "relative_density", "ph", "viscosity",
+    "ionic_character", "appearance", "color", "odor", "solubility", "recommended_dosage", "application_guidance", "application_area",
+    "processing_conditions", "addition_sequence", "compatibility", "stability", "storage_conditions", "shelf_life", "packaging",
+    "analytical_method", "cloud_point", "pour_point", "flash_point", "performance_claim", "certification_claim",
+];
+
 const REFERENCE_IDENTITY_EXTRACTION_METHODS: [&str; 5] =
     ["labeled_field", "semantic_heading", "embedded_formulation_code", "title_keyword", "source_category"];
 
@@ -3497,6 +3502,19 @@ mod tests {
         let enum_line = shared.lines().find(|line| line.trim_start().starts_with("extractionMethod: z.enum(")).unwrap();
         let shared_methods: Vec<&str> = enum_line.split('"').skip(1).step_by(2).collect();
         assert_eq!(shared_methods, REFERENCE_IDENTITY_EXTRACTION_METHODS.to_vec());
+    }
+
+    #[test]
+    fn every_field_the_tds_reader_produces_is_an_allowed_tds_claim() {
+        let reader = include_str!("../../src/lib/supplierProductExtraction.ts");
+        let start = reader.find("const TDS_LABELS").unwrap();
+        let block = &reader[start..start + reader[start..].find("
+];").unwrap()];
+        for line in block.lines().filter(|line| line.trim_start().starts_with("[\"")) {
+            let field = line.trim_start()[2..].split('"').next().unwrap();
+            assert!(TDS_CLAIM_FIELDS.contains(&field), "{field}");
+        }
+        assert!(TDS_CLAIM_FIELDS.contains(&"product_identifier"));
     }
 
     #[test]
