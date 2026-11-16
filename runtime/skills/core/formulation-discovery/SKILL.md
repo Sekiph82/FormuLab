@@ -1,15 +1,16 @@
 ---
 name: formulation-discovery
-description: Use when the user wants a chemical formulation PROPOSED from the literature rather than optimizing a formula they already have — "find me a formula for X", "design a Z product", "what should go in a Y". Works for household and personal-care products (shampoo, laundry detergent, fabric softener, toothpaste, limescale remover, surface cleaner, dish soap, hand cream, …). Retrieves open-access papers and patents, extracts ingredients/functions/concentrations with citations, synthesizes an evidence-based candidate formula, cost-optimizes it, and returns the full report. For a formula the user already has, use formulation-optimizer directly.
+description: Use when the user wants a chemical formulation PROPOSED rather than optimizing a formula they already have — "find me a formula for X", "design a Z product", "what should go in a Y". Works for household and personal-care products (shampoo, laundry detergent, fabric softener, toothpaste, limescale remover, surface cleaner, dish soap, hand cream, …). Builds the formula first from the project's own imported formula PDFs (reviewed supplier field formulas; owner-purchased handbooks where no supplier covers the family), then checks it against open-access literature from OpenAlex, Europe PMC and OpenAIRE, cites every ingredient and amount, cost-optimizes it, and returns the full report. For a formula the user already has, use formulation-optimizer directly.
 ---
 
-# Formulation discovery (literature → candidate formula)
+# Formulation discovery (local formula PDFs → literature → candidate formula)
 
 Turn a product brief ("a sulfate-free gentle shampoo for children") into an
-**evidence-based candidate formulation**, cost-optimized, with citations. This
-is an R&D assistant that surfaces what the published science supports — **not**
-a validated recipe and not a substitute for a qualified chemist or regulatory
-review.
+**evidence-based candidate formulation**, cost-optimized, with citations. The
+primary source is the project's corpus of imported supplier formula PDFs: real
+field formulas with printed amounts. Literature supports and checks it. This is
+an R&D assistant — **not** a validated recipe and not a substitute for a
+qualified chemist or regulatory review.
 
 ## Safety gate — check FIRST
 
@@ -33,15 +34,40 @@ tighter safety limits).
 
 ## Pipeline — run every step
 
-### 1. Retrieve (open access only)
+### 1. Local formula PDFs first (primary source)
 
-**Retrieve literature ONLY by running `discover.py` in this skill's folder.** It
-already queries the three required open sources — **OpenAlex + Europe PMC
-(PubMed/PMC + patents) + arXiv** — in one call. Do NOT use any other retrieval
-tool for this step (no web search, no `paper-search`/`paper_search`, no
-`biomcp`, no other MCP): those are not the sanctioned open-access sources and
-must not back the formulation. If `discover.py` is missing or errors, say so
-rather than falling back to another search tool.
+Run `local_corpus.py` in this skill's folder with the product type. It reads the
+project's imported formula PDFs (`data/master`, found upward from the working
+folder or given with `--data`) and writes `literature/local_formulas.json`:
+
+- `formulas`: the reviewed formulas of the product's family as complete printed
+  recipes — every line with ingredient, INCI, amount, page, and the PDF's
+  supplier, title and SHA-256;
+- `ingredients`: each mapped raw material with the number of family formulas
+  that use it and its typical / observed % w/w across them.
+
+```bash
+python local_corpus.py "shampoo" --max 15
+```
+
+Build the formula from these: choose the ingredient system from what the field
+formulas actually combine, and take amounts from the typical ranges they print.
+Supplier field formulas come before handbook formulas; handbook formulas are used
+only when `handbookOnly` is true (no supplier formula covers the family). Cite each
+ingredient and amount to its formula PDF (supplier · title · page). If the corpus
+has no formula for the family (`eligibleFormulaCount` 0), say so and rely on step 2.
+
+### 2. Literature (supporting evidence)
+
+**Retrieve literature ONLY by running `discover.py` in this skill's folder.** By
+default it queries the owner's three open sources — **OpenAlex, Europe PMC
+(PubMed/PMC + patents) and OpenAIRE** — in one call. Use it to support, question
+or extend what the field formulas show (an active, a claim, a mildness or
+stability argument), not to replace them. Do NOT use any other retrieval tool
+for this step (no web search, no `paper-search`/`paper_search`, no `biomcp`, no
+other MCP): those are not the sanctioned open-access sources and must not back
+the formulation. If `discover.py` is missing or errors, say so rather than
+falling back to another search tool.
 
 **Fast mode is always on. Do NOT download PDFs; work from titles + abstracts.**
 Retrieve **at least 15 papers** so the evidence base is solid, using ONE
@@ -58,7 +84,7 @@ Writes `literature/papers.csv` + `papers.json` (with a `source_db` column so
 patents and journals are distinguishable). Raise `--max` further only if the
 first pass returns too few relevant hits.
 
-### 2. Read & extract
+### 3. Read & extract (literature)
 
 Work from the **abstracts already in `papers.json`** — that is enough; do not
 open or read full PDFs, and do not loop over papers one by one. In a single
@@ -70,15 +96,15 @@ for the product class; move straight to the card. Do not paste long verbatim
 text; extract the data and cite. Be efficient — favor finishing the card over
 extra tool calls.
 
-### 3. Synthesize the candidate
+### 4. Synthesize the candidate
 
-Build a table: `ingredient | function | wt%-range | evidence (DOI/patent) |
-confidence`. Group by function so the recipe is COMPLETE for the product class
+Build a table: `ingredient | function | wt%-range | evidence (formula PDF: supplier · title · page, and/or DOI/patent) |
+confidence`. Start from the field formulas of step 1; literature adds or questions. Group by function so the recipe is COMPLETE for the product class
 (a shampoo needs cleansing + actives + rheology + preservative + chelator + pH +
 water q.s.; a detergent needs surfactants + builders + enzymes + anti-redeposition
 + …). Mark estimated numbers and thin evidence explicitly.
 
-### 4. Cost-optimize
+### 5. Cost-optimize
 
 Turn the numeric parts into an instance and call **formulation-optimizer**:
 
@@ -88,14 +114,14 @@ python ../formulation-optimizer/optimize.py candidate.json
 
 Use the user's on-hand materials and max cost when provided.
 
-### 5. Report — the formulation card
+### 6. Report — the formulation card
 
 Output the **complete card in your reply** (in English) — do NOT shorten or
 summarize it. The reply and the saved file must be identical; save it as
 `<product-slug>/formulation-card.md`.
 
 **Give a single EXACT weight-% for every ingredient — never a range.** Choose
-the value within the literature range, and make the column sum to 100% with
+the value within the field-formula typical range (else the literature range), and make the column sum to 100% with
 Water (Aqua) as `q.s. 100`. Follow this exact structure and headings:
 
 ```markdown
@@ -103,7 +129,7 @@ Water (Aqua) as `q.s. 100`. Follow this exact structure and headings:
 
 **Purpose:** <one sentence: what it does and its key claims (e.g. SLS-free, fragrance-free)>
 
-**References:** <Author Year (DOI:...)>, <Author Year (DOI:...)>, ...
+**References:** <Supplier · formula title · page>, ..., <Author Year (DOI:...)>, ...
 
 ## Formulation Table
 
@@ -141,8 +167,9 @@ table when materials/prices allow it.
 
 ## Honest limits — state these every time
 
-- The proposal is a **candidate grounded in open literature**, not "the one
-  correct formula". Commercial formulas are often patented or trade secrets with
+- The proposal is a **candidate grounded in supplier field formulas and open
+  literature**, not "the one correct formula". Field formulas are supplier
+  starting points, not measured validation of this candidate. Commercial formulas are often patented or trade secrets with
   undisclosed exact ratios.
 - Papers/patents often give ingredients and roles but **not full wt%
   breakdowns**; estimated numbers are marked with a confidence and a range.

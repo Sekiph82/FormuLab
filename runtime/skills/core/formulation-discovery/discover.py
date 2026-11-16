@@ -10,7 +10,8 @@ Sources
 - OpenAlex           — cross-publisher metadata + best OA location.
 - Europe PMC         — PubMed (MED) + PubMed Central (PMC) full text +
                        preprints (PPR) + patents (PAT), one API.
-- arXiv              — preprints (chem-ph, cond-mat, ...).
+- OpenAIRE           — European open research graph (publications, OA links).
+- arXiv              — preprints (chem-ph, cond-mat, ...); only on request (--sources).
 
 Usage
 -----
@@ -453,8 +454,9 @@ def main(argv):
     ap.add_argument("queries", nargs="+")
     ap.add_argument("--max", type=int, default=40, help="max papers per query per source")
     ap.add_argument("--out", default="literature")
-    ap.add_argument("--sources", default="openalex,europepmc,arxiv",
-                    help="comma list: openalex,europepmc,arxiv")
+    # The owner's three literature sources; the app's New Request uses the same ones.
+    ap.add_argument("--sources", default="openalex,europepmc,openaire",
+                    help="comma list of: " + ",".join(FETCHERS))
     ap.add_argument("--pdfs", action="store_true")
     ap.add_argument("--all", action="store_true", help="keep every hit (skip relevance filter)")
     args = ap.parse_args(argv)
