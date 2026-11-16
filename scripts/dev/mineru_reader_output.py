@@ -4,7 +4,7 @@ For every stored formula PDF whose current record has no ingredient lines, run t
 install (tools/mineru, see tools/mineru/env.sh) and write its tables as OCR-style lines with word
 boxes to data/supplier-documents/mineru/<sha256>.json. The app reads that file when it imports the
 PDF again and records the result under its own parser version
-("formulab-reference-formulation-layout-v7-mineru-fallback"). Nothing leaves this computer:
+("formulab-reference-formulation-layout-v9-mineru-fallback"). Nothing leaves this computer:
 MinerU runs on its local server only (no --remote), telemetry off.
 
 Usage (from the repository root, FormuLab closed or idle):

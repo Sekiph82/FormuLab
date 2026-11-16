@@ -1,12 +1,14 @@
 import { z } from "zod";
 
-export const REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION = "formulab-reference-formulation-layout-v6-brochure-formula-titles";
+export const REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION = "formulab-reference-formulation-layout-v8-weight-and-trade-name-headers";
 /**
  * A PDF the layout parser reads no formula from, read again from an offline reader's output
- * (MinerU). Its generation (v7) is newer, so it replaces that empty parse; the next change to
- * the layout parser itself takes v8.
+ * (MinerU). Its generation (v9) is newer than the layout parser's, so it replaces that empty
+ * parse. Any change to either parser takes the next generation: a record id carries its parser
+ * version, and a stored record is immutable, so re-reading with changed rules under the same
+ * version is refused as a conflict.
  */
-export const REFERENCE_FORMULATION_MINERU_PARSER_VERSION = "formulab-reference-formulation-layout-v7-mineru-fallback";
+export const REFERENCE_FORMULATION_MINERU_PARSER_VERSION = "formulab-reference-formulation-layout-v9-mineru-fallback";
 
 const sourceKind = z.enum(["digital", "ocr", "mixed", "unknown"]);
 const positionSchema = z.object({ x: z.number().finite().nonnegative(), y: z.number().finite().nonnegative() }).strict();
