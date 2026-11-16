@@ -86,6 +86,7 @@ If a genuine human gate prevents one task, record the exact condition and contin
 
 - Missing stays missing; never silently convert unknown to zero/default.
 - Supplier reference formulations are reference evidence, not measured validation.
+- Owner decision 2026-11-15 (TASKS.md D-REF-01-3): supplier field formulas become usable for generation through Claude-attributed advisory reviews without waiting for a person; a human decision always overrides, and owner-purchased handbook formulas only fill families no supplier formula covers (D-REF-01-4).
 - SDS/TDS evidence is not performance proof.
 - Section 3 composition is not automatically active matter.
 - Typical values are not specifications unless the source says so.
