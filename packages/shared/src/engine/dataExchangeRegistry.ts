@@ -66,6 +66,8 @@ export interface DataExchangeColumnDefinition {
   precision?: number;
   example?: string;
   sensitive?: boolean;
+  /** A required column may be left empty on a row where this boolean column is true. */
+  optionalWhenTrue?: string;
   importable: boolean;
   exportable: boolean;
 }
@@ -348,7 +350,7 @@ const FORMULA_BOM_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "material_code", dataType: "code_reference", description: "Material for this line.", ...REQ, referenceTemplate: "raw_materials", referenceField: "material_code", example: "TEST-MAT-001" }),
   col({ key: "quantity", dataType: "decimal", description: "As-supplied quantity at the batch basis." }),
   col({ key: "quantity_unit", dataType: "string", defaultValue: "kg", description: "Unit for quantity." }),
-  col({ key: "percentage", dataType: "percentage", description: "As-supplied percent of the total formula.", ...REQ, example: "12.0" }),
+  col({ key: "percentage", dataType: "percentage", description: "As-supplied percent of the total formula; leave empty on the q.s. line, whose share is computed.", ...REQ, optionalWhenTrue: "is_qs_material", example: "12.0" }),
   col({ key: "phase", dataType: "string", defaultValue: "A", description: "Manufacturing phase." }),
   col({ key: "addition_order", dataType: "integer", description: "Addition order within the phase." }),
   col({ key: "process_temperature", dataType: "decimal", description: "Process temperature for this addition." }),
@@ -1043,6 +1045,7 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     targetCollection: "materials",
     exampleRows: [
       { material_code: "TEST-MAT-001", material_name: "TEST Decyl Glucoside", inci_name: "Decyl Glucoside", cas_number: "68515-73-1", ec_number: "", material_category: "Surfactant", material_function: "nonionic_surfactant", physical_form: "liquid", active_matter_percent: "50.0", density: "1.05", recommended_min_percent: "5.0", recommended_max_percent: "15.0", technical_max_percent: "20.0", default_unit: "kg", currency: "KES", default_price: "450.00", price_basis_quantity: "1", manufacturer_name: "TEST Chemicals Ltd", manufacturer_code: "DG-50", preferred_supplier_code: "TEST-SUP-001", country_of_origin: "KE", manufacture_date: "2026-01-01", expiry_date: "2028-01-01", shelf_life_months: "24", minimum_order_quantity: "25", lead_time_days: "14", storage_condition: "Store below 25C, away from light.", hazardous: "false", allergen: "false", vegan: "true", natural_origin_percent: "95.0", renewable_carbon_percent: "90.0", biodegradable: "true", regulatory_status: "Permitted KE/EAC", tags: "surfactant;mild", notes: "Synthetic test row." },
+      { material_code: "TEST-MAT-WATER", material_name: "TEST Purified Water", inci_name: "Aqua", cas_number: "7732-18-5", ec_number: "231-791-2", material_category: "Solvent", material_function: "solvent", physical_form: "liquid", active_matter_percent: "100.0", density: "1.00", recommended_min_percent: "", recommended_max_percent: "", technical_max_percent: "", default_unit: "kg", currency: "KES", default_price: "5.00", price_basis_quantity: "1", manufacturer_name: "", manufacturer_code: "", preferred_supplier_code: "", country_of_origin: "KE", manufacture_date: "", expiry_date: "", shelf_life_months: "", minimum_order_quantity: "", lead_time_days: "", storage_condition: "", hazardous: "false", allergen: "false", vegan: "true", natural_origin_percent: "100.0", renewable_carbon_percent: "", biodegradable: "true", regulatory_status: "", tags: "solvent", notes: "Synthetic test row." },
     ],
   }),
   template({

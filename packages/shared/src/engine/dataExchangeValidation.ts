@@ -312,7 +312,9 @@ export function previewDataExchangeImport(
       const idx = indexByColumnKey.get(column.key);
       const rawCell = idx !== undefined ? desanitizeCell(rawRows[r][idx] ?? "").trim() : "";
       if (rawCell === "") {
-        if (column.required) {
+        const waiver = column.optionalWhenTrue ? indexByColumnKey.get(column.optionalWhenTrue) : undefined;
+        const waived = waiver !== undefined && /^(true|yes|1|y)$/i.test(desanitizeCell(rawRows[r][waiver] ?? "").trim());
+        if (column.required && !waived) {
           messages.push(`"${column.key}" is required and is empty.`);
           hasError = true;
         } else if (column.defaultValue !== undefined) {

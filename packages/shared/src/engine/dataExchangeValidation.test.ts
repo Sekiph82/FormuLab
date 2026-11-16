@@ -792,3 +792,18 @@ describe("FVL-04 hardening (Session 8, Part 1/2): field-aware reference resoluti
     expect(sawField).toBe("family_code");
   });
 });
+
+describe("previewDataExchangeImport — formula BOM q.s. line", () => {
+  it("accepts an empty percentage on the q.s. line only", () => {
+    const bom = getDataExchangeTemplate("formula_bom")!;
+    const rows = [
+      ["formula_code", "line_number", "material_code", "percentage", "is_qs_material"],
+      ["F-1", "1", "MAT-WATER", "", "true"],
+      ["F-1", "2", "MAT-001", "", "false"],
+    ];
+    const preview = previewDataExchangeImport(bom, rows, { actorRole: "administrator" });
+    const messages = preview.rows.map((row) => row.messages.join(" "));
+    expect(messages[0]).not.toMatch(/"percentage" is required/);
+    expect(messages[1]).toMatch(/"percentage" is required/);
+  });
+});
