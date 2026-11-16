@@ -93,14 +93,47 @@ pub(crate) fn is_missing_solver(value: &serde_json::Value) -> bool {
 /// below 4.0 so the core's PULP_CBC_CMD / bundled CBC keep working. Shared
 /// with `formulation_advanced.rs`.
 pub(crate) async fn install_pulp(app: &AppHandle, python: &str) -> Result<(), String> {
-    let args = vec![
-        "pip".to_string(),
-        "install".to_string(),
-        "--python".to_string(),
-        python.to_string(),
-        "pulp<4".to_string(),
-    ];
-    crate::uv::run_uv(app, "formulation", args, "uv pip install pulp").await
+    let (executable, virtual_env) = interpreter_identity(python)?;
+    crate::uv::run_uv(app, "formulation", pulp_install_args(&executable, virtual_env), "uv pip install pulp").await
+}
+
+/// The interpreter's real executable and whether it is a virtual environment.
+/// `python` may be a launcher such as Windows' `py`, which uv cannot resolve.
+fn interpreter_identity(python: &str) -> Result<(String, bool), String> {
+    let out = crate::workspace::quiet_command(python)
+        .args(["-c", "import sys; print(sys.executable); print(int(sys.prefix != sys.base_prefix))"])
+        .output()
+        .map_err(|e| format!("failed to launch Python: {e}"))?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut lines = text.lines().map(str::trim);
+    match (lines.next(), lines.next()) {
+        (Some(executable), Some(flag)) if !executable.is_empty() => Ok((executable.to_string(), flag == "1")),
+        _ => Err(format!("could not identify the Python interpreter {python}")),
+    }
+}
+
+/// uv installs into a non-virtual interpreter only with `--system`; the solver
+/// is meant to be installable into a bare interpreter as well.
+fn pulp_install_args(executable: &str, virtual_env: bool) -> Vec<String> {
+    let mut args = vec!["pip".to_string(), "install".to_string(), "--python".to_string(), executable.to_string()];
+    if !virtual_env {
+        args.push("--system".to_string());
+    }
+    args.push("pulp<4".to_string());
+    args
+}
+
+#[cfg(test)]
+mod pulp_install_tests {
+    use super::pulp_install_args;
+
+    #[test]
+    fn a_bare_interpreter_gets_system_and_a_virtual_env_does_not() {
+        assert_eq!(pulp_install_args("C:/Python312/python.exe", false),
+                   ["pip", "install", "--python", "C:/Python312/python.exe", "--system", "pulp<4"]);
+        assert_eq!(pulp_install_args("C:/env/Scripts/python.exe", true),
+                   ["pip", "install", "--python", "C:/env/Scripts/python.exe", "pulp<4"]);
+    }
 }
 
 /// Solve a formulation problem. `input` is the JSON payload the core expects
