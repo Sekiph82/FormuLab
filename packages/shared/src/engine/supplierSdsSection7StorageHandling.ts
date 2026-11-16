@@ -62,7 +62,7 @@ const IMPERATIVE_HANDLING = /\b(?:avoid|do not|must not|use only|prevent|ensure|
 const HANDLING_CONTEXT = /\b(?:contact|transfer|handling|handle|ventilation|wear|gloves|skin|eyes|inhal(?:e|ation)|exposure|loading|unloading|mixing|opening|closed process)\b/i;
 
 function normalize(value: string): string {
-  return value.normalize("NFKD").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
+  return value.normalize("NFKD").replace(/ı/gu, "i").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
     .toLocaleLowerCase("en-US").replace(/[’‘\x60´]/g, "'").replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
 }
 

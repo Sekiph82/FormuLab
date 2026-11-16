@@ -52,7 +52,7 @@ const FIELD_LABELS: Record<SupplierSdsSection1Field, readonly string[]> = {
   declared_chemical_name: [
     "chemical name", "name of the substance", "substance name", "chemical identity", "name of chemical",
     "chemischer name", "stoffname", "nom chimique", "nombre químico", "nome chimico", "chemische naam",
-    "nazwa chemiczna", "nome químico", "kimyasal adı", "maddenin adı",
+    "nazwa chemiczna", "nome químico", "kimyasal adı", "maddenin adı", "kimyasal terim",
   ],
   chemical_nature: [
     "chemical nature", "nature of product", "substance or mixture", "type of product",
@@ -86,7 +86,7 @@ const FIELD_LABELS: Record<SupplierSdsSection1Field, readonly string[]> = {
 };
 
 function normalize(value: string): string {
-  return value.normalize("NFKD").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
+  return value.normalize("NFKD").replace(/ı/gu, "i").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
     .toLocaleLowerCase("en-US").replace(/[’‘`´]/g, "'")
     .replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
 }

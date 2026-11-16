@@ -53,6 +53,18 @@ describe("supplier SDS section detection", () => {
     expect(result.sections.map(({ sectionNumber }) => sectionNumber)).toEqual([1, 2, 3, 4]);
   });
 
+  it("finds sections whose titles the PDF text lacks from their first subsection number, for review", () => {
+    const result = detectSupplierSdsSections([
+      line(1, 1, "1.1"),
+      line(1, 2, "Ürün adi : TEGOSOFT OER MB"),
+      line(1, 3, "2.1"),
+      line(1, 4, "Sınıflandırılmamış"),
+      line(2, 1, "3.1 Madde"),
+      line(2, 2, "Genel bilgiler : Tehlikeli iç erik maddeler yoktur."),
+    ]);
+    expect(result.sections.map(({ sectionNumber, reviewRequired }) => [sectionNumber, reviewRequired])).toEqual([[1, true], [2, true], [3, true]]);
+  });
+
   it("recognizes all 16 standardized section titles", () => {
     const titles = [
       "Identification of the substance/mixture and of the company/undertaking",

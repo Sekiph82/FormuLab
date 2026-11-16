@@ -70,7 +70,7 @@ const ENGINEERING_STATEMENT = /\b(?:local exhaust(?:\s+ventilation)?|mechanical 
 const PPE_STATEMENT = /\b(?:wear|use|provide|must wear|should wear)\b.{0,80}\b(?:protective gloves|gloves|goggles|safety glasses|protective clothing|personal protective equipment)\b/i;
 
 function normalize(value: string): string {
-  return value.normalize("NFKD").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
+  return value.normalize("NFKD").replace(/ı/gu, "i").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
     .toLocaleLowerCase("en-US").replace(/[’‘\x60´]/g, "'").replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
 }
 

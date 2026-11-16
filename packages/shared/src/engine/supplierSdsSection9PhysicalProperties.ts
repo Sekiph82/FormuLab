@@ -90,7 +90,7 @@ const LABELS: Record<SupplierSdsPhysicalPropertyField, readonly string[]> = {
 };
 
 function normalize(value: string): string {
-  return value.normalize("NFKD").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
+  return value.normalize("NFKD").replace(/ı/gu, "i").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
     .toLocaleLowerCase("en-US").replace(/[’‘\x60´]/g, "'").replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
 }
 

@@ -100,7 +100,7 @@ const TRADE_SECRET_PATTERN = /\b(?:trade secret|proprietary|confidential|withhel
 const UNDISCLOSED_PATTERN = /(?:remaining|other|balance|remainder|undisclosed|not disclosed|withheld|proprietary|confidential|trade secret|restante|açıklanmayan).{0,80}(?:ingredient|component|composition|substance|material|bileşen|madde)|(?:ingredient|component|composition|bileşen).{0,80}(?:not disclosed|undisclosed|withheld|confidential|proprietary|trade secret|açıklanmayan)/i;
 
 function normalize(value: string): string {
-  return value.normalize("NFKD").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
+  return value.normalize("NFKD").replace(/ı/gu, "i").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
     .toLocaleLowerCase("en-US").replace(/[’‘\x60´]/g, "'").replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
 }
 

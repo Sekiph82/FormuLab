@@ -234,7 +234,7 @@ const CONTENTS_PAGE_TAIL = /(?:\.{2,}|…{1,}|·{2,}|\s+)\d{1,3}\s*$/u;
 const OCR_REVIEW_THRESHOLD = 0.65;
 
 function normalize(value: string): string {
-  return value.normalize("NFKD")
+  return value.normalize("NFKD").replace(/ı/gu, "i")
     .replace(/\p{M}/gu, "")
     .replace(/ß/g, "ss")
     .toLocaleLowerCase("en-US")
@@ -257,7 +257,7 @@ interface HeadingCandidate {
   endLineIndex: number;
   aliases: Set<string>;
 }
-type LocatedHeadingCandidate = HeadingCandidate & { lineIndex: number };
+type LocatedHeadingCandidate = HeadingCandidate & { lineIndex: number; subsectionOnly?: boolean };
 
 function parseHeadingText(value: string): { sectionNumber: number; title: string } | undefined {
   const withoutPrefix = value.trim().replace(SECTION_PREFIX, "");
@@ -343,6 +343,28 @@ export function detectSupplierSdsSections(lines: SupplierSdsSectionLine[]): Supp
     }
   }
 
+  // Some SDS PDFs (Evonik's Turkish sheets) carry section titles only as images or unmapped
+  // glyphs: the text holds subsection numbers ("3.1 Madde") but no "BÖLÜM 3" title. A section
+  // with no detected title then starts at its first "N.1" line, if that keeps the sections in
+  // order; such a section is marked for review. A table of contents, or fewer than three such
+  // subsections, is not enough evidence of that structure.
+  const titled = new Set(consolidated.map((candidate) => candidate.sectionNumber));
+  const inferred: typeof consolidated = [];
+  for (let sectionNumber = 1; sectionNumber <= CANONICAL_TITLES.length; sectionNumber += 1) {
+    if (titled.has(sectionNumber)) continue;
+    const known = [...consolidated, ...inferred];
+    const after = Math.max(-1, ...known.filter((item) => item.sectionNumber < sectionNumber).map((item) => item.lineIndex));
+    const before = Math.min(lines.length, ...known.filter((item) => item.sectionNumber > sectionNumber).map((item) => item.lineIndex));
+    const pattern = new RegExp(String.raw`^\s*${sectionNumber}\.1(?:\s|$)`, "u");
+    const lineIndex = lines.findIndex((line, index) => index > after && index < before && pattern.test(line.text));
+    if (lineIndex < 0) continue;
+    inferred.push({ sectionNumber, lineIndex, endLineIndex: lineIndex, aliases: new Set(), continuationCandidates: [], subsectionOnly: true });
+  }
+  if (!possibleTableOfContents && inferred.length >= 3) {
+    consolidated.push(...inferred);
+    consolidated.sort((left, right) => left.lineIndex - right.lineIndex);
+  }
+
   const duplicateSections = new Set<number>();
   const seen = new Set<number>();
   const outOfOrder = new Set<number>();
@@ -381,7 +403,7 @@ export function detectSupplierSdsSections(lines: SupplierSdsSectionLine[]): Supp
       ...(contentEndIndex >= candidate.endLineIndex + 1 ? { contentEnd: reference(lines[contentEndIndex]!) } : {}),
       source,
       ...(confidence === undefined ? {} : { confidence }),
-      reviewRequired: invalidOcrConfidence || ocrConfidence.some((value) => value < OCR_REVIEW_THRESHOLD),
+      reviewRequired: Boolean(candidate.subsectionOnly) || invalidOcrConfidence || ocrConfidence.some((value) => value < OCR_REVIEW_THRESHOLD),
     };
   });
   const warnings: SupplierSdsSectionDetectionWarning[] = [];

@@ -77,7 +77,7 @@ const CATEGORY_PATTERN = /\bcategory\s+[0-9]+[A-Z]?(?:\s*[,;/]\s*category\s+[0-9
 const SIGNAL_WORDS = new Set(["danger", "warning", "gefahr", "achtung", "danger", "attention", "peligro", "atención", "pericolo", "attenzione", "gevaar", "niebezpieczeństwo", "uwaga", "perigo", "atenção", "tehlike", "uyarı"]);
 
 function normalize(value: string): string {
-  return value.normalize("NFKD").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
+  return value.normalize("NFKD").replace(/ı/gu, "i").replace(/\p{M}/gu, "").replace(/ß/g, "ss")
     .toLocaleLowerCase("en-US").replace(/[’‘`´]/g, "'").replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
 }
 
