@@ -8,8 +8,8 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: REF-01
 - Current Sprint: REF-01-S01
-- Current Task: REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
-- Current Task Status: IN_PROGRESS
+- Current Task: None
+- Current Task Status: COMPLETE
 - Next Task: None
 - Required Actor: CLAUDE
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -19,10 +19,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 217
-- Completed Tasks: 216
-- Remaining Tasks: 1
-- Completion: 99.5%
+- Total Tasks: 218
+- Completed Tasks: 218
+- Remaining Tasks: 0
+- Completion: 100%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -411,7 +411,8 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [x] REF-01.016 — Read every formula PDF the corpus holds: Clariant "Weight -%" and INCI-only cards, one record per brochure formula, and show the formula PDFs behind each New Request ingredient
 - [x] REF-01.017 — Read formula PDFs the layout parser cannot (scanned cards, image tables) from a local, offline MinerU run, under their own parser version; batch formula saves per PDF
 - [x] REF-01.018 — Read the remaining unread formula PDFs (reader fallback when layout gives no lines, more amount headers, transposed/headerless reader tables with a closes-to-100 gate; parser v8/v9); PDF/DOCX formulation reports; scrollable app pages and supplier formula list
-- [~] REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
+- [x] REF-01.019 — Open Reference Formulas in seconds (memoized source validation, one corpus load, paged list), append-only formula/normalization writes with crash journal, printed material names cleaned and one material per printed product, legacy workspace merged and data-location warning cleared, Python caches kept out of installers
+- [x] REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
 
 ## Historical Detail & Evidence
 
