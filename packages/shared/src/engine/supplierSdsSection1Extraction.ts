@@ -59,7 +59,7 @@ const FIELD_LABELS: Record<SupplierSdsSection1Field, readonly string[]> = {
     "chemische beschaffenheit", "nature chimique", "naturaleza química", "natura chimica",
     "chemische aard", "charakter chemiczny", "natureza química", "kimyasal nitelik", "madde veya karışım",
   ],
-  cas_number: ["cas number", "cas no", "cas#", "cas-nummer", "nº cas", "numero cas", "cas-nummer", "numer cas", "cas numarası", "cas no."],
+  cas_number: ["cas number", "cas no", "cas#", "casrn", "cas rn", "cas registry number", "cas-nummer", "nº cas", "numero cas", "cas-nummer", "numer cas", "cas numarası", "cas no."],
   ec_number: ["ec number", "ec no", "eec number", "einecs number", "eg nummer", "numéro ce", "número ce", "numero ce", "ce-nummer", "numer we", "número ec", "ec numarası", "ce numarası"],
   recommended_use: [
     "relevant identified uses", "identified uses", "recommended use", "recommended uses", "use of the substance or mixture",

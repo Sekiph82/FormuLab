@@ -42,6 +42,16 @@ describe("supplier SDS Section 1 commercial identity extraction", () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it("reads a CAS number printed under Dow's CASRN label", () => {
+    const lines = [
+      line(1, 1, "1. IDENTIFICATION OF THE SUBSTANCE/MIXTURE AND OF THE COMPANY/UNDERTAKING"),
+      line(1, 2, "CASRN: 63148 - 62 - 9"),
+      line(1, 3, "2. HAZARDS IDENTIFICATION"),
+    ];
+    const result = extractSupplierSdsSection1({ sourceDocumentHash: HASH, lines, sections: detectSupplierSdsSections(lines) });
+    expect(result.candidates.map(({ field, rawValue }) => [field, rawValue])).toEqual([["cas_number", "63148 - 62 - 9"]]);
+  });
+
   it("supports label-only lines with the next line as value and preserves both evidence lines", () => {
     const lines = [
       line(1, 1, "SECTION 1: Identification of the substance/mixture and of the company/undertaking"),

@@ -41,6 +41,10 @@ class ReferenceMaterialMasterTests(unittest.TestCase):
         kept = ["sodium lauryl sulfate", "1,2-Hexanediol", "(3-methoxy-3-methyl-1-butanol)", "Crodamol GTCC"]
         self.assertEqual([name for name in noise + kept if not m._NOT_A_MATERIAL.search(name)], kept)
 
+    def test_cas_numbers_with_spaced_hyphens_and_a_valid_check_digit(self):
+        self.assertEqual(m.cas_numbers("CASRN: 63148 - 62 - 9; water 7732-18-5; date 2026-10-25; bad 7732-18-4"),
+                         ["63148-62-9", "7732-18-5"])
+
 
 if __name__ == "__main__":
     unittest.main()

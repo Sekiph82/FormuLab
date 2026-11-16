@@ -54,6 +54,32 @@ _NOT_A_MATERIAL = re.compile(
 )
 
 
+def cas_numbers(text: str) -> list[str]:
+    """CAS numbers in printed text, also when a PDF spaces the hyphens ("63148 - 62 - 9");
+    only numbers whose check digit is right, so dates and codes are not taken for CAS."""
+    found = []
+    for head, middle, check in re.findall(r"(?<![\d-])(\d{2,7})\s*-\s*(\d{2})\s*-\s*(\d)(?![\d-])", text):
+        digits = head + middle
+        if sum(int(d) * i for i, d in enumerate(reversed(digits), 1)) % 10 == int(check):
+            cas = f"{head}-{middle}-{check}"
+            if cas not in found:
+                found.append(cas)
+    return found
+
+
+def _sds_text(master_dir: str, sha256: str) -> str:
+    """Text of a stored SDS's first three pages; empty when it cannot be read."""
+    path = os.path.join(os.path.dirname(os.path.dirname(master_dir)), "data", "supplier-documents", "sha256", sha256[:2], f"{sha256}.pdf")
+    if not os.path.exists(path):
+        path = os.path.join(os.path.dirname(master_dir), "supplier-documents", "sha256", sha256[:2], f"{sha256}.pdf")
+    try:
+        import pdfplumber
+        with pdfplumber.open(path) as pdf:
+            return "\n".join((page.extract_text() or "") for page in pdf.pages[:3])
+    except Exception:  # noqa: BLE001 - an unreadable sheet adds no CAS, it never stops the run
+        return ""
+
+
 def _cell(line: dict[str, Any], field: str) -> str:
     item = line.get(field)
     return str(item.get("rawValue") or "").strip() if isinstance(item, dict) else ""
@@ -75,7 +101,7 @@ def _product_evidence(master_dir: str) -> dict[str, dict[str, Any]]:
             continue
         entry = by_key[key]
         text = json.dumps(row, ensure_ascii=False)
-        for cas in re.findall(r"\b\d{2,7}-\d{2}-\d\b", text):
+        for cas in cas_numbers(text):
             if cas not in entry["cas"]:
                 entry["cas"].append(cas)
         for claim in row.get("claims", []) if isinstance(row.get("claims"), list) else []:
@@ -88,6 +114,12 @@ def _product_evidence(master_dir: str) -> dict[str, dict[str, Any]]:
                     "location": f"supplier-documents/sha256/{acquisition.get('sha256')}.pdf"}
         if acquisition.get("sha256") and document not in entry["documents"]:
             entry["documents"].append(document)
+            if document["kind"] == "sds":
+                # The SDS reader does not capture every CAS label ("CASRN: 63148 - 62 - 9"); the
+                # stored sheet's own first pages (identification and composition) do print it.
+                for cas in cas_numbers(_sds_text(master_dir, str(acquisition["sha256"]))):
+                    if cas not in entry["cas"]:
+                        entry["cas"].append(cas)
         if acquisition.get("supplierId") and acquisition["supplierId"] not in entry["supplierIds"]:
             entry["supplierIds"].append(acquisition["supplierId"])
     return by_key
