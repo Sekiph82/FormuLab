@@ -490,3 +490,19 @@ describe("FVL-04.023: loadPriorCommittedRows — reads the EXISTING import-histo
     expect(await loadPriorCommittedRows("raw_materials")).toEqual([]);
   });
 });
+
+describe("Reverse Formulation references", () => {
+  it("resolves a benchmark product and study made on the Reverse Formulation page", async () => {
+    bridge.listRecords.mockImplementation(byCollection({
+      benchmark_products: [{ code: "BMP-1", name: "Competitor soap" }],
+      reverse_formulation_studies: [{ code: "RFS-1", name: "Study", productFamilyCode: "HH-HANDSOAP" }],
+    }));
+    const resolve = await buildReferenceResolver([
+      { referenceTemplate: "benchmark_products", referenceField: "product_code" },
+      { referenceTemplate: "reverse_formulation_studies", referenceField: "study_code" },
+    ]);
+    expect(resolve("benchmark_products", "product_code", "BMP-1")).toBe(true);
+    expect(resolve("reverse_formulation_studies", "study_code", "RFS-1")).toBe(true);
+    expect(resolve("benchmark_products", "product_code", "BMP-2")).toBe(false);
+  });
+});

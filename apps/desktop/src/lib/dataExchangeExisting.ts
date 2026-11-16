@@ -43,6 +43,18 @@ async function flat(collection: Collection, keyField: string, toRow: (r: Record<
 }
 
 const LOADERS: Partial<Record<string, Loader>> = {
+  // Reverse Formulation: benchmark products and studies made on the Reverse Formulation page
+  // must resolve as references, or declaration lines and analytical results can never import.
+  benchmark_products: () =>
+    flat("benchmark_products", "code", (r) => ({ product_code: s(r.code), product_name: s(r.name), brand: s(r.brand) })),
+  reverse_formulation_studies: () =>
+    flat("reverse_formulation_studies", "code", (r) => ({ study_code: s(r.code), study_name: s(r.name), product_family_code: s(r.productFamilyCode) })),
+  reverse_formula_candidates: async () => {
+    const candidates = (await listRecords("reverse_formula_candidates")) as unknown as Record<string, unknown>[];
+    const rows = candidates.flatMap((candidate) => ((candidate.formulaLines as Record<string, unknown>[] | undefined) ?? [])
+      .map((line) => ({ candidate_code: s(candidate.candidateCode), material_code: s(line.materialId) })));
+    return { naturalKeys: new Set(rows.map((row) => `${row.candidate_code}::${row.material_code}`)), rows };
+  },
   laboratory_trials: async () => {
     const trials = (await listRecords("laboratory_trials")) as unknown as Record<string, unknown>[];
     return { naturalKeys: new Set(trials.map((trial) => s(trial.code))), rows: trials.map((trial) => ({ trial_code: s(trial.code) })) };
