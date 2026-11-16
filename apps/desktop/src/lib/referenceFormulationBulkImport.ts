@@ -19,7 +19,7 @@ import {
   type ReferenceFormulationImportJob,
   type ReferenceFormulationRights,
 } from "@formulab/shared";
-import { recordReferenceFormulation } from "./referenceFormulations";
+import { recordReferenceFormulations } from "./referenceFormulations";
 import { ensureReferenceFormulationNormalizations } from "./referenceFormulationNormalizations";
 import { runConditionalReferenceFormulationOcr } from "./referenceFormulationOcr";
 import { extractSupplierPdfText } from "./supplierPdfTextExtraction";
@@ -349,12 +349,20 @@ async function buildAndPersistReferenceRecord(input: {
   }, input.signal);
   if (ocr.status === "cancelled") throw new ImportBatchPaused();
   const variants = formulaVariantCount(extraction, ocr.lines);
-  let first: { recordId: string; acquisitionCode: string } | undefined;
+  const records = [];
   for (let variant = 1; variant <= variants; variant += 1) {
-    const saved = await persistVariant({ ...input, extraction, ocrLines: ocr.lines, variant, variants });
-    first ??= saved;
+    records.push(await buildVariantRecord({ ...input, extraction, ocrLines: ocr.lines, variant, variants }));
   }
-  return first!;
+  // Every formula of the PDF in one store write: each write rewrites the whole corpus file.
+  let saved: Awaited<ReturnType<typeof recordReferenceFormulations>>;
+  try {
+    saved = await recordReferenceFormulations(records, await cachedSources());
+  } catch (error) {
+    // A save failure is not a parse failure: say which, so the owner knows a retry can succeed.
+    throw new ImportFileFailure(/immutable/iu.test(String(error)) ? "record_conflict" : "record_write_failed");
+  }
+  runCache?.sources?.push(...saved);
+  return { recordId: saved[0]!.id, acquisitionCode: input.acquisition.code };
 }
 
 /**
@@ -381,7 +389,7 @@ function withProductFamily(candidates: ReferenceFormulationIdentityCandidate[], 
 }
 
 /** One reference record per printed formula; multi-formula documents get a variant suffix. */
-async function persistVariant(input: {
+async function buildVariantRecord(input: {
   job: ReferenceFormulationImportJob;
   item: ReferenceFormulationImportFile;
   acquisition: Awaited<ReturnType<typeof recordSupplierDocumentAcquisition>>;
@@ -390,7 +398,7 @@ async function persistVariant(input: {
   variant: number;
   variants: number;
   sourceCategories: string[];
-}): Promise<{ recordId: string; acquisitionCode: string }> {
+}) {
   const pages = pagesFromExtraction(input.extraction, input.ocrLines, input.variant);
   const variantSuffix = input.variants > 1 ? `-v${input.variant}` : "";
   const layout = analyzeReferenceFormulationLayout({ sourceDocumentHash: input.acquisition.sha256, pages });
@@ -455,15 +463,7 @@ async function persistVariant(input: {
     unresolvedEntries: unresolved.entries,
     createdAt: nowIso(),
   });
-  let saved: Awaited<ReturnType<typeof recordReferenceFormulation>>;
-  try {
-    saved = await recordReferenceFormulation(record);
-  } catch (error) {
-    // A save failure is not a parse failure: say which, so the owner knows a retry can succeed.
-    throw new ImportFileFailure(/immutable/iu.test(String(error)) ? "record_conflict" : "record_write_failed");
-  }
-  runCache?.sources?.push(saved);
-  return { recordId: saved.id, acquisitionCode: input.acquisition.code };
+  return record;
 }
 
 // One import run reads the formula corpus and document receipts once (the corpus is hundreds

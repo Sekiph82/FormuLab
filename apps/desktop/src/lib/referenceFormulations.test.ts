@@ -22,7 +22,7 @@ import {
   referenceFormulationSourceSchema,
   referenceFormulationRecordSchema,
 } from "@formulab/shared";
-import { matchReferenceFormulationProductCandidates, recordReferenceFormulation } from "./referenceFormulations";
+import { matchReferenceFormulationProductCandidates, recordReferenceFormulation, recordReferenceFormulations } from "./referenceFormulations";
 
 const record = () => referenceFormulationRecordSchema.parse({
   schemaVersion: "1.0", recordKind: "supplier_reference_formula", id: "reference-formula-1", code: "reference-formula-1",
@@ -75,6 +75,20 @@ describe("reference formulation immutable persistence", () => {
     expect(upsertRecordsMock).not.toHaveBeenCalled();
 
     await expect(recordReferenceFormulation({ ...input, createdAt: "2026-10-26T08:03:00.000Z" })).rejects.toThrow(/immutable/);
+    expect(upsertRecordsMock).not.toHaveBeenCalled();
+  });
+
+  it("saves every formula of one PDF in a single store write, against the corpus the caller already holds", async () => {
+    const first = record();
+    const second = referenceFormulationRecordSchema.parse({ ...first, id: "reference-formula-2", code: "reference-formula-2" });
+    const saved = await recordReferenceFormulations([first, second], []);
+    expect(saved.map((item) => item.code)).toEqual(["reference-formula-1", "reference-formula-2"]);
+    expect(upsertRecordsMock).toHaveBeenCalledTimes(1);
+    expect(listRecordsMock).not.toHaveBeenCalled();
+
+    // One changed record under an existing code stops the batch; nothing is written.
+    upsertRecordsMock.mockClear();
+    await expect(recordReferenceFormulations([second, { ...first, createdAt: "2026-10-26T08:03:00.000Z" }], [first])).rejects.toThrow(/immutable/);
     expect(upsertRecordsMock).not.toHaveBeenCalled();
   });
 

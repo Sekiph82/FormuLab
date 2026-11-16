@@ -24,16 +24,34 @@ function canonicalJson(value: unknown): string {
 
 /** Persist an immutable supplier-reference snapshot without touching production formula records. */
 export async function recordReferenceFormulation(input: ReferenceFormulationRecord): Promise<ReferenceFormulationRecord> {
-  const record = referenceFormulationRecordSchema.parse(input);
-  const existing = await listRecords("reference_formulations");
-  const sameCode = existing.find((candidate) => candidate.code === record.code);
-  if (sameCode) {
+  return (await recordReferenceFormulations([input]))[0]!;
+}
+
+/**
+ * Save several immutable records (every formula of one PDF) in one store write.
+ * `existing` is the stored corpus when the caller already holds it; an identical
+ * stored record is returned as is, a different one under the same code is refused,
+ * and nothing is written unless every record passes.
+ */
+export async function recordReferenceFormulations(
+  inputs: ReferenceFormulationRecord[],
+  existing?: readonly { code?: unknown }[],
+): Promise<ReferenceFormulationRecord[]> {
+  const records = inputs.map((input) => referenceFormulationRecordSchema.parse(input));
+  const stored = new Map((existing ?? await listRecords("reference_formulations")).map((row) => [String(row.code), row]));
+  const fresh: ReferenceFormulationRecord[] = [];
+  const saved = records.map((record) => {
+    const sameCode = stored.get(record.code);
+    if (!sameCode) {
+      fresh.push(record);
+      return record;
+    }
     const parsedExisting = referenceFormulationRecordSchema.parse(sameCode);
     if (canonicalJson(parsedExisting) === canonicalJson(record)) return parsedExisting;
     throw new Error("Reference formulation records are immutable; use a new record code for a new extraction snapshot.");
-  }
-  await upsertRecords("reference_formulations", [record]);
-  return record;
+  });
+  if (fresh.length) await upsertRecords("reference_formulations", fresh);
+  return saved;
 }
 
 /** Newest parse of each source document; older parses remain stored as history. */

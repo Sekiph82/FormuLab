@@ -106,3 +106,6 @@ docs/shampoo-formulation/
 # scripts/dev/seed-docs-fixture.ts; never the real app-data profile).
 /.docs-fixture/
 .aider*
+
+# Local MinerU install, its models and caches (owner-approved PDF reader tool; not shipped)
+/tools/mineru/
