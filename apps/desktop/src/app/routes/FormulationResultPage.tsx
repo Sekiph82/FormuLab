@@ -29,7 +29,7 @@ import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPc
 import { downloadFormulationReport } from "@/lib/formulationReport";
 import { shareFormulationResult } from "@/lib/formulationShare";
 import { costGeneratedFormula } from "@/lib/generatedFormulaCost";
-import { pickCheapestValidVersion } from "@/lib/costComparison";
+import { costCompleteness, pickCheapestValidVersion } from "@/lib/costComparison";
 import { evaluateGeneratedFormulaInventory, type FormulaInventoryFeasibility } from "@/lib/generatedFormulaInventory";
 import { pickMostInventoryFeasibleVersion } from "@/lib/inventoryComparison";
 import { evaluateGeneratedFormulaCompatibility, type GeneratedFormulaCompatibility } from "@/lib/generatedFormulaCompatibility";
@@ -790,9 +790,10 @@ function VersionCards({
                       ? t("formulationResult.versions.score", { pct: Math.round(c.score.total * 100) })
                       : t("formulationResult.versions.scoreNotYetAvailable")}
                   </span>
-                  {costSnapshots[i]?.totalManufacturingCost && (
+                  {costSnapshots[i]?.totalManufacturingCost && costCompleteness(costSnapshots[i]!) !== "none" && (
                     <span className={cn("tabular-nums", i === cheapestValidIndex && "font-medium text-accent")}>
-                      {displayMoney(costSnapshots[i]!.totalManufacturingCost!, currency)}
+                      {/* A total with unpriced lines is a lower bound, never the cost. */}
+                      {costCompleteness(costSnapshots[i]!) === "partial" ? "≥ " : ""}{displayMoney(costSnapshots[i]!.totalManufacturingCost!, currency)}
                     </span>
                   )}
                 </div>
@@ -2379,8 +2380,8 @@ function VersionSummaryCard({
   regulatory: GeneratedFormulaRegulatory | undefined;
 }) {
   const total = totalWeightPct(formula);
-  const costValue = snapshot?.totalManufacturingCost
-    ? displayMoney(snapshot.totalManufacturingCost, currency)
+  const costValue = snapshot?.totalManufacturingCost && costCompleteness(snapshot) !== "none"
+    ? `${costCompleteness(snapshot) === "partial" ? "≥ " : ""}${displayMoney(snapshot.totalManufacturingCost, currency)}`
     : t("formulationResult.versionSummary.notAvailable");
   const inventoryValue = inventoryFeasibility
     ? t(`inventory.state.${inventoryFeasibility.formulaState}`)

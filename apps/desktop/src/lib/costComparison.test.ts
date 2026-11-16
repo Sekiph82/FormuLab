@@ -4,7 +4,7 @@ import type { FormulationCard } from "./formulationV2";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
 import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
-import { pickCheapestValidVersion } from "./costComparison";
+import { costCompleteness, pickCheapestValidVersion } from "./costComparison";
 import { costGeneratedFormula } from "./generatedFormulaCost";
 
 function compat(over: Partial<GeneratedFormulaCompatibility> & { formulaState: GeneratedFormulaCompatibility["formulaState"] }): GeneratedFormulaCompatibility {
@@ -297,5 +297,16 @@ describe("FVL-03.012 — cost-constrained integration acceptance (real engine, d
       card({ version: "v3" }),
     ];
     expect(pickCheapestValidVersion(invalidCards, snapshots)).toBe(1);
+  });
+});
+
+describe("costCompleteness", () => {
+  const snapshot = (missing: (string | undefined)[], warnings: string[] = []) =>
+    ({ lines: missing.map((missingReason) => ({ missingReason })), missingDataWarnings: warnings }) as unknown as CostSnapshot;
+
+  it("a formula with no priced line has no cost, a partly priced one a lower bound", () => {
+    expect(costCompleteness(snapshot(["no_price", "no_price"], ["x"]))).toBe("none");
+    expect(costCompleteness(snapshot(["no_price", undefined], ["x"]))).toBe("partial");
+    expect(costCompleteness(snapshot([undefined, undefined]))).toBe("complete");
   });
 });

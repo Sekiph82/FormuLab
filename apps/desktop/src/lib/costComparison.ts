@@ -56,3 +56,12 @@ export function pickCheapestValidVersion(
   });
   return best;
 }
+
+/** How much of a snapshot's total is priced: "none" when no material line has a price (its
+ *  total of 0 is not a cost), "partial" when the total is a lower bound, else "complete". */
+export function costCompleteness(snapshot: CostSnapshot): "complete" | "partial" | "none" {
+  const lines = snapshot.lines ?? [];
+  const missing = lines.filter((line) => (line as { missingReason?: string }).missingReason).length;
+  if (lines.length > 0 && missing === lines.length) return "none";
+  return missing > 0 || snapshot.missingDataWarnings.length > 0 ? "partial" : "complete";
+}
