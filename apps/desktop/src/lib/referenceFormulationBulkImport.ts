@@ -363,7 +363,7 @@ async function persistVariant(input: {
   // reviewed product mapping exists, each extracted line remains unresolved.
   const products: [] = [];
   const matching = matchReferenceFormulationProducts({ source, lines: ingredients.lines, products });
-  const acquisitions = await listRecords("supplier_document_acquisitions");
+  const acquisitions = await cachedAcquisitions();
   const unresolved = buildReferenceFormulationUnresolvedQueue({
     source,
     lines: ingredients.lines,
@@ -394,7 +394,22 @@ async function persistVariant(input: {
     createdAt: nowIso(),
   });
   const saved = await recordReferenceFormulation(record);
+  runCache?.sources?.push(saved);
   return { recordId: saved.id, acquisitionCode: input.acquisition.code };
+}
+
+// One import run reads the formula corpus and document receipts once (the corpus is hundreds
+// of MB); records this module writes during the run are added to the cached lists.
+type RunCache = { sources?: Awaited<ReturnType<typeof listRecords<"reference_formulations">>>;
+  acquisitions?: Awaited<ReturnType<typeof listRecords<"supplier_document_acquisitions">>> };
+let runCache: RunCache | null = null;
+async function cachedSources() {
+  if (!runCache) return listRecords("reference_formulations");
+  return (runCache.sources ??= [...await listRecords("reference_formulations")]);
+}
+async function cachedAcquisitions() {
+  if (!runCache) return listRecords("supplier_document_acquisitions");
+  return (runCache.acquisitions ??= [...await listRecords("supplier_document_acquisitions")]);
 }
 
 async function processOneFile(input: {
@@ -420,13 +435,13 @@ async function processOneFile(input: {
   if (extraction.status !== "extracted") throw new ImportFileFailure("invalid_pdf");
   if (extraction.documentHash !== digest) throw new ImportFileFailure("source_unavailable");
 
-  const existingSources = await listRecords("reference_formulations");
+  const existingSources = await cachedSources();
   const duplicate = existingSources.find((source) => source.source.supplierId === input.job.supplierId
     && source.sourceDocumentHash.toLowerCase() === digest
     && source.source.parserVersion === REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION);
   if (duplicate) return { status: "duplicate", duplicateRecordId: duplicate.id };
 
-  const existingAcquisitions = await listRecords("supplier_document_acquisitions");
+  const existingAcquisitions = await cachedAcquisitions();
   let acquisition = existingAcquisitions.find((candidate) => candidate.supplierId === input.job.supplierId
     && candidate.documentType === "FORMULATION" && candidate.sha256.toLowerCase() === digest);
   if (!acquisition) {
@@ -462,6 +477,7 @@ async function processOneFile(input: {
     } catch {
       throw new ImportFileFailure("acquisition_failed");
     }
+    runCache?.acquisitions?.push(acquisition);
   }
 
   try {
@@ -478,6 +494,19 @@ async function processOneFile(input: {
 
 /** Resume by reselecting pending files. Each item's hash and status is durable, and a restart after document/source persistence is safe to retry. */
 export async function resumeReferenceFormulationBulkImport(
+  jobId: string,
+  selectedFiles: SelectedReferenceFormulationPdf[],
+  signal?: AbortSignal,
+): Promise<ReferenceFormulationBulkImportResult> {
+  runCache = {};
+  try {
+    return await resumeImportRun(jobId, selectedFiles, signal);
+  } finally {
+    runCache = null;
+  }
+}
+
+async function resumeImportRun(
   jobId: string,
   selectedFiles: SelectedReferenceFormulationPdf[],
   signal?: AbortSignal,
