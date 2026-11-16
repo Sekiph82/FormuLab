@@ -380,20 +380,24 @@ async function buildAndPersistReferenceRecord(input: {
     options: { languages: ["eng"], sourcePdfBytes: input.bytes },
   }, input.signal);
   if (ocr.status === "cancelled") throw new ImportBatchPaused();
-  let ocrLines: OcrLine[] = ocr.lines;
-  let parserVersion: string | undefined;
-  if (formulaUnits(extraction, ocrLines).length === 0) {
-    // The layout parser reads no formula: use the offline reader's output when there is one.
-    const reader = await readerOutputLines(input.acquisition.sha256);
-    if (formulaUnits(extraction, [...ocrLines, ...reader]).length > 0) {
-      ocrLines = [...ocrLines, ...reader];
-      parserVersion = REFERENCE_FORMULATION_MINERU_PARSER_VERSION;
+  const buildAll = async (from: typeof extraction, lines: OcrLine[], parserVersion?: string) => {
+    const variants = formulaVariantCount(from, lines);
+    const built = [];
+    for (let variant = 1; variant <= variants; variant += 1) {
+      built.push(await buildVariantRecord({ ...input, extraction: from, ocrLines: lines, variant, variants, ...(parserVersion ? { parserVersion } : {}) }));
     }
-  }
-  const variants = formulaVariantCount(extraction, ocrLines);
-  const records = [];
-  for (let variant = 1; variant <= variants; variant += 1) {
-    records.push(await buildVariantRecord({ ...input, extraction, ocrLines, variant, variants, ...(parserVersion ? { parserVersion } : {}) }));
+    return built;
+  };
+  let records = await buildAll(extraction, ocr.lines);
+  if (records.every((record) => record.ingredientLines.length === 0)) {
+    // The layout parser reads no ingredient line (no table, or a table it cannot read): use the
+    // offline reader's output when there is one, without the unreadable digital tables.
+    const reader = await readerOutputLines(input.acquisition.sha256);
+    const readerOnly = { ...extraction, pages: extraction.pages.map((page) => ({ ...page, lines: [] })) };
+    if (reader.length && formulaUnits(readerOnly, reader).length > 0) {
+      const fromReader = await buildAll(readerOnly, reader, REFERENCE_FORMULATION_MINERU_PARSER_VERSION);
+      if (fromReader.some((record) => record.ingredientLines.length > 0)) records = fromReader;
+    }
   }
   // Every formula of the PDF in one store write: each write rewrites the whole corpus file.
   let saved: Awaited<ReturnType<typeof recordReferenceFormulations>>;

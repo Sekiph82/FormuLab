@@ -23,11 +23,25 @@ class ReaderLinesTests(unittest.TestCase):
         self.assertGreater(header["words"][1]["x0"] - header["words"][0]["x1"], 6)
 
     def test_an_ocr_list_pairs_each_trade_name_with_its_inci_and_amount(self):
-        markdown = "- (w/w)\n- A WATER 53.30%\n- GLYCERIN 2.00%\n- PLANTASENS™ VL\n- Ricinus Communis (Castor) Seed Oil 5.00%\n"
+        markdown = "- (w/w)\n- A WATER 93.00%\n- GLYCERIN 2.00%\n- PLANTASENS™ VL\n- Ricinus Communis (Castor) Seed Oil 5.00%\n"
         rows = [[w["text"] for w in line["words"]] for line in reader_lines(markdown)]
         self.assertEqual(rows[0], ["Phase", "Ingredient", "INCI", "% w/w"])
-        self.assertEqual(rows[1], ["A", "WATER", "53.30"])
+        self.assertEqual(rows[1], ["A", "WATER", "93.00"])
         self.assertEqual(rows[3], ["PLANTASENS™ VL", "Ricinus Communis (Castor) Seed Oil", "5.00"])
+
+
+    def test_unnamed_name_column_headerless_and_transposed_tables(self):
+        def rows(markdown):
+            return [[w["text"] for w in line["words"]] for line in reader_lines(markdown)]
+        unnamed = rows("| | Supplier | % by wt |\n|---|---|---|\n| Water | - | 80.0 |\n| Crodasinic LS30 | Croda | 10.0 |\n| Glycerin | - | 10.0 |\n")
+        self.assertEqual(unnamed[0], ["Ingredient", "Supplier", "% by wt"])
+        headerless = rows("| A | Water | Solvent | ad 100.00 % |\n|---|---|---|---|\n| | Glycerin | Humectant | 3.00 % |\n| B | Aristoflex AVC | Thickener | 1.00 % |\n")
+        self.assertEqual(headerless[0], ["Phase", "Ingredient", "% w/w"])
+        self.assertEqual(headerless[1], ["A", "Water", "Solvent", "ad 100.00 %"])
+        transposed = rows("| Formulations | Water | DOWANOL PnB | Butyl CELLOSOLVE |\n|---|---|---|---|\n| 1 | 94.0 | 3.0 | 3.0 |\n| 2 | 92.0 | 4.0 | 4.0 |\n")
+        self.assertEqual(transposed[0], ["Ingredient", "% w/w"])
+        self.assertEqual(transposed[1], ["Water", "94.0"])
+        self.assertEqual(sum(1 for r in transposed if r == ["Ingredient", "% w/w"]), 2)
 
 
 if __name__ == "__main__":

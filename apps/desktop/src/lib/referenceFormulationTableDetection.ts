@@ -21,11 +21,11 @@ const CANONICAL_HEADER: Record<DetectedColumn, string> = {
 
 const HEADER_PATTERNS: Array<[DetectedColumn, RegExp]> = [
   ["phase", /^(phase|step|stage)$/],
-  ["amount", /^(%|% ?w\/?w|w\/?w ?%|wt\.? ?%|% ?wt\.?|amount|quantity|dosage|dose|dose \(%?|dose \(% ?w\/?w\)?|concentration|percentage|percent|weight percent|(#?\d+ )?percentage \(%\)|% active|parts|parts by weight|composition %|weight ?-? ?\(?%\)?|% by weight|% ?\(w\/w\)|weight %|amount ?\(?%\)?|% inclusion|inclusion ?\(?%\)?|% ?w\/?w in [a-z0-9* ]+)$/],
-  ["inci", /^(inci|inci name|inci names?|inci ?\/ ?ctfa( name)?|chemical name|chemical description|chemical identity|chemical)$/],
+  ["amount", /^(%|% ?w\/?w|w\/?w ?%|wt\.? ?%|% ?wt\.?|amount|quantity|dosage|dose|dose \(%?|dose \(% ?w\/?w\)?|concentration|percentage|percent|weight percent|(#?\d+ )?percentage \(%\)|% active|parts|parts by weight|composition %|weight ?-? ?\(?%\)?|% by weight|% ?\(w\/w\)|weight %|amount ?\(?%\)?|% inclusion|inclusion ?\(?%\)?|% ?w\/?w in [a-z0-9* ]+|% by wt\.?|% as is)$/],
+  ["inci", /^(inci\)?|inci name|inci names?|inci ?\/ ?ctfa( name)?|inci name ?\/.+|chemical description\)|chemical name|chemical description|chemical identity|chemical)$/],
   ["function", /^(function|functionality|role|purpose|benefit)$/],
   ["supplier", /^(supplier|manufacturer|vendor|source)$/],
-  ["ingredient", /^(ingredients?|ingredient ?names?|ingredient ?\/ ?inci name|product|products|product name|component|components|raw materials?|trade ?names?|trade ?names? ?\/ ?suppliers?|trade ?names? ?\/ ?inci|name|commercial product|material|composition|[a-z]+ product ?\/ ?ingredient|formulation|formula)$/],
+  ["ingredient", /^(ingredients?|ingredient ?names?|ingredients? \(trade ?name.*|ingredient ?\/ ?inci name|product|products|product name|component|components|raw materials?|trade ?names?|trade ?names? ?\/ ?suppliers?|trade ?names? ?\/ ?inci|name|commercial product|material|composition|[a-z]+ product ?\/ ?ingredient|formulation|formula)$/],
 ];
 /** Preferred name column when a header has several ("Ingredient" and "Trade Name"). */
 const PRIMARY_NAME = /^(ingredients?|component|components|product|products|composition|raw materials?)/;

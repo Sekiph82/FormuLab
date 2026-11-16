@@ -140,6 +140,82 @@ def _row_lines(page, rows, top):
     return lines, top + len(rows) * ROW_HEIGHT + 3 * ROW_HEIGHT
 
 
+AMOUNT_CELL = re.compile(r"^(?:(?:ad|add|to|q\.?\s*s\.?(?:\s*(?:to|ad))?)\s*)?\d+(?:[.,]\d+)?\s*%?$|^(?:ad|add|to)\s*100|^q\.?\s*s\.?$", re.I)
+AMOUNT_HEADER = re.compile(r"%|weight|wt\b|amount|quantity|w/w|dose|dosage|inclusion|percent", re.I)
+PHASE_CELL = re.compile(r"^(?:[A-H]\d?|[IVX]{1,4})\.?$")
+
+
+def _shaped(table: list[list[str]]) -> list[list[str]]:
+    """Name the columns a MinerU table leaves unnamed, from what the cells hold. No value changes.
+
+    - an amount header with an empty column of names beside it ("" | Supplier | % by wt): "Ingredient";
+    - no header row at all (A | Water | Solvent | ad 100.00 %): a header from the cell contents.
+    """
+    width = max(len(r) for r in table)
+    rows = [r + [""] * (width - len(r)) for r in table]
+    columns = list(zip(*rows[1:]))
+    amount_col = max(range(width), key=lambda i: sum(bool(AMOUNT_CELL.match(c.strip())) for c in columns[i])) if columns else None
+    amounts = sum(bool(AMOUNT_CELL.match(c.strip())) for c in columns[amount_col]) if columns else 0
+    named = lambda i: sum(bool(re.search(r"[A-Za-z]{3}", c)) for c in columns[i])
+    if any(AMOUNT_HEADER.search(c) for c in rows[0]) and not any(AMOUNT_CELL.match(c.strip()) for c in rows[0]):
+        header = list(rows[0])
+        if amounts >= 2:
+            for i in range(width):
+                if not header[i].strip() and i != amount_col and named(i) >= max(2, len(columns[i]) // 2):
+                    header[i] = "Ingredient"
+                    break
+        return [header, *rows[1:]]
+    # No header row: the first row is data too.
+    columns = list(zip(*rows))
+    amount_col = max(range(width), key=lambda i: sum(bool(AMOUNT_CELL.match(c.strip())) for c in columns[i]))
+    if sum(bool(AMOUNT_CELL.match(c.strip())) for c in columns[amount_col]) < 3:
+        return rows
+    header = [""] * width
+    header[amount_col] = "% w/w"
+    for i in range(width):
+        if i != amount_col and sum(bool(PHASE_CELL.match(c.strip())) for c in columns[i] if c.strip()) >= 2 \
+                and all(PHASE_CELL.match(c.strip()) for c in columns[i] if c.strip()):
+            header[i] = "Phase"
+    name_col = next((i for i in range(width) if not header[i] and sum(bool(re.search(r"[A-Za-z]{3}", c)) for c in columns[i]) >= 3), None)
+    if name_col is None:
+        return rows
+    header[name_col] = "Ingredient"
+    return [header, *rows]
+
+
+def _transposed(table: list[list[str]]) -> list[list[list[str]]]:
+    """Formulas as rows and ingredients as columns ("Formulations | Water | DOWANOL PnB | ..."):
+    one Ingredient | % w/w table per formula row."""
+    head = table[0]
+    if not head or not re.match(r"formu-?\s?lations?\b", head[0].strip(), re.I) or len(head) < 4:
+        return []
+    out = []
+    for row in table[1:]:
+        values = [(name, row[i]) for i, name in enumerate(head[1:], start=1)
+                  if i < len(row) and name.strip() and AMOUNT_CELL.match(row[i].strip())]
+        if len(values) >= 2:
+            out.append([["Ingredient", "% w/w"], *[[name, value] for name, value in values]])
+    return out
+
+
+def _plausible(table: list[list[str]]) -> bool:
+    """A formula, not a property table or a grams recipe: its amount column closes to 100
+    ("q.s./ad/to 100") or adds up to about 100 (80-120 %)."""
+    header = table[0]
+    col = next((i for i, cell in enumerate(header) if cell == "% w/w" or AMOUNT_HEADER.search(cell)), None)
+    if col is None:
+        return False
+    cells = [row[col].strip() for row in table[1:] if col < len(row) and row[col].strip()]
+    if any(re.search(r"q\.?\s*s|ad\s*100|add\s*100|to\s*100|balance", cell, re.I) for cell in cells):
+        return True
+    values = []
+    for cell in cells:
+        match = re.match(r"^(\d+(?:[.,]\d+)?)", cell)
+        if match:
+            values.append(float(match.group(1).replace(",", ".")))
+    return len(values) >= 2 and 80 <= sum(values) <= 120
+
+
 def reader_lines(markdown: str) -> list[dict]:
     """MinerU markdown (pages marked "<!-- page N of M -->") as OCR-style lines per page."""
     lines: list[dict] = []
@@ -151,8 +227,12 @@ def reader_lines(markdown: str) -> list[dict]:
             words = [{"text": heading.strip(), "x0": 40, "x1": 40 + CHAR_WIDTH * len(heading.strip()), "y0": top}]
             lines.append({"pageNumber": page, "text": heading.strip(), "words": words}); top += 2 * ROW_HEIGHT
         parser = _Tables(); parser.feed(text)
-        tables = [t for t in parser.tables + _pipe_tables(text) if len(t) >= 3]
+        tables = []
+        for table in (t for t in parser.tables + _pipe_tables(text) if len(t) >= 3):
+            tables.extend(t for t in (_transposed(table) or [_shaped(table)]) if _plausible(t))
         listed = _listed_table(text) if not tables else None
+        if listed and not _plausible(listed):
+            listed = None
         for table in tables + ([listed] if listed else []):
             table_lines, top = _row_lines(page, table, top)
             lines.extend(table_lines)
@@ -186,12 +266,16 @@ def run(limit: int | None) -> dict[str, int]:
                 counts["failed"] += 1
                 continue
         lines = reader_lines(open(markdown_path, encoding="utf-8", errors="replace").read())
+        sidecar = os.path.join(STORE, "mineru", f"{digest}.json")
         if not any(len(line["words"]) >= 2 for line in lines):
             counts["no_formula"] += 1
+            # An earlier output this run no longer accepts must not be read by the app.
+            if os.path.exists(sidecar):
+                os.remove(sidecar)
             continue
         output = {"schemaVersion": "1.0", "reader": READER, "sourceDocumentHash": digest,
                   "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "lines": lines}
-        with open(os.path.join(STORE, "mineru", f"{digest}.json"), "w", encoding="utf-8") as handle:
+        with open(sidecar, "w", encoding="utf-8") as handle:
             json.dump(output, handle, ensure_ascii=False)
         counts["written"] += 1
     return counts

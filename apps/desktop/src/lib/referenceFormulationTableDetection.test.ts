@@ -37,6 +37,18 @@ describe("detectIngredientTables", () => {
       line(672, [[80, "Water/Aqua"], [250, "qs to 100%"], [320, "Water/Aqua"]]),
     ]);
     expect(named!.rows[0]).toEqual(["Phase", "Ingredient", "INCI", "% w/w"]);
+    const [asIs] = detectIngredientTables([
+      line(700, [[80, "Ingredients (Trade name"], [260, "INCI)"], [420, "% As Is"]]),
+      line(686, [[80, "Water"], [260, "Aqua"], [420, "80.0"]]),
+      line(672, [[80, "Glycerin"], [260, "Glycerin"], [420, "5.0"]]),
+    ]);
+    expect(asIs!.rows[0]).toEqual(["Ingredient", "INCI", "% w/w"]);
+    const [byWt] = detectIngredientTables([
+      line(700, [[80, "Ingredient"], [260, "INCI Name/表示名称"], [420, "% by wt"]]),
+      line(686, [[80, "Water"], [260, "Aqua"], [420, "80.0"]]),
+      line(672, [[80, "Glycerin"], [260, "Glycerin"], [420, "5.0"]]),
+    ]);
+    expect(byWt!.rows[0]).toEqual(["Ingredient", "INCI", "% w/w"]);
   });
 
   it("reads a Product / Functionality / % W/W table and stops at the method heading", () => {
