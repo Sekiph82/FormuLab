@@ -19,8 +19,8 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 216
-- Completed Tasks: 215
+- Total Tasks: 217
+- Completed Tasks: 216
 - Remaining Tasks: 1
 - Completion: 99.5%
 
@@ -410,6 +410,7 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [x] REF-01.015 — Import owner-purchased formulation handbooks (Flick Vol 2: 1,847 formulas) as gap-filling reference formulas
 - [x] REF-01.016 — Read every formula PDF the corpus holds: Clariant "Weight -%" and INCI-only cards, one record per brochure formula, and show the formula PDFs behind each New Request ingredient
 - [x] REF-01.017 — Read formula PDFs the layout parser cannot (scanned cards, image tables) from a local, offline MinerU run, under their own parser version; batch formula saves per PDF
+- [x] REF-01.018 — Read the remaining unread formula PDFs (reader fallback when layout gives no lines, more amount headers, transposed/headerless reader tables with a closes-to-100 gate; parser v8/v9); PDF/DOCX formulation reports; scrollable app pages and supplier formula list
 - [~] REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
 
 ## Historical Detail & Evidence
