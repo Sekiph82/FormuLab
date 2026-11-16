@@ -251,7 +251,8 @@ describe("DoePanel — study wizard", () => {
     // Step 7: generation settings — leave defaults.
     await user.click(within(dialog).getByRole("button", { name: "Next" }));
     // Step 8: preview — the run count of the design that will be generated, not "—".
-    expect(within(dialog).getByText(/Estimated run count: 2/)).toBeInTheDocument();
+    // One continuous factor: 2 factorial runs + the wizard's default 3 center points.
+    expect(within(dialog).getByText(/Estimated run count: 5/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Next" }));
 
     // Step 9: confirm — generate.
@@ -267,10 +268,10 @@ describe("DoePanel — study wizard", () => {
     expect(bridge.upsertRecords).toHaveBeenCalledWith("doe_factors", expect.any(Array));
     expect(bridge.upsertRecords).toHaveBeenCalledWith("doe_responses", expect.any(Array));
     expect(bridge.upsertRecords).toHaveBeenCalledWith("doe_designs", expect.any(Array));
-    // A single continuous factor with low=10/high=20 -> a 2-run full factorial.
+    // A single continuous factor with low=10/high=20 -> a 2-run full factorial plus 3 center points.
     expect(bridge.upsertRecords).toHaveBeenCalledWith("doe_runs", expect.arrayContaining([expect.objectContaining({ studyId: expect.any(String) })]));
     const runsCall = bridge.upsertRecords.mock.calls.find((call: unknown[]) => call[0] === "doe_runs");
-    expect(runsCall?.[1]).toHaveLength(2);
+    expect(runsCall?.[1]).toHaveLength(5);
   });
 
   it("refuses generation with no saved versions available and shows the warning", async () => {

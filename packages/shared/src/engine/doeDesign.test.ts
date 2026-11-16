@@ -512,6 +512,13 @@ describe("generateDoeDesign (end-to-end)", () => {
     expect(again.runs.map((r) => r.randomizedOrder)).toEqual(result.runs.map((r) => r.randomizedOrder));
   });
 
+  it("adds the requested center points to a two-level factorial of continuous factors", () => {
+    const factors = [factor({ factorCode: "A" }), factor({ factorCode: "B" })];
+    const result = generateDoeDesign({ study, factors, constraints: [], responses: RESPONSES, designType: "full_factorial", seed: 42, centerPointCount: 3 }, HUMAN);
+    expect(result.design.runCount).toBe(7);
+    expect(result.design.diagnostics.centerPointCount).toBe(3);
+  });
+
   it("marks replicate numbers for a manual design containing a deliberate duplicate", () => {
     const settings = [{ factorCode: "A", codedValue: "1", actualValue: "20" }];
     const result = generateDoeDesign(

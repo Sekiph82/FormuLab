@@ -751,6 +751,18 @@ export function generateDoeDesign(input: GenerateDoeDesignInput, actor: Actor): 
       throw new Error(`Design type "${input.designType}" is not yet implemented.`);
   }
 
+  // Two-level screening designs take the requested center points too (all factors at their
+  // midpoint), which is what lets the analysis test curvature and pure error. A categorical
+  // factor has no midpoint, so such a design keeps none.
+  const twoLevel = ["full_factorial", "two_level_factorial", "fractional_factorial", "plackett_burman"].includes(input.designType);
+  const nonMixture = input.factors.filter((f) => !f.isMixtureComponent);
+  if (twoLevel && centerPointCount > 0 && nonMixture.length > 0 && nonMixture.every((f) => f.factorType === "continuous" || f.factorType === "integer")) {
+    rawRuns = [...rawRuns, ...Array.from({ length: centerPointCount }, () => ({
+      settings: nonMixture.map((f) => ({ factorCode: f.factorCode, codedValue: "0", actualValue: continuousActualFromCoded(f, 0) })),
+      isCenterPoint: true,
+    }))];
+  }
+
   const designIssues = validateGeneratedDesign(rawRuns, input.constraints);
   const hardIssues = designIssues.filter((issue) => input.constraints.some((c) => c.severity === "hard" && issue.message.includes(c.expression)));
   if (hardIssues.length > 0) {
