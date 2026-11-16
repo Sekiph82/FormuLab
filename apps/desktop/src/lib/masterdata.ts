@@ -382,14 +382,52 @@ export async function backupCollection(collection: Collection): Promise<string> 
  * rather than attempting `upsertRecords`, which would otherwise throw
  * `"not-desktop"` (`call()`'s own guard) on every render.
  */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/**
+ * Seed rows whose stored copy nobody has edited (it still carries the seed's own updatedAt)
+ * but whose shipped seed has since been corrected — e.g. a safety rule that flagged water as a
+ * flammable solvent. A row a person edited has a later updatedAt and is never returned. Only
+ * the seed's own fields are compared, so defaults added on read never force a rewrite.
+ */
+export function staleSeedRows<T>(existing: readonly unknown[], seed: readonly T[]): T[] {
+  const keyOf = (row: unknown) => {
+    const record = row as { id?: unknown; code?: unknown };
+    return String(record.id ?? record.code ?? "");
+  };
+  const stored = new Map(existing.map((row) => [keyOf(row), row as Record<string, unknown>]));
+  return seed.filter((row) => {
+    const current = stored.get(keyOf(row));
+    const fields = row as Record<string, unknown>;
+    return current !== undefined && current.updatedAt === fields.updatedAt
+      && Object.keys(fields).some((key) => canonical(current[key]) !== canonical(fields[key]));
+  });
+}
+
 export async function listRecordsSeeded<C extends Collection>(
   collection: C,
   seed: CollectionTypes[C][],
 ): Promise<CollectionTypes[C][]> {
   if (!isTauri) return seed;
   const existing = await listRecords(collection);
-  if (existing.length > 0 || seed.length === 0) return existing;
-  await upsertRecords(collection, seed);
+  if (seed.length === 0) return existing;
+  if (existing.length === 0) {
+    await upsertRecords(collection, seed);
+    return listRecords(collection);
+  }
+  const stale = staleSeedRows(existing, seed);
+  if (stale.length === 0) return existing;
+  try {
+    await upsertRecords(collection, stale);
+  } catch {
+    return existing; // An append-only collection keeps its stored seed.
+  }
   return listRecords(collection);
 }
 
