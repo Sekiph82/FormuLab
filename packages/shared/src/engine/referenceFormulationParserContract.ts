@@ -1,6 +1,12 @@
 import { z } from "zod";
 
 export const REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION = "formulab-reference-formulation-layout-v6-brochure-formula-titles";
+/**
+ * A PDF the layout parser reads no formula from, read again from an offline reader's output
+ * (MinerU). Its generation (v7) is newer, so it replaces that empty parse; the next change to
+ * the layout parser itself takes v8.
+ */
+export const REFERENCE_FORMULATION_MINERU_PARSER_VERSION = "formulab-reference-formulation-layout-v7-mineru-fallback";
 
 const sourceKind = z.enum(["digital", "ocr", "mixed", "unknown"]);
 const positionSchema = z.object({ x: z.number().finite().nonnegative(), y: z.number().finite().nonnegative() }).strict();

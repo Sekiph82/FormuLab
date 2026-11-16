@@ -15,6 +15,7 @@ import {
   summarizeReferenceFormulationImport,
   validateReferenceFormulationArithmetic,
   REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION,
+  REFERENCE_FORMULATION_MINERU_PARSER_VERSION,
   type ReferenceFormulationImportFile,
   type ReferenceFormulationImportJob,
   type ReferenceFormulationRights,
@@ -27,7 +28,7 @@ import { detectIngredientTables, headerColumn, type PositionedLine } from "./ref
 import type { OcrWord } from "./supplierPdfOcr";
 import { SUPPLIER_PDF_DEFAULT_MAX_BYTES } from "./supplierDocumentAdmission";
 import { recordSupplierDocumentAcquisition } from "./supplierDocumentAcquisitions";
-import { listRecords, nowIso, storeSupplierDocumentPdf, upsertRecords } from "./masterdata";
+import { listRecords, nowIso, readSupplierDocumentReaderOutput, storeSupplierDocumentPdf, upsertRecords } from "./masterdata";
 
 const FILE_BATCH_WRITE_SIZE = 100;
 const MAX_BULK_FILES = 5_000;
@@ -184,7 +185,38 @@ export async function startReferenceFormulationBulkImport(
   return resumeReferenceFormulationBulkImport(job.id, selectedFiles, signal);
 }
 
-type OcrLine = { pageNumber: number; text: string; confidence: number; source: "ocr"; words?: OcrWord[] };
+type OcrLine = { pageNumber: number; text: string; confidence?: number; source: "ocr"; words?: OcrWord[] };
+
+/**
+ * Lines an offline reader (MinerU) produced for this PDF, in OCR-line form with word boxes, so
+ * the same table detection reads them. Empty when there is no output or it is not for this PDF.
+ * MinerU reports no per-line confidence, so none is recorded.
+ */
+async function readerOutputLines(sha256: string): Promise<OcrLine[]> {
+  let text: string | null;
+  try {
+    text = await readSupplierDocumentReaderOutput(sha256);
+  } catch {
+    return [];
+  }
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text) as { sourceDocumentHash?: unknown; lines?: unknown };
+    if (String(parsed.sourceDocumentHash).toLowerCase() !== sha256.toLowerCase() || !Array.isArray(parsed.lines)) return [];
+    return parsed.lines.flatMap((raw) => {
+      const line = raw as { pageNumber?: unknown; text?: unknown; words?: unknown };
+      const words = Array.isArray(line.words) ? line.words.filter((word): word is OcrWord => {
+        const candidate = word as OcrWord;
+        return typeof candidate?.text === "string" && [candidate.x0, candidate.x1, candidate.y0].every((value) => Number.isFinite(value));
+      }) : [];
+      return Number.isInteger(line.pageNumber) && (line.pageNumber as number) >= 1 && typeof line.text === "string" && words.length
+        ? [{ pageNumber: line.pageNumber as number, text: line.text, source: "ocr" as const, words }]
+        : [];
+    });
+  } catch {
+    return [];
+  }
+}
 
 /** OCR word boxes as positioned rows: close words share a cell, wider gaps start a new column. */
 export function positionedOcrLines(ocrLines: OcrLine[], pageNumber: number): PositionedLine[] {
@@ -325,7 +357,7 @@ export function pagesFromExtraction(
       });
     }
     for (const line of ocrLines.filter((candidate) => candidate.pageNumber === page.pageNumber)) {
-      blocks.push({ type: "text", blockIndex: nextIndex++, text: line.text, source: "ocr", confidence: line.confidence });
+      blocks.push({ type: "text", blockIndex: nextIndex++, text: line.text, source: "ocr", ...(line.confidence !== undefined ? { confidence: line.confidence } : {}) });
     }
     return { pageNumber: page.pageNumber, blocks };
   });
@@ -348,10 +380,20 @@ async function buildAndPersistReferenceRecord(input: {
     options: { languages: ["eng"], sourcePdfBytes: input.bytes },
   }, input.signal);
   if (ocr.status === "cancelled") throw new ImportBatchPaused();
-  const variants = formulaVariantCount(extraction, ocr.lines);
+  let ocrLines: OcrLine[] = ocr.lines;
+  let parserVersion: string | undefined;
+  if (formulaUnits(extraction, ocrLines).length === 0) {
+    // The layout parser reads no formula: use the offline reader's output when there is one.
+    const reader = await readerOutputLines(input.acquisition.sha256);
+    if (formulaUnits(extraction, [...ocrLines, ...reader]).length > 0) {
+      ocrLines = [...ocrLines, ...reader];
+      parserVersion = REFERENCE_FORMULATION_MINERU_PARSER_VERSION;
+    }
+  }
+  const variants = formulaVariantCount(extraction, ocrLines);
   const records = [];
   for (let variant = 1; variant <= variants; variant += 1) {
-    records.push(await buildVariantRecord({ ...input, extraction, ocrLines: ocr.lines, variant, variants }));
+    records.push(await buildVariantRecord({ ...input, extraction, ocrLines, variant, variants, ...(parserVersion ? { parserVersion } : {}) }));
   }
   // Every formula of the PDF in one store write: each write rewrites the whole corpus file.
   let saved: Awaited<ReturnType<typeof recordReferenceFormulations>>;
@@ -398,10 +440,13 @@ async function buildVariantRecord(input: {
   variant: number;
   variants: number;
   sourceCategories: string[];
+  /** Set when the formula was read from an offline reader's output instead of the layout parser. */
+  parserVersion?: string;
 }) {
   const pages = pagesFromExtraction(input.extraction, input.ocrLines, input.variant);
   const variantSuffix = input.variants > 1 ? `-v${input.variant}` : "";
   const layout = analyzeReferenceFormulationLayout({ sourceDocumentHash: input.acquisition.sha256, pages });
+  const parserVersion = input.parserVersion ?? layout.parserVersion;
   const identity = extractReferenceFormulationIdentity({ acquisition: input.acquisition, pages });
   const baseTitle = identity.candidates.find((candidate) => candidate.field === "formulation_title")?.rawValue
     ?? input.item.originalFilename.replace(/\.pdf$/iu, "");
@@ -414,14 +459,14 @@ async function buildVariantRecord(input: {
   const publicationDate = identity.candidates.find((candidate) => candidate.field === "publication_date")?.rawValue;
   const formulationCode = identity.candidates.find((candidate) => candidate.field === "formulation_code")?.rawValue;
   const source = createReferenceFormulationSource({
-    id: `reference-source-${input.acquisition.sha256}-${layout.parserVersion.replace(/[^a-z0-9-]/giu, "-").toLocaleLowerCase("en-US")}${variantSuffix}`,
+    id: `reference-source-${input.acquisition.sha256}-${parserVersion.replace(/[^a-z0-9-]/giu, "-").toLocaleLowerCase("en-US")}${variantSuffix}`,
     acquisition: input.acquisition,
     ...(publicationDate ? { publicationDate } : {}),
     ...(revisionDate ? { revisionDate } : {}),
     ...(sourceRevision ? { sourceRevision } : {}),
     ...(formulationCode ? { formulationCode } : {}),
     title: sourceTitle,
-    parserVersion: layout.parserVersion,
+    parserVersion,
     rights: input.job.rights,
     createdAt: nowIso(),
   });
@@ -441,7 +486,7 @@ async function buildVariantRecord(input: {
     products,
     supplierDocuments: acquisitions,
   });
-  const recordKey = `${input.acquisition.sha256}-${layout.parserVersion.replace(/[^a-z0-9-]/giu, "-").toLocaleLowerCase("en-US")}${variantSuffix}`;
+  const recordKey = `${input.acquisition.sha256}-${parserVersion.replace(/[^a-z0-9-]/giu, "-").toLocaleLowerCase("en-US")}${variantSuffix}`;
   const record = createReferenceFormulationRecord({
     id: `reference-formula-${recordKey}`,
     code: `reference-formula-${recordKey}`,
@@ -504,10 +549,15 @@ async function processOneFile(input: {
   if (extraction.documentHash !== digest) throw new ImportFileFailure("source_unavailable");
 
   const existingSources = await cachedSources();
-  const duplicate = existingSources.find((source) => source.source.supplierId === input.job.supplierId
-    && source.sourceDocumentHash.toLowerCase() === digest
-    && source.source.parserVersion === REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION);
-  if (duplicate) return { status: "duplicate", duplicateRecordId: duplicate.id };
+  const sameDocument = existingSources.filter((source) => source.source.supplierId === input.job.supplierId
+    && source.sourceDocumentHash.toLowerCase() === digest);
+  const readerParse = sameDocument.find((source) => source.source.parserVersion === REFERENCE_FORMULATION_MINERU_PARSER_VERSION);
+  if (readerParse) return { status: "duplicate", duplicateRecordId: readerParse.id };
+  const duplicate = sameDocument.find((source) => source.source.parserVersion === REFERENCE_FORMULATION_LAYOUT_PARSER_VERSION);
+  // A parse that found no formula is read again once offline reader output exists for the PDF.
+  if (duplicate && (duplicate.ingredientLines.length > 0 || (await readerOutputLines(digest)).length === 0)) {
+    return { status: "duplicate", duplicateRecordId: duplicate.id };
+  }
 
   const existingAcquisitions = await cachedAcquisitions();
   let acquisition = existingAcquisitions.find((candidate) => candidate.supplierId === input.job.supplierId

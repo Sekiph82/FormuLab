@@ -18,7 +18,7 @@ import {
   validateReferenceFormulationArithmetic,
 } from "@formulab/shared";
 
-const { collections, listRecordsMock, upsertRecordsMock, nowIsoMock, storePdfMock, failUpsertOnce } = vi.hoisted(() => {
+const { collections, listRecordsMock, upsertRecordsMock, nowIsoMock, storePdfMock, failUpsertOnce, readerOutputMock } = vi.hoisted(() => {
   const collections = new Map<string, Record<string, unknown>[]>();
   const failUpsertOnce: { collection: string; matches: (rows: Record<string, unknown>[]) => boolean }[] = [];
   return {
@@ -42,6 +42,7 @@ const { collections, listRecordsMock, upsertRecordsMock, nowIsoMock, storePdfMoc
       return { inserted: rows.length, updated: 0, total: existing.length };
     }),
     nowIsoMock: vi.fn(() => "2026-10-26T12:00:00.000Z"),
+    readerOutputMock: vi.fn(async (_sha256: string): Promise<string | null> => null),
     storePdfMock: vi.fn(async (bytes: Uint8Array, expectedSha256: string) => ({
       sha256: expectedSha256, byte_size: bytes.byteLength, relative_path: `supplier-documents/sha256/${expectedSha256}.pdf`, deduplicated: false,
     })),
@@ -53,6 +54,8 @@ vi.mock("./masterdata", () => ({
   upsertRecords: upsertRecordsMock,
   nowIso: nowIsoMock,
   storeSupplierDocumentPdf: storePdfMock,
+  readSupplierDocumentReaderOutput: readerOutputMock,
+  appendReferenceFormulationNormalizationRecords: vi.fn(async (rows: unknown[]) => rows.length),
 }));
 vi.mock("./referenceFormulationOcr", () => ({
   runConditionalReferenceFormulationOcr: vi.fn(async (input: { extraction: { documentHash: string; parserVersion: string } }) => ({
@@ -182,6 +185,7 @@ describe("reference formulation bulk import", () => {
     collections.clear();
     failUpsertOnce.length = 0;
     vi.clearAllMocks();
+    readerOutputMock.mockReset();
   });
 
   it("reads a brochure with one formula table per page as separate formulas, each with its own page", () => {
@@ -358,6 +362,34 @@ describe("reference formulation bulk import", () => {
     expect(storePdfMock.mock.calls[0]?.[1]).toBe(storePdfMock.mock.calls[1]?.[1]);
     expect(collections.get("supplier_document_acquisitions")).toHaveLength(1);
     expect(collections.get("reference_formulations")).toHaveLength(1);
+  });
+
+  it("reads a PDF the layout parser finds no formula in from the offline reader's output, once", async () => {
+    const bytes = await validPdf();
+    const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes)))].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    const row = (y0: number, cells: Array<[number, string]>) => ({
+      pageNumber: 1, text: cells.map(([, text]) => text).join(" "),
+      words: cells.map(([x0, text]) => ({ text, x0, x1: x0 + 6 * text.length, y0 })),
+    });
+    const first = await startReferenceFormulationBulkImport([selectedFile("scanned-card.pdf", bytes)], metadata);
+    expect(collections.get("reference_formulations")![0]).toMatchObject({ ingredientLines: [] });
+
+    readerOutputMock.mockImplementation(async (sha256: string) => sha256 === digest ? JSON.stringify({
+      reader: "mineru-4.2.2", sourceDocumentHash: digest, lines: [
+        row(100, [[40, "Phase"], [80, "Ingredient"], [400, "% w/w"]]),
+        row(114, [[40, "A"], [80, "Water"], [400, "53.30"]]),
+        row(128, [[80, "Glycerin"], [400, "2.00"]]),
+      ],
+    }) : null);
+    expect(first.files[0]).toMatchObject({ status: "review_required" });
+    const second = await startReferenceFormulationBulkImport([selectedFile("scanned-card.pdf", bytes)], metadata);
+    expect(second.files[0]).toMatchObject({ status: "review_required" });
+    const read = (collections.get("reference_formulations") as Array<{ source: { parserVersion: string }; ingredientLines: unknown[] }>)
+      .find((record) => record.source.parserVersion.includes("mineru"))!;
+    expect(read.ingredientLines).toHaveLength(2);
+
+    const third = await startReferenceFormulationBulkImport([selectedFile("scanned-card.pdf", bytes)], metadata);
+    expect(third.files[0]).toMatchObject({ status: "duplicate" });
   });
 
   it("retries parsing from the existing acquisition without duplicating the stored source", async () => {

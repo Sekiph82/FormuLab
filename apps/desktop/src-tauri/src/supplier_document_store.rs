@@ -223,6 +223,42 @@ pub async fn read_supplier_document_pdf(
     .map_err(|_| "could not read supplier document".to_string())?
 }
 
+const READER_OUTPUT_ROOT: &str = "supplier-documents/mineru";
+const MAX_READER_OUTPUT_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Text an offline document reader (MinerU) produced for one stored PDF, if any:
+/// `supplier-documents/mineru/<sha256>.json`, written by `scripts/dev/mineru_reader_output.py`.
+/// Located only by the validated content hash; `None` when no reader output exists.
+#[tauri::command(async)]
+pub async fn read_supplier_document_reader_output(
+    app: AppHandle,
+    token: String,
+    sha256: String,
+) -> Result<Option<String>, String> {
+    crate::authz::authorize_any_app(&app, &token, "formulation", &["view"])?;
+    let data_root = crate::formulation_v2::project_data_dir(&app, "data")?;
+    tauri::async_runtime::spawn_blocking(move || reader_output(&data_root, &sha256))
+        .await
+        .map_err(|_| "could not read reader output".to_string())?
+}
+
+fn reader_output(data_root: &Path, sha256: &str) -> Result<Option<String>, String> {
+    let digest = normalize_hash(sha256)?;
+    let path = data_root.join(READER_OUTPUT_ROOT).join(format!("{digest}.json"));
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let file = File::open(path).map_err(|_| "reader output is unavailable".to_string())?;
+    let mut text = String::new();
+    file.take(MAX_READER_OUTPUT_BYTES + 1)
+        .read_to_string(&mut text)
+        .map_err(|_| "reader output is unavailable".to_string())?;
+    if text.len() as u64 > MAX_READER_OUTPUT_BYTES {
+        return Err("reader output exceeds the size limit".into());
+    }
+    Ok(Some(text))
+}
+
 /// Read a blob only by its validated content identity and verify it again on
 /// every read. No renderer-provided path is accepted.
 #[allow(dead_code)] // Consumed by document preview/export work after blob acquisition.
@@ -256,6 +292,18 @@ mod tests {
 
     fn pdf(label: &str) -> Vec<u8> {
         format!("%PDF-1.7\n{label}\n%%EOF\n").into_bytes()
+    }
+
+    #[test]
+    fn reader_output_is_found_only_by_a_valid_hash() {
+        let root = temporary_data_root("reader");
+        let digest = "a".repeat(64);
+        assert_eq!(reader_output(&root, &digest).unwrap(), None);
+        fs::create_dir_all(root.join(READER_OUTPUT_ROOT)).unwrap();
+        fs::write(root.join(READER_OUTPUT_ROOT).join(format!("{digest}.json")), "{\"lines\":[]}").unwrap();
+        assert_eq!(reader_output(&root, &digest.to_ascii_uppercase()).unwrap().as_deref(), Some("{\"lines\":[]}"));
+        assert!(reader_output(&root, "../secrets").is_err());
+        fs::remove_dir_all(root).ok();
     }
 
     #[test]

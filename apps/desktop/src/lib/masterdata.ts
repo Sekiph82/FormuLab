@@ -352,6 +352,12 @@ export async function storeSupplierDocumentPdf(
   return call("store_supplier_document_pdf", { bytes: Array.from(bytes), expectedSha256 });
 }
 
+/** The offline reader's (MinerU) output for a stored PDF, located by content hash; null when there is none. */
+export async function readSupplierDocumentReaderOutput(sha256: string): Promise<string | null> {
+  if (!/^[a-f0-9]{64}$/i.test(sha256)) throw new Error("Supplier document hash is invalid.");
+  return call<string | null>("read_supplier_document_reader_output", { sha256 });
+}
+
 /** Open an acquired source PDF through the native hash-verified project boundary. */
 export async function openSupplierDocumentPdf(sha256: string): Promise<void> {
   if (!/^[a-f0-9]{64}$/i.test(sha256)) throw new Error("Supplier document hash is invalid.");
