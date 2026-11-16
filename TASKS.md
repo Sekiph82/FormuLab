@@ -15,14 +15,14 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
 - Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
-- Blockers/Waits: Q-REF-01.004-1 (owner-run folder import; REF-01.007 review run, REF-01.012 document run and REF-01.010 end-to-end acceptance wait on it), Q-REF-01.009-1
+- Blockers/Waits: none (handbook import running in the app)
 
 ## Progress
 
-- Total Tasks: 213
-- Completed Tasks: 207
-- Remaining Tasks: 6
-- Completion: 97.2%
+- Total Tasks: 214
+- Completed Tasks: 212
+- Remaining Tasks: 2
+- Completion: 99.1%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -63,13 +63,14 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 ## Questions for Şekip
 
 <!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
-- Q-REF-01.004-1 | The folder import is ready in the app, but importing supplier PDFs needs a signed-in person to confirm the internal-research rights, which Claude cannot do for you. Please open FormuLab, sign in, go to Reference Formulations, click "Choose folder", select `C:\Users\sekip\Downloads\Source`, tick the rights confirmation, then run "Import formulation PDFs" and, after it finishes, "Store raw-material documents". Reply "done" when it has finished; Claude then measures coverage. | TASK: REF-01.004
-- Q-REF-01.009-1 | An older data folder, `Desktop\FormuLab\data\master`, holds 44 collections (laboratory trials, regulatory dossiers, DOE studies, label reviews, 2 materials) that the app has not shown since August, because it now uses `Desktop\FormuLab\data\data\master`. Should Claude merge those records into the active folder (no overwrites; conflicts listed for you), or leave them archived? | TASK: REF-01.009
 
 
 ## Owner Decisions
 
 <!-- Append processed dashboard answers here with their Q-ID and affected task before doing dependent work. -->
+- D-REF-01-5 | REF-01.011 | Owner (2026-11-16): test every other page with synthetic documents and data, keep them removable, report results; fix every error found and report error and fix. Applied as: synthetic records carry the SYN-TEST marker; `python scripts/dev/synthetic_test_data.py delete --apply` removes only new SYN-TEST records and files (snapshot taken before testing); night report `reports/gece-raporu-2026-11-16.md`.
+- D-REF-01-4 | REF-01.015 | Owner (2026-11-16): "tum bu pdfleri kullanabilirsin. bunlar benim daha once gercek dunyada satin aldigim kitaplarin dijitallestirilmis halleri" Applied as: handbook formulas are split into one citable PDF per formula (book, SHA-256, page) by `scripts/dev/book_formulas.py`, imported from a "Handbook <title>" folder, and used by guidance only for families no supplier field formula covers (handbookOnly on the card). Pharmaceutical handbooks (Niazi, Gibson) are deferred: mg/tablet units, outside the cosmetics/home-care domain.
+- D-REF-01-3 | REF-01.004, REF-01.007, REF-01.012 | Owner (2026-11-15/16): "benden onay beklemesin uygulama. o formuller gercek saha formulleri. onlarin hepsini kullanilacak hale getirecek olan sensin" and "sen tum bu urun ve formul verilerini sisteme kaydet". Applied as: Claude runs the folder imports in the app on the owner's behalf with the rights confirmation the owner gave; Claude-attributed advisory reviews make supplier formulas eligible without waiting for a person (a human decision still overrides); SDS/TDS facts stay unreviewed candidates; documents whose publisher forbids text copying are not read. Q-REF-01.004-1 resolved by this; Q-REF-01.009-1 is moot — the app's active root is `Desktop\FormuLab` (`data/master`), which already holds those collections.
 - D-REF-01-2 | REF-01.014 | Owner (2026-11-15): "bu source dosyalarinin icinde yeralan formullerin hepsi sahada uygulanan gercek formuller. openalex icinde yaparak bulmaya calistigimiz formullerin hepsi aslinda burada var. o yuzden bence asil onceligimiz \"C:\Users\sekip\Downloads\Source\" klasorundeki formulasyonlar olmali. esas kaynak bu, openalex aramalari destek olarak kullanilmali." Applied as: reviewed supplier formulations drive architecture, ingredient selection and dosage ranges first; OpenAlex/literature evidence supports, explains or fills gaps. Supplier formulas stay reference evidence, not laboratory-measured validation, and Safety/Regulatory/compatibility hard gates still outrank them.
 - D-REF-01-1 | REF-01.007, REF-01.013 | Owner (2026-11-15): "insan tarafindan inceleme kismini sen yap. tum formul pdflerinden sadece formulleri cikarip bu uygulamada kullanabilecegimiz bir formata cevirmeliyiz. urun ailesi okuma isini cozmeliyiz. aktif malzeme listesini de bu formullerden cikarmaliyiz tek tek" Applied as: Claude reviews reference-formulation families and lines and records each decision as an AI review attributed to Claude, never to the owner or another human; AI-reviewed reference formulas feed only advisory reference priors and are labeled as such on cards; a human decision always overrides; regulated, safety and approval gates keep requiring a named human; materials derived from formulas enter Material Master as unverified candidates. Undownloadable supplier documents (Seppic professional access, Dow sign-in) are out of scope.
 - Q-FVL-11.005-1 | FVL-11.005 | Switch to the new formulation UI as the v1 default. Do not keep both UIs as a permanent user-selectable choice. Retain the existing/legacy UI only as a temporary compatibility bridge or redirect for historical deep links and workflows that are not yet fully mapped. After FVL-11 acceptance confirms feature parity and historical-project access, the new workspace-based UI should be the single default v1 experience. Do not delete historical data, audit evidence, or compatibility routes merely to simplify the UI.
@@ -396,16 +397,17 @@ Owner request (2026-11-15, extended same day to all raw-material documents and e
 - [x] REF-01.001 — Extract ingredient tables from Dow, Croda, Evonik, Clariant and Seppic formulation PDFs, proven on real PDF fixtures
 - [x] REF-01.002 — Import structured supplier sources (Seppic JSON/CSV indexes) as evidence-backed reference records
 - [x] REF-01.003 — Shared product-family taxonomy and review-required family candidates from verified source categories
-- [!] REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
+- [x] REF-01.004 — Folder import of Downloads Source: re-parse the 2,430 known formula PDFs by hash, add the 113 new ones, and report coverage
 - [x] REF-01.005 — Persist automatic normalization with canonical-chemistry candidates for every imported line
 - [x] REF-01.006 — Canonical-chemistry review items in the reference review screen
-- [!] REF-01.007 — Claude-attributed AI review of every extracted family and line, advisory-only, with human override
+- [x] REF-01.007 — Claude-attributed AI review of every extracted family and line, advisory-only, with human override
 - [x] REF-01.008 — Taxonomy-based product-family matching in the prior adapter and generation context
-- [!] REF-01.009 — Link reviewed canonical chemistry to Material Master materials in the active data root
-- [!] REF-01.010 — End-to-end acceptance: real supplier PDFs reach a New Request with eligibleFormulaCount above zero
-- [!] REF-01.012 — Import the 1,704 unique raw-material documents (SDS, TDS, specifications, GHS, regulatory, brochures) with SDS extraction and product-card links
+- [x] REF-01.009 — Link reviewed canonical chemistry to Material Master materials in the active data root
+- [x] REF-01.010 — End-to-end acceptance: real supplier PDFs reach a New Request with eligibleFormulaCount above zero
+- [x] REF-01.012 — Import the 1,704 unique raw-material documents (SDS, TDS, specifications, GHS, regulatory, brochures) with SDS extraction and product-card links
 - [x] REF-01.013 — Unverified Material Master candidates built one by one from every extracted formula line, linked to raw-material documents
 - [x] REF-01.014 — Make the supplier formulation corpus the primary source for formula architecture and dosage; literature search becomes supporting evidence
+- [~] REF-01.015 — Import owner-purchased formulation handbooks (Flick Vol 2: 1,847 formulas) as gap-filling reference formulas
 - [~] REF-01.011 — REF-01 closure: regression, release EXE rebuild and push
 
 ## Historical Detail & Evidence
