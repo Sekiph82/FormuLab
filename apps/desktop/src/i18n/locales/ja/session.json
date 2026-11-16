@@ -402,6 +402,7 @@
       "downloadReport": "Download Report",
       "downloadHtml": "HTMLをダウンロード",
       "downloadPdf": "PDFをダウンロード",
+      "downloadDocx": "Download DOCX",
       "share": "Share"
     },
     "originalRequest": {
@@ -2743,11 +2744,20 @@
     "dataExchangeRecentExports": "{{n}} recent exports"
   },
   "reports": {
+    "modulesHeading": "Module reports",
+    "formulationReports": {
+      "heading": "Formulation reports",
+      "description": "Every saved New Request result, with the same compatibility, safety and regulatory results as its result screen.",
+      "loading": "Loading saved formulations…",
+      "empty": "No saved formulation results yet.",
+      "versions_one": "{{count}} version",
+      "versions_other": "{{count}} versions"
+    },
     "heading": "Reports",
-    "description": "Current reportable information, organized by module. Full PDF/DOCX report generation is a later phase — not available yet.",
+    "description": "Download formulation reports as PDF, DOCX or HTML, and open each module's own report views.",
     "openAction": "Open",
     "notYetImplemented": "Not yet implemented",
-    "futureExportNote": "A dedicated report-generation engine (PDF/DOCX, formatted for print) is planned for a later phase. Today, each module below provides its own JSON/CSV/Excel export where noted.",
+    "futureExportNote": "Each module below also provides its own JSON/CSV/Excel export where noted.",
     "formula": {
       "title": "Formula reports",
       "description": "Per-version JSON export, from the Formulation workspace's Versions tab."
@@ -3610,6 +3620,7 @@
     "supplierFilter": "Supplier",
     "allSuppliers": "All suppliers",
     "showingRecords": "Showing {{filtered}} of {{total}} source records",
+    "recordListLabel": "参照処方",
     "refreshCorpus": "Refresh corpus",
     "empty": "No extracted reference formulations are available yet.",
     "noMatches": "No source records match these filters. Search uses source and candidate text; it does not imply a validated product or chemical identity.",

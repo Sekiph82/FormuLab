@@ -105,6 +105,9 @@ describe("reference formulation evidence review page", () => {
     await user.clear(search);
     await user.selectOptions(screen.getByLabelText("Supplier"), "croda");
     expect(screen.getByText("Showing 1 of 1 source records")).toBeInTheDocument();
+    const viewer = screen.getByRole("list", { name: "Reference formulations" });
+    expect(viewer).toHaveClass("overflow-y-auto");
+    expect(viewer.children).toHaveLength(1);
     await user.clear(search);
     await user.type(search, "no-such-source-term");
     expect(screen.getByText(/No source records match these filters/)).toBeInTheDocument();

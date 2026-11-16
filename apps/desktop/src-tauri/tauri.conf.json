@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "FormuLab",
-        "width": 1440,
-        "height": 900,
+        "width": 1280,
+        "height": 760,
         "minWidth": 1000,
         "minHeight": 640,
         "titleBarStyle": "Overlay",
@@ -23,7 +23,9 @@
         "trafficLightPosition": {
           "x": 13,
           "y": 22
-        }
+        },
+        "center": true,
+        "maximized": true
       }
     ],
     "security": {

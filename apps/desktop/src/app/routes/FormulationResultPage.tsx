@@ -630,6 +630,12 @@ function TopBar({
               >
                 {t("formulationResult.actions.downloadPdf")}
               </DropdownMenu.Item>
+              <DropdownMenu.Item
+                onSelect={() => void downloadFormulationReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion, compatibilityByVersion, REPORT_FORMAT_DOCX)}
+                className="cursor-pointer rounded-input px-3 py-2 text-xs text-text outline-none hover:bg-surface-2 focus:bg-surface-2"
+              >
+                {t("formulationResult.actions.downloadDocx")}
+              </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
@@ -1478,6 +1484,7 @@ function IngredientEvidencePanel({
 const CLASS_RANK: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
 const REPORT_FORMAT_HTML = "html";
 const REPORT_FORMAT_PDF = "pdf";
+const REPORT_FORMAT_DOCX = "docx";
 
 /** Phase 14 Session 4 §11 — a compact origin/support badge, so an
  *  evidence-free AI-selected ingredient no longer looks identical to an

@@ -402,6 +402,7 @@
       "downloadReport": "Download Report",
       "downloadHtml": "HTML indir",
       "downloadPdf": "PDF indir",
+      "downloadDocx": "DOCX indir",
       "share": "Share"
     },
     "originalRequest": {
@@ -2743,11 +2744,20 @@
     "dataExchangeRecentExports": "{{n}} son dışa aktarma"
   },
   "reports": {
+    "modulesHeading": "Modül raporları",
+    "formulationReports": {
+      "heading": "Formül raporları",
+      "description": "Kayıtlı her New Request sonucu; sonuç ekranındakiyle aynı uyumluluk, güvenlik ve regülasyon değerlendirmeleriyle.",
+      "loading": "Kayıtlı formüller yükleniyor…",
+      "empty": "Henüz kayıtlı formül sonucu yok.",
+      "versions_one": "{{count}} sürüm",
+      "versions_other": "{{count}} sürüm"
+    },
     "heading": "Raporlar",
-    "description": "Modüle göre düzenlenmiş, mevcut raporlanabilir bilgiler. Tam PDF/DOCX rapor üretimi sonraki bir aşamadır — henüz kullanılamaz.",
+    "description": "Formül raporlarını PDF, DOCX veya HTML olarak indirin; her modülün kendi rapor görünümlerini açın.",
     "openAction": "Aç",
     "notYetImplemented": "Henüz uygulanmadı",
-    "futureExportNote": "Sonraki bir aşama için özel bir rapor üretim motoru (baskıya uygun PDF/DOCX) planlanmaktadır. Bugün, aşağıdaki her modül belirtildiği yerde kendi JSON/CSV/Excel dışa aktarımını sağlar.",
+    "futureExportNote": "Aşağıdaki modüller, belirtilen yerlerde kendi JSON/CSV/Excel çıktılarını da sunar.",
     "formula": {
       "title": "Formül raporları",
       "description": "Formülasyon çalışma alanının Sürümler sekmesinden, sürüm başına JSON dışa aktarımı."
@@ -3610,6 +3620,7 @@
     "supplierFilter": "Tedarikçi",
     "allSuppliers": "Tüm tedarikçiler",
     "showingRecords": "{{total}} kaynak kaydının {{filtered}} tanesi gösteriliyor",
+    "recordListLabel": "Referans formülasyonlar",
     "refreshCorpus": "Korpusu yenile",
     "empty": "Henüz çıkarılmış referans formülü yok.",
     "noMatches": "Bu filtrelerle eşleşen kaynak kaydı yok. Arama kaynak ve aday metinlerini kullanır; ürün veya kimya kimliğinin doğrulandığı anlamına gelmez.",

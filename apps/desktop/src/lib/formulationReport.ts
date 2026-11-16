@@ -7,6 +7,7 @@
 import type { FormulationCard, LiteratureDocument, ScientificFormulationRecord, SessionDetail } from "./formulationV2";
 import { saveBinaryWithFeedback, saveTextWithFeedback } from "./download";
 import { renderFormulationReportPdf } from "./formulationReportPdf";
+import { renderFormulationReportDocx } from "./formulationReportDocx";
 import { asGeneratedFormula } from "./generatedFormula";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
@@ -224,7 +225,7 @@ export async function downloadFormulationReport(
   safetyByVersion: Record<string, GeneratedFormulaSafety | undefined> = {},
   regulatoryByVersion: Record<string, GeneratedFormulaRegulatory | undefined> = {},
   compatibilityByVersion: Record<string, GeneratedFormulaCompatibility | undefined> = {},
-  format: "html" | "pdf" = "html",
+  format: "html" | "pdf" | "docx" = "html",
 ): Promise<void> {
   const html = buildReportHtml(session, sessionId, safetyByVersion, regulatoryByVersion, compatibilityByVersion);
   const safeSessionId = Array.from(sessionId, (character) => {
@@ -234,6 +235,11 @@ export async function downloadFormulationReport(
   if (format === "pdf") {
     const bytes = await renderFormulationReportPdf(html, sessionId);
     await saveBinaryWithFeedback(`${safeSessionId}-formulation-report.pdf`, bytes, "application/pdf");
+    return;
+  }
+  if (format === "docx") {
+    const bytes = await renderFormulationReportDocx(html, sessionId);
+    await saveBinaryWithFeedback(`${safeSessionId}-formulation-report.docx`, bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     return;
   }
   await saveTextWithFeedback(`${safeSessionId}-formulation-report.html`, html, "text/html;charset=utf-8");
